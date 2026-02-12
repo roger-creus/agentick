@@ -1,0 +1,26 @@
+agent_name: "GPT-4o-Text-v1"
+author: "OpenAI"
+description: "GPT-4o with text observation mode (zero-shot)"
+url: "https://openai.com/gpt-4"
+tags: ["llm", "api", "zero-shot"]
+license: "proprietary"
+open_weights: false
+
+agent_type: "api"
+observation_mode: "language"
+
+config:
+  provider: "openai"
+  model: "gpt-4o"
+  api_key_env: "OPENAI_API_KEY"
+  max_tokens: 100
+  temperature: 0.0
+
+suites:
+  - "agentick-quick-v1"
+  # - "agentick-full-v1"  # Uncomment when ready
+
+hardware: "API"
+estimated_cost: "$10-50 for full suite"
+training_data: "None (zero-shot)"
+training_compute: "N/A"

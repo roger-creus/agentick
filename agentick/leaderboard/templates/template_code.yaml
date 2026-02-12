@@ -1,0 +1,28 @@
+# Code Agent Submission Template
+# For custom Python agents
+
+agent_name: "CustomAgent-v1"
+author: "Your Name"
+description: "Custom agent implementing AgentProtocol"
+url: null
+tags:
+  - custom
+  - python
+license: "MIT"
+open_weights: true
+
+agent_type: "code"
+observation_mode: "state_dict"
+
+config:
+  script_path: "agents/my_agent.py"  # Path to Python file
+  class_name: "MyAgent"  # Class name to instantiate
+  # Any additional kwargs for the agent constructor can be added here
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "CPU"
+estimated_cost: "Free"
+training_data: "None"
+training_compute: "N/A"

@@ -1,0 +1,32 @@
+# HuggingFace Agent Submission Template
+# For models hosted on HuggingFace Hub
+
+agent_name: "Llama-3-8B-Agent-v1"
+author: "Your Name"
+description: "Llama 3 8B fine-tuned on Agentick tasks"
+url: null
+tags:
+  - llm
+  - fine-tuned
+  - text
+license: "llama3"
+open_weights: true
+
+agent_type: "huggingface"
+observation_mode: "language"
+
+config:
+  model_id: "meta-llama/Llama-3-8B"
+  device: "auto"  # auto, cuda, cpu
+  dtype: "float16"  # float16, bfloat16, float32
+  quantization: null  # 4bit, 8bit, or null
+  max_new_tokens: 50
+  temperature: 0.0
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "1x A100 40GB"
+estimated_cost: "Free (local inference)"
+training_data: "Base model (no fine-tuning)"
+training_compute: "N/A"
