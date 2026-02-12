@@ -1,0 +1,72 @@
+site_name: Agentick
+site_description: Universal benchmark for evaluating AI agents
+site_url: https://agentick.ai
+
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting_started/installation.md
+    - Quickstart: getting_started/quickstart.md
+    - First Experiment: getting_started/first_experiment.md
+  - Concepts:
+    - Architecture: concepts/architecture.md
+    - Tasks: concepts/tasks.md
+    - Observations: concepts/observations.md
+    - Rewards: concepts/rewards.md
+    - Scoring: concepts/scoring.md
+    - World Model: concepts/worldmodel.md
+  - Agents:
+    - RL Agents: agents/rl_agents.md
+    - LLM Agents: agents/llm_agents.md
+    - VLM Agents: agents/vlm_agents.md
+    - Human Agents: agents/human_agents.md
+    - Custom Agents: agents/custom_agents.md
+    - Fine-tuning: agents/finetuning.md
+  - Experiments:
+    - Running: experiments/running.md
+    - Analysis: experiments/analysis.md
+    - Visualization: experiments/visualization.md
+    - Reproducibility: experiments/reproducibility.md
+  - Extending:
+    - Custom Tasks: extending/custom_tasks.md
+    - Custom Rewards: extending/custom_rewards.md
+    - Custom Renderers: extending/custom_renderers.md
+  - Leaderboard:
+    - Overview: leaderboard/overview.md
+    - Submitting: leaderboard/submitting.md
+    - Suites: leaderboard/suites.md
+    - Adapters: leaderboard/adapters.md
+  - Reference:
+    - CLI Reference: cli.md
+    - Changelog: changelog.md
+  - API Reference: api/index.md
+  - FAQ: faq.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - toc:
+      permalink: true

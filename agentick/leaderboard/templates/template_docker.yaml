@@ -1,0 +1,29 @@
+# Docker Agent Submission Template
+# For agents packaged as Docker containers
+
+agent_name: "DockerAgent-v1"
+author: "Your Name"
+description: "Agent running in Docker container with HTTP API"
+url: null
+tags:
+  - docker
+  - api
+license: "MIT"
+open_weights: false
+
+agent_type: "docker"
+observation_mode: "rgb_array"
+
+config:
+  image: "myagent:latest"  # Docker image name
+  port: 8080  # Port to expose
+  endpoint: "/predict"  # Prediction endpoint
+  health_check_endpoint: "/health"  # Optional health check endpoint
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "Depends on container"
+estimated_cost: "Depends on container"
+training_data: "Unknown"
+training_compute: "Unknown"

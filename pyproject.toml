@@ -1,0 +1,86 @@
+[project]
+name = "agentick"
+version = "0.1.0"
+description = "Universal benchmark for evaluating generally capable AI agents across all paradigms"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "Agentick Team"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "gymnasium>=1.0",
+    "numpy>=1.24",
+    "pygame>=2.5",
+    "Pillow>=10.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+    "scipy>=1.17.0",
+]
+
+[project.optional-dependencies]
+rl = ["torch>=2.0", "wandb", "gymnasium[classic-control]"]
+llm = ["openai", "anthropic", "google-genai", "tinker"]
+local-llm = ["transformers", "torch>=2.0", "vllm"]
+train-llm = ["tinker", "trl", "accelerate", "peft", "torch>=2.0"]
+webapp = ["flask>=3.0"]
+all = ["agentick[rl,llm,local-llm,train-llm,webapp]"]
+viz = [
+    "imageio-ffmpeg>=0.6.0",
+    "matplotlib>=3.10.8",
+    "plotly>=6.5.2",
+    "seaborn>=0.13.2",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.1",
+    "mkdocstrings[python]>=1.0.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+timeout = 60
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-timeout>=2.2",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pre-commit>=3.0",
+]
