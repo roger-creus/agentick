@@ -32,7 +32,7 @@ We are committed to providing a welcoming and inclusive environment. Please trea
 
    # Install dependencies
    uv sync
-   uv pip install -e ".[all]"
+   uv sync --extra all
    ```
 
 3. **Make your changes** following our coding standards:

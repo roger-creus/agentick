@@ -1,6 +1,6 @@
 # Tasks
 
-Agentick provides 41 carefully designed tasks testing diverse agent capabilities from basic navigation to advanced reasoning and multi-agent coordination. All tasks support difficulty scaling and multiple observation modes.
+Agentick provides 38 carefully designed tasks testing diverse agent capabilities from basic navigation to advanced reasoning and multi-agent coordination. All tasks support difficulty scaling and multiple observation modes.
 
 ## Quick Start: Creating an Environment
 
@@ -24,7 +24,7 @@ for step in range(100):
         break
 ```
 
-## All Tasks by Category (41 Total)
+## All Tasks by Category (38 Total)
 
 ### Navigation (5 tasks)
 
@@ -558,60 +558,6 @@ Synthesize a program/sequence to solve task.
 
 ---
 
-### World Model (3 tasks)
-
-These tasks test building and using world models.
-
-#### 31. PhysicsDiscovery-v0
-Discover physics rules (e.g., gravity, friction).
-
-**Capabilities**: world_model, exploration, physics
-**Description**: Experiment to discover how objects behave.
-**Difficulty Scaling**:
-- Easy: 1 physics rule, obvious effects, max_steps=200
-- Medium: 2 rules, subtle effects, max_steps=300
-- Hard: 3 rules, complex interactions, max_steps=400
-- Expert: 4+ rules, counter-intuitive, max_steps=500
-
-**Success Criterion**: Demonstrate understanding of physics rules
-**Optimal Baseline**: Systematic experimentation
-**Random Baseline**: Random exploration
-**Optimal/Random Returns**: 1.0 / 0.2
-
-#### 32. EnvironmentShift-v0
-Detect and adapt to sudden environment changes.
-
-**Capabilities**: world_model, adaptation, change_detection
-**Description**: Environment changes mid-episode; agent must detect and adapt.
-**Difficulty Scaling**:
-- Easy: 1 obvious change mid-episode, max_steps=200
-- Medium: 2 subtle changes, max_steps=300
-- Hard: 3 changes with delay, max_steps=400
-- Expert: 4+ changes, hard to detect, max_steps=500
-
-**Success Criterion**: Adapt to changes and still reach goal
-**Optimal Baseline**: Detect change, update model, adapt
-**Random Baseline**: No adaptation
-**Optimal/Random Returns**: 1.0 / 0.3
-
-#### 33. RuleDiscoveryNavigation-v0
-Discover navigation rules (one-way passages, etc).
-
-**Capabilities**: world_model, spatial_reasoning
-**Description**: Navigate with hidden rules (some passages one-way).
-**Difficulty Scaling**:
-- Easy: 1 one-way passage, clear goal, max_steps=150
-- Medium: 2-3 one-way passages, max_steps=250
-- Hard: 4-5 one-way passages, complex layout, max_steps=350
-- Expert: 6+ one-way passages, hard to discover, max_steps=500
-
-**Success Criterion**: Discover rules and reach goal
-**Optimal Baseline**: Systematic exploration to discover rules
-**Random Baseline**: Random navigation
-**Optimal/Random Returns**: 1.0 / 0.1
-
----
-
 ### Adversarial (3 tasks)
 
 These tasks test robustness to adversarial conditions.
@@ -814,7 +760,6 @@ Resist immediate reward for larger delayed reward.
 | **Control** | PreciseNavigation, ChaseEvade, TimingChallenge, Herding |
 | **Skills** | MultiRoomEscape, ResourceManagement, ToolUse, RecipeAssembly |
 | **Composition** | RecursiveRooms, InstructionFollowing, ProgramSynthesis |
-| **World Model** | PhysicsDiscovery, EnvironmentShift, RuleDiscoveryNavigation |
 | **Robustness** | DeceptiveReward, NoisyObservation, DistributionShift |
 | **Multi-Agent** | CooperativeTransport, CompetitiveTag |
 | **Meta-Learning** | TaskInterference, FewShotAdaptation |

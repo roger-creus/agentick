@@ -35,9 +35,9 @@ def test_different_seeds_different_instances(task_name, seed1, seed2):
         )
 
         # Allow some tasks to have deterministic layouts but different start positions
-        assert (
-            agent_pos_different or grid_different
-        ), f"Seeds {seed1} and {seed2} produced identical instances"
+        assert agent_pos_different or grid_different, (
+            f"Seeds {seed1} and {seed2} produced identical instances"
+        )
     finally:
         env.close()
 

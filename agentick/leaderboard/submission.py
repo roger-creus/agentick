@@ -31,7 +31,7 @@ class SubmissionSpec(BaseModel):
 
     # === Agent Type ===
     agent_type: Literal[
-        "api",  # Cloud API (OpenAI, Anthropic, Gemini, custom)
+        "api",  # Cloud API (OpenAI, Anthropic, custom)
         "huggingface",  # HuggingFace model ID
         "local_weights",  # Local .pt / safetensors path
         "code",  # Python file implementing AgentProtocol

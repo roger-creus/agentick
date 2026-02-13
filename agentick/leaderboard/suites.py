@@ -38,12 +38,9 @@ CORE_TASKS = [
     "TileSorting-v0",
 ]
 
-# All 38 tasks for full benchmark (core + key Phase 2/3 tasks)
+# All 35 tasks for full benchmark (core + key Phase 2/3 tasks)
 FULL_TASKS = CORE_TASKS + [
     "PackingPuzzle-v0",
-    "EnvironmentShift-v0",
-    "PhysicsDiscovery-v0",
-    "RuleDiscoveryNavigation-v0",
     "DeceptiveReward-v0",
     "DistributionShift-v0",
     "NoisyObservation-v0",
@@ -100,12 +97,6 @@ COMBINATORIAL_TASKS = [
     "PackingPuzzle-v0",
 ]
 
-WORLDMODEL_TASKS = [
-    "EnvironmentShift-v0",
-    "PhysicsDiscovery-v0",
-    "RuleDiscoveryNavigation-v0",
-]
-
 ADVERSARIAL_TASKS = [
     "DeceptiveReward-v0",
     "DistributionShift-v0",
@@ -156,7 +147,6 @@ MULTIMODAL_TASKS = [
     "RecipeAssembly-v0",
     "ChaseEvade-v0",
     "LightsOut-v0",
-    "EnvironmentShift-v0",
 ]
 
 
@@ -241,7 +231,7 @@ def generate_deterministic_seeds(suite_name: str, n_seeds: int) -> tuple[int, ..
 AGENTICK_FULL_V1 = BenchmarkSuite(
     name="agentick-full-v1",
     display_name="Agentick Full Benchmark v1.0",
-    description="Complete benchmark with all 38 official tasks - the canonical score",
+    description="Complete benchmark with all 35 official tasks - the canonical score",
     tasks=tuple(FULL_TASKS),
     difficulty="medium",
     eval_seeds=generate_deterministic_seeds("agentick-full-v1", 50),
@@ -342,19 +332,6 @@ AGENTICK_COMBINATORIAL_V1 = BenchmarkSuite(
     version="1.0",
 )
 
-AGENTICK_WORLDMODEL_V1 = BenchmarkSuite(
-    name="agentick-worldmodel-v1",
-    display_name="World Model Suite v1.0",
-    description="World model capability",
-    tasks=tuple(WORLDMODEL_TASKS),
-    difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-worldmodel-v1", 30),
-    episodes_per_seed=1,
-    max_steps_override=None,
-    scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
-    version="1.0",
-)
-
 AGENTICK_ADVERSARIAL_V1 = BenchmarkSuite(
     name="agentick-adversarial-v1",
     display_name="Adversarial Robustness Suite v1.0",
@@ -443,14 +420,13 @@ OFFICIAL_SUITES: dict[str, BenchmarkSuite] = {
     "agentick-skill-v1": AGENTICK_SKILL_V1,
     "agentick-control-v1": AGENTICK_CONTROL_V1,
     "agentick-combinatorial-v1": AGENTICK_COMBINATORIAL_V1,
-    "agentick-worldmodel-v1": AGENTICK_WORLDMODEL_V1,
     "agentick-adversarial-v1": AGENTICK_ADVERSARIAL_V1,
     "agentick-meta-v1": AGENTICK_META_V1,
     "agentick-multiagent-v1": AGENTICK_MULTIAGENT_V1,
     "agentick-quick-v1": AGENTICK_QUICK_V1,
     "agentick-difficulty-v1": AGENTICK_DIFFICULTY_V1,
     "agentick-multimodal-v1": AGENTICK_MULTIMODAL_V1,
-    # Note: 16 suites total (15 + reserved slot for future)
+    # Note: 14 suites total
 }
 
 

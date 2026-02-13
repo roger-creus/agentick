@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 
-import agentick
+from agentick.wrappers import make_atari_env
 
 
 def strtobool(val):
@@ -58,7 +58,7 @@ def parse_args():
 
 def make_env(task_id, difficulty, seed, idx):
     def thunk():
-        env = agentick.make(task_id, difficulty=difficulty, render_mode="rgb_array")
+        env = make_atari_env(task_id, difficulty=difficulty, render_mode="rgb_array")
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env.action_space.seed(seed + idx)
         env.observation_space.seed(seed + idx)

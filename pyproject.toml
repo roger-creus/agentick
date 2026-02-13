@@ -27,25 +27,66 @@ dependencies = [
     "pydantic>=2.0",
     "rich>=13.0",
     "scipy>=1.17.0",
+    "python-dotenv>=1.0",
 ]
 
+[project.scripts]
+agentick = "agentick.leaderboard.cli:main"
+
 [project.optional-dependencies]
-rl = ["torch>=2.0", "wandb", "gymnasium[classic-control]"]
-llm = ["openai", "anthropic", "google-genai", "tinker"]
-local-llm = ["transformers", "torch>=2.0", "vllm"]
-train-llm = ["tinker", "trl", "accelerate", "peft", "torch>=2.0"]
-webapp = ["flask>=3.0"]
-all = ["agentick[rl,llm,local-llm,train-llm,webapp]"]
-viz = [
-    "imageio-ffmpeg>=0.6.0",
-    "matplotlib>=3.10.8",
-    "plotly>=6.5.2",
-    "seaborn>=0.13.2",
+# Core RL training
+rl = [
+    "stable-baselines3>=2.0",
+    "tensorboard",
+    "moviepy",
+    "torch>=2.0",
+    "imageio[ffmpeg]",
 ]
+# LLM/VLM agents
+llm = [
+    "openai>=1.0",
+    "anthropic>=0.30",
+    "transformers>=4.40",
+    "torch>=2.0",
+    "accelerate",
+    "Pillow",
+]
+# Experiment tracking
+tracking = [
+    "wandb",
+]
+# Visualization & plotting
+viz = [
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
+    "plotly>=6.5.2",
+    "imageio-ffmpeg>=0.6.0",
+]
+# Documentation
 docs = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.1",
     "mkdocstrings[python]>=1.0.3",
+]
+# Leaderboard
+leaderboard = [
+    "jinja2",
+    "docker",
+]
+# Fine-tuning
+finetune = [
+    "trl>=0.8",
+    "datasets",
+    "peft",
+]
+# Jupyter notebooks
+notebooks = [
+    "jupyter",
+    "ipywidgets",
+]
+# Everything
+all = [
+    "agentick[rl,llm,tracking,viz,docs,leaderboard,finetune,notebooks]",
 ]
 
 [build-system]

@@ -68,8 +68,7 @@ class CodeAgent:
         if not hasattr(module, self.class_name):
             available = [name for name in dir(module) if not name.startswith("_")]
             raise AttributeError(
-                f"Class '{self.class_name}' not found in {self.script_path}. "
-                f"Available: {available}"
+                f"Class '{self.class_name}' not found in {self.script_path}. Available: {available}"
             )
 
         agent_class = getattr(module, self.class_name)

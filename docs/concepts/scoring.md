@@ -246,11 +246,6 @@ TASK_CAPABILITY_MAP = {
     "TileSorting-v0": "combinatorial",
     "PackingPuzzle-v0": "combinatorial",
 
-    # World Model (3 tasks)
-    "EnvironmentShift-v0": "worldmodel",
-    "PhysicsDiscovery-v0": "worldmodel",
-    "RuleDiscoveryNavigation-v0": "worldmodel",
-
     # Adversarial (3 tasks)
     "DeceptiveReward-v0": "adversarial",
     "DistributionShift-v0": "adversarial",
@@ -326,7 +321,6 @@ Per-Capability Breakdown:
   control: 0.718 ± 0.055
   skill: 0.644 ± 0.058
   combinatorial: 0.528 ± 0.081
-  worldmodel: 0.623 ± 0.067
   adversarial: 0.385 ± 0.095
   meta: 0.412 ± 0.108
   multiagent: 0.506 ± 0.092
@@ -420,7 +414,6 @@ Reasoning: 0.48      ★★☆☆☆  Struggles with abstract reasoning
 Control: 0.72        ★★★★☆  Good low-level control
 Skill: 0.64          ★★★☆☆  Can compose behaviors
 Combinatorial: 0.53  ★★★☆☆  Basic constraint satisfaction
-World Model: 0.62    ★★★☆☆  Understands some dynamics
 Adversarial: 0.39    ★★☆☆☆  Vulnerable to distribution shift
 Meta: 0.41           ★★☆☆☆  Limited few-shot adaptation
 Multi-Agent: 0.51    ★★★☆☆  Some cooperation ability
@@ -559,4 +552,4 @@ print(f"Memory: {len(mem_tasks)} tasks")
 print(f"Average: {sum(len(ts) for ts in task_groups) / len(task_groups):.1f} tasks/capability")
 ```
 
-See [Rewards](rewards.md) for how task rewards relate to scores, and [World Model](worldmodel.md) for specialized evaluation.
+See [Rewards](rewards.md) for how task rewards relate to scores.

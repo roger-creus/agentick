@@ -288,8 +288,8 @@ def _generate_summary_stats(results_dict: dict[str, Any]) -> str:
         cards.append(
             f"""
             <div class="stat-card">
-                <div class="stat-label">{stat['label']}</div>
-                <div class="stat-value">{stat['value']}</div>
+                <div class="stat-label">{stat["label"]}</div>
+                <div class="stat-value">{stat["value"]}</div>
             </div>
         """
         )

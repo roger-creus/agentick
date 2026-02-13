@@ -47,7 +47,7 @@ class LocalWeightsAgent:
         try:
             import torch
         except ImportError:
-            raise ImportError("PyTorch not installed. Install with: pip install torch")
+            raise ImportError("PyTorch not installed. Install with: uv sync --extra llm")
 
         if not self.weights_path.exists():
             raise FileNotFoundError(f"Weights file not found: {self.weights_path}")

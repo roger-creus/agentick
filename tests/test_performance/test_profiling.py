@@ -94,9 +94,11 @@ def benchmark_component_overhead():
     with_render_time = time.perf_counter() - start
 
     print("\n=== Component Overhead Analysis ===")
-    print(f"Baseline step time: {baseline_time/n_iterations*1000:.3f} ms/step")
-    print(f"With render: {with_render_time/n_iterations*1000:.3f} ms/step")
-    print(f"Render overhead: {(with_render_time-baseline_time)/n_iterations*1000:.3f} ms/step")
+    print(f"Baseline step time: {baseline_time / n_iterations * 1000:.3f} ms/step")
+    print(f"With render: {with_render_time / n_iterations * 1000:.3f} ms/step")
+    print(
+        f"Render overhead: {(with_render_time - baseline_time) / n_iterations * 1000:.3f} ms/step"
+    )
 
     env.close()
 

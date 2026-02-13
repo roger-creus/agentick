@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-import agentick
+from agentick.wrappers import make_atari_env
 
 
 def parse_args():
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Create env
-    env = agentick.make(args.task, difficulty=args.difficulty, render_mode="rgb_array")
+    env = make_atari_env(args.task, difficulty=args.difficulty, render_mode="rgb_array")
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env.action_space.seed(args.seed)
 

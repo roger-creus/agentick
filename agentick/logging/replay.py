@@ -18,7 +18,7 @@ def replay_episode(log_file: str | Path, speed: float = 1.0) -> None:
         import pygame
     except ImportError:
         raise ImportError(
-            "pygame not installed. Install with: pip install pygame\n"
+            "pygame not installed. Install with: uv sync (pygame is a core dependency)\n"
             "Or use replay_episode_terminal() for ASCII replay."
         )
 

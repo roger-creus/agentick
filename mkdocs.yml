@@ -27,7 +27,6 @@ nav:
     - Observations: concepts/observations.md
     - Rewards: concepts/rewards.md
     - Scoring: concepts/scoring.md
-    - World Model: concepts/worldmodel.md
   - Agents:
     - RL Agents: agents/rl_agents.md
     - LLM Agents: agents/llm_agents.md
