@@ -15,7 +15,6 @@ Complete documentation of all official benchmark suites used for leaderboard eva
 | **Skill** | 5 | 30 | All | ~1 hour | Deep-dive: skill discovery |
 | **Control** | 4 | 30 | All | ~45 min | Deep-dive: control |
 | **Combinatorial** | 4 | 30 | All | ~45 min | Deep-dive: combinatorial |
-| **World Model** | 3 | 30 | All | ~30 min | World model capability |
 | **Adversarial** | 3 | 30 | Medium | ~30 min | Robustness testing |
 | **Meta-Learning** | 2 | 30 | Medium | ~20 min | Meta-learning |
 | **Multi-Agent** | 2 | 30 | Medium | ~20 min | Coordination/competition |
@@ -53,7 +52,7 @@ Complete documentation of all official benchmark suites used for leaderboard eva
 
 **Example**:
 ```bash
-agentick evaluate --submission my_agent.yaml --suite agentick-quick-v1
+uv run agentick evaluate --submission my_agent.yaml --suite agentick-quick-v1
 ```
 
 ---
@@ -112,9 +111,8 @@ Per-Capability:
 
 The complete benchmark with all 38 official tasks.
 
-- **Tasks** (38 total):
+- **Tasks** (35 total):
   - All 27 core tasks (see above)
-  - **World Model (3)**: EnvironmentShift-v0, PhysicsDiscovery-v0, RuleDiscoveryNavigation-v0
   - **Adversarial (3)**: DeceptiveReward-v0, DistributionShift-v0, NoisyObservation-v0
   - **Meta-Learning (2)**: FewShotAdaptation-v0, TaskInterference-v0
   - **Multi-Agent (2)**: CooperativeTransport-v0, CompetitiveTag-v0
@@ -128,8 +126,8 @@ The complete benchmark with all 38 official tasks.
 
 - **Scoring**:
   1. Per-task normalized scores
-  2. Per-capability averages (10 capabilities)
-  3. Overall score = equal average of 10 capability scores
+  2. Per-capability averages (9 capabilities)
+  3. Overall score = equal average of 9 capability scores
 
 - **Time**: 4-8 hours (depending on agent latency)
 
@@ -140,10 +138,9 @@ The complete benchmark with all 38 official tasks.
   4. Skill Discovery
   5. Control
   6. Combinatorial Reasoning
-  7. World Modeling
-  8. Adversarial Robustness
-  9. Meta-Learning
-  10. Multi-Agent Coordination
+  7. Adversarial Robustness
+  8. Meta-Learning
+  9. Multi-Agent Coordination
 
 - **Use When**:
   - Publishing research papers
@@ -162,7 +159,6 @@ Per-Capability:
   skill:           0.65
   control:         0.63
   combinatorial:   0.60
-  worldmodel:      0.58
   adversarial:     0.55
   meta:            0.60
   multiagent:      0.58
@@ -325,30 +321,6 @@ These suites provide deep-dive evaluation into specific agent capabilities.
   - Evaluating state space exploration
   - Comparing constraint solvers
   - Analyzing optimization capabilities
-
----
-
-### World Model (agentick-worldmodel-v1)
-
-**Focus**: Learning environment dynamics
-
-- **Tasks** (3):
-  - EnvironmentShift-v0 - Adapt to environment changes
-  - PhysicsDiscovery-v0 - Discover physics laws
-  - RuleDiscoveryNavigation-v0 - Discover navigation rules
-
-- **Configuration**:
-  - Seeds: 30
-  - Difficulty: Medium
-  - Episodes per seed: 1
-
-- **Time**: ~30 minutes
-
-- **Use When**:
-  - Evaluating world modeling
-  - Testing adaptation to dynamics
-  - Analyzing physics understanding
-  - Comparing model-based approaches
 
 ---
 
@@ -631,7 +603,6 @@ Reasoning:     11 appearances
 Skill:         10 appearances
 Control:       9 appearances
 Combinatorial: 9 appearances
-WorldModel:    3 appearances
 Adversarial:   3 appearances
 Meta:          2 appearances
 MultiAgent:    2 appearances
@@ -639,7 +610,7 @@ MultiAgent:    2 appearances
 
 ## Related Documentation
 
-- [Scoring Methodology](scoring.md) - How tasks are scored
+- [Scoring Methodology](../concepts/scoring.md) - How tasks are scored
 - [Adapters Guide](adapters.md) - How to configure agents
 - [Submission Guide](submitting.md) - How to submit
 

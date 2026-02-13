@@ -10,7 +10,7 @@ All notable changes to Agentick are documented in this file. The project follows
 
 #### Core Features
 
-**40+ Procedurally Generated Tasks**
+**38 Procedurally Generated Tasks**
 - 5 Navigation tasks: GoToGoal, MazeNavigation, MultiGoalRoute, DynamicObstacles, FogOfWar
 - 5 Memory tasks: KeyDoorPuzzle, SequenceMemory, BreadcrumbTrail, DelayedGratification, BacktrackPuzzle
 - 5 Reasoning tasks: SokobanPush, SwitchCircuit, SymbolMatching, CausalChain, RuleInduction
@@ -18,7 +18,6 @@ All notable changes to Agentick are documented in this file. The project follows
 - 4 Control tasks: PreciseNavigation, TimingChallenge, ChaseEvade, Herding
 - 4 Combinatorial tasks: LightsOut, TileSorting, GraphColoring, PackingPuzzle
 - 3 Compositional tasks: InstructionFollowing, ProgramSynthesis, RecursiveRooms
-- 3 World Model tasks: PhysicsDiscovery, EnvironmentShift, RuleDiscoveryNavigation
 - 3 Adversarial tasks: NoisyObservation, DistributionShift, DeceptiveReward
 - 2 Meta-Learning tasks: FewShotAdaptation, TaskInterference
 - 2 Multi-Agent tasks: CooperativeTransport, CompetitiveTag
@@ -73,7 +72,7 @@ All notable changes to Agentick are documented in this file. The project follows
 
 **Gymnasium API Compatibility**
 - Standard reset(), step(), render() interface
-- Compatible with RL libraries (CleanRL, RLlib, Stable Baselines)
+- Compatible with RL libraries (CleanRL, Stable Baselines)
 - Proper action and observation space definitions
 - Metadata and specification support
 
@@ -170,7 +169,7 @@ All notable changes to Agentick are documented in this file. The project follows
 ```
 agentick/
 ├── core/              # Core environment and grid system
-├── tasks/             # Task implementations (40+ tasks)
+├── tasks/             # Task implementations (38 tasks)
 ├── generation/        # Procedural generation utilities
 ├── interfaces/        # Agent interface wrappers
 ├── benchmark/         # Benchmark runner and scoring
@@ -271,22 +270,18 @@ When new versions are released:
 
 ```bash
 # Check current version
-pip show agentick
+uv pip show agentick
 
 # Upgrade to latest
-pip install --upgrade agentick
+uv sync
 
 # Upgrade to specific version
-pip install agentick==0.2.0
+# Edit pyproject.toml and run uv sync
 ```
 
 To pin version in projects:
 
 ```bash
-# In requirements.txt
-agentick==0.1.0
-agentick>=0.1.0,<0.2.0  # Allow patch updates only
-
 # In pyproject.toml
 dependencies = ["agentick>=0.1.0,<0.2.0"]
 ```
@@ -295,7 +290,7 @@ dependencies = ["agentick>=0.1.0,<0.2.0"]
 
 ## Release Timeline
 
-**v0.1.0** (Current) - Initial release with 40+ tasks
+**v0.1.0** (Current) - Initial release with 38 tasks
 - Release date: February 12, 2025
 - Status: Stable
 
@@ -322,7 +317,7 @@ https://github.com/anthropics/agentick/issues
 
 ### Contribute Code
 
-Want to contribute? See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+Want to contribute? See [CONTRIBUTING.md](https://github.com/agentick/agentick/blob/main/CONTRIBUTING.md) for guidelines.
 
 ### Discussions
 
@@ -333,8 +328,8 @@ https://github.com/anthropics/agentick/discussions
 
 ## See Also
 
-- [README.md](../README.md) - Project overview
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
+- [README.md](https://github.com/agentick/agentick/blob/main/README.md) - Project overview
+- [CONTRIBUTING.md](https://github.com/agentick/agentick/blob/main/CONTRIBUTING.md) - Contribution guidelines
 - [LICENSE](../LICENSE) - MIT license
 - [docs/](.) - Full documentation
 

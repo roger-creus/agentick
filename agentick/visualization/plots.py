@@ -555,60 +555,6 @@ def plot_episode_length_distribution(
     return fig
 
 
-def plot_worldmodel_results(
-    results_dict: dict[str, dict[str, float]],
-    output_path: str | None = None,
-    style: str = "paper_double_column",
-    **kwargs: Any,
-) -> Any:
-    """
-    Grouped bar chart of world model evaluation metrics.
-
-    Args:
-        results_dict: Agent name -> {metric_name: value}
-        output_path: Output path
-        style: Plot style
-        **kwargs: Additional arguments
-
-    Returns:
-        Matplotlib figure
-    """
-    set_style(style)
-
-    fig, ax = plt.subplots()
-
-    agents = list(results_dict.keys())
-    metrics = ["prediction_acc", "planning_success", "change_detection_f1", "counterfactual_acc"]
-
-    n_agents = len(agents)
-    n_metrics = len(metrics)
-
-    x = np.arange(n_metrics)
-    width = 0.8 / n_agents
-
-    for i, agent in enumerate(agents):
-        offset = (i - n_agents / 2 + 0.5) * width
-        values = [results_dict[agent].get(m, 0) for m in metrics]
-        color = get_agent_color(agent)
-
-        ax.bar(x + offset, values, width, label=agent, color=color)
-
-    ax.set_xlabel("World Model Metric")
-    ax.set_ylabel("Score")
-    ax.set_xticks(x)
-    ax.set_xticklabels(
-        ["Prediction", "Planning", "Change Detection", "Counterfactual"], rotation=45, ha="right"
-    )
-    ax.legend(loc="best")
-    ax.grid(axis="y", alpha=0.3)
-    ax.set_ylim(0, 1)
-
-    plt.tight_layout()
-
-    if output_path:
-        save_figure(fig, output_path)
-
-    return fig
 
 
 def plot_critical_difference(

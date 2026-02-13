@@ -220,6 +220,50 @@ class TrajectoryCollector:
 
         np.savez_compressed(path, **data)
 
+    def save_json(self, path: str | Path):
+        """
+        Save trajectories to JSON format.
+
+        Args:
+            path: File path (will save as .json)
+        """
+        import json
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Convert observations to serializable format
+        def make_serializable(obj):
+            """Convert numpy arrays and other non-serializable objects to lists."""
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, (np.int64, np.int32, np.int16, np.int8)):
+                return int(obj)
+            elif isinstance(obj, (np.float64, np.float32, np.float16)):
+                return float(obj)
+            elif isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            elif isinstance(obj, tuple):
+                return tuple(make_serializable(item) for item in obj)
+            return obj
+
+        # Convert trajectories to JSON-serializable format
+        trajectories_data = []
+        for traj in self.trajectories:
+            traj_dict = traj.to_dict()
+            traj_dict = make_serializable(traj_dict)
+            trajectories_data.append(traj_dict)
+
+        data = {
+            "trajectories": trajectories_data,
+            "stats": make_serializable(self.get_stats()),
+        }
+
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
     def load(self, path: str | Path):
         """
         Load trajectories from disk.
