@@ -39,23 +39,20 @@ Python 3.11, 3.12, and 3.13. Earlier versions (3.10 and below) are not supported
 Agentick has modular optional dependencies. Try installing without optional dependencies first:
 
 ```bash
-pip install agentick
+uv sync
 ```
 
 If you need specific features, install them separately:
 
 ```bash
 # For RL training with PyTorch
-pip install agentick[rl]
+uv sync --extra rl
 
 # For LLM evaluation
-pip install agentick[llm]
+uv sync --extra llm
 
-# For local LLMs
-pip install agentick[local-llm]
-
-# For visualization
-pip install agentick[viz]
+# For all features
+uv sync --extra all
 ```
 
 If you still have conflicts, use `uv` which has better dependency resolution:
@@ -70,11 +67,8 @@ uv add agentick[rl,llm,viz]
 Yes! The core Agentick library runs on CPU or GPU. For GPU support with optional dependencies:
 
 ```bash
-# Install PyTorch with CUDA
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# Install Agentick with RL support
-pip install agentick[rl]
+# Install Agentick with RL support (includes PyTorch)
+uv sync --extra rl
 ```
 
 Then use GPU in your training code:
@@ -192,7 +186,6 @@ Agentick includes 40+ tasks organized into 11 categories:
 - Control (4 tasks): PreciseNavigation, TimingChallenge, ChaseEvade, Herding
 - Combinatorial (4 tasks): LightsOut, TileSorting, GraphColoring, PackingPuzzle
 - Compositional (3 tasks): InstructionFollowing, ProgramSynthesis, RecursiveRooms
-- World Model (3 tasks): PhysicsDiscovery, EnvironmentShift, RuleDiscoveryNavigation
 - Adversarial (3 tasks): NoisyObservation, DistributionShift, DeceptiveReward
 - Meta-Learning (2 tasks): FewShotAdaptation, TaskInterference
 - Multi-Agent (2 tasks): CooperativeTransport, CompetitiveTag
@@ -220,9 +213,9 @@ hard_tasks = agentick.list_tasks(difficulty="hard")
 Or via CLI:
 
 ```bash
-agentick list
-agentick list --capability navigation
-agentick list --difficulty hard
+uv run agentick list
+uv run agentick list --capability navigation
+uv run agentick list --difficulty hard
 ```
 
 ### How do I get detailed information about a task?
@@ -243,9 +236,9 @@ print(env.action_space)  # Discrete(5) - 5 actions
 Or via CLI:
 
 ```bash
-agentick info GoToGoal-v0
-agentick info GoToGoal-v0 --difficulty hard
-agentick info GoToGoal-v0 --format json
+uv run agentick info GoToGoal-v0
+uv run agentick info GoToGoal-v0 --difficulty hard
+uv run agentick info GoToGoal-v0 --format json
 ```
 
 ## Running Benchmarks
@@ -275,7 +268,7 @@ for _ in range(100):
 Or via CLI:
 
 ```bash
-agentick evaluate --task GoToGoal-v0 --n-episodes 10
+uv run agentick evaluate --task GoToGoal-v0 --n-episodes 10
 ```
 
 ### How do I run a benchmark suite?
@@ -318,8 +311,8 @@ for task, metrics in results.items():
 Or via CLI:
 
 ```bash
-agentick evaluate --suite quick --difficulty medium --n-episodes 10
-agentick evaluate --suite full --difficulty hard --n-episodes 20
+uv run agentick evaluate --suite quick --difficulty medium --n-episodes 10
+uv run agentick evaluate --suite full --difficulty hard --n-episodes 20
 ```
 
 ### What are the different benchmark suites?
@@ -413,7 +406,7 @@ Available actions: {', '.join(info['valid_actions'])}
 Choose the best action."""
 
     response = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-20250514",
         max_tokens=20,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -500,7 +493,7 @@ trajectories = agentick.collect_trajectories(
 1. Run your agent on the benchmark:
 
 ```bash
-agentick evaluate --suite full --difficulty medium --n-episodes 10 --output results/
+uv run agentick evaluate --suite full --difficulty medium --n-episodes 10 --output results/
 ```
 
 2. Create submission.yaml:
@@ -521,7 +514,7 @@ suites: ["full"]
 3. Submit:
 
 ```bash
-agentick submit --config submission.yaml --results results/evaluation.json --verify
+uv run agentick submit --config submission.yaml --results results/evaluation.json --verify
 ```
 
 See [docs/leaderboard/submitting.md](leaderboard/submitting.md) for detailed guide.
@@ -719,7 +712,7 @@ See [docs/extending/custom_tasks.md](extending/custom_tasks.md) for complete gui
    - Documentation
    - Examples
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for contribution guidelines.
+See [CONTRIBUTING.md](https://github.com/agentick/agentick/blob/main/CONTRIBUTING.md) for contribution guidelines.
 
 ## Design Philosophy
 
@@ -743,7 +736,7 @@ Procedural generation enables:
 ### Why Gymnasium API instead of something custom?
 
 Gymnasium compatibility means:
-- **Ecosystem**: Works with RL libraries (CleanRL, RLlib, Stable Baselines)
+- **Ecosystem**: Works with RL libraries (CleanRL, Stable Baselines)
 - **Standardization**: Familiar interface for RL researchers
 - **Simplicity**: Standard reset(), step(), render()
 - **Portability**: Easy migration to/from other envs
