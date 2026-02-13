@@ -136,70 +136,118 @@ Select the best action (respond with just the action number):"""
 
 def parse_action_from_text(
     response_text: str,
-    valid_actions: list[int],
+    valid_actions: list[int] | list[str] | list[Any],
 ) -> int:
     """
     Parse action from LLM response text.
 
+    Handles both integer actions and string action names.
     Tries multiple fallback strategies:
-    1. Look for "ACTION: N"
-    2. Look for bare number
-    3. Look for action name (e.g., "MOVE_UP")
-    4. Return random valid action
+    1. If valid_actions are strings: map action name to index
+    2. If valid_actions are integers: extract number from response
+    3. Look for "ACTION: N" pattern
+    4. Look for bare number
+    5. Look for action name (e.g., "MOVE_UP")
+    6. Return random valid action
 
     Args:
         response_text: LLM response
-        valid_actions: List of valid action indices
+        valid_actions: List of valid actions (can be ints or strings)
 
     Returns:
-        Action index
+        Action index (integer)
     """
     import numpy as np
 
-    # Strategy 1: Look for "ACTION: N" pattern
-    match = re.search(r"ACTION:\s*(\d+)", response_text, re.IGNORECASE)
-    if match:
-        action = int(match.group(1))
-        if action in valid_actions:
-            return action
+    # Convert numpy string types to regular strings
+    valid_actions_normalized = []
+    for action in valid_actions:
+        if isinstance(action, (np.str_, np.bytes_)):
+            valid_actions_normalized.append(str(action))
+        else:
+            valid_actions_normalized.append(action)
 
-    # Strategy 2: Look for bare number at end
-    match = re.search(r"(\d+)\s*$", response_text.strip())
-    if match:
-        action = int(match.group(1))
-        if action in valid_actions:
-            return action
+    valid_actions = valid_actions_normalized
 
-    # Strategy 3: Look for any number in the text
-    numbers = re.findall(r"\b(\d+)\b", response_text)
-    for num_str in reversed(numbers):  # Try from end first
-        action = int(num_str)
-        if action in valid_actions:
-            return action
+    # Determine if valid_actions are integers or strings
+    if valid_actions and isinstance(valid_actions[0], str):
+        # valid_actions are action names (strings)
+        # Build mapping from action names to indices
+        action_name_to_idx = {}
+        for idx, action_name in enumerate(valid_actions):
+            action_name_to_idx[action_name.lower().strip()] = idx
 
-    # Strategy 4: Look for action names
-    action_names = {
-        "NOOP": 0,
-        "UP": 1,
-        "MOVE_UP": 1,
-        "DOWN": 2,
-        "MOVE_DOWN": 2,
-        "LEFT": 3,
-        "MOVE_LEFT": 3,
-        "RIGHT": 4,
-        "MOVE_RIGHT": 4,
-        "TOGGLE": 5,
-        "PICKUP": 6,
-        "DROP": 7,
-    }
+        # Try to match response text to action names
+        response_lower = response_text.lower().strip()
 
-    for name, action_idx in action_names.items():
-        if name in response_text.upper() and action_idx in valid_actions:
-            return action_idx
+        # Direct match
+        if response_lower in action_name_to_idx:
+            return action_name_to_idx[response_lower]
 
-    # Fallback: Random valid action
-    rng = np.random.default_rng()
-    return int(rng.choice(valid_actions))
+        # Partial match (e.g., "move_up" contains "up")
+        for action_name, idx in action_name_to_idx.items():
+            if action_name in response_lower or response_lower in action_name:
+                return idx
+
+        # Try common action name patterns
+        for action_name, idx in action_name_to_idx.items():
+            # Handle variations like "move up" vs "move_up"
+            normalized_name = action_name.replace("_", " ")
+            if normalized_name in response_lower or response_lower.replace("_", " ") == normalized_name:
+                return idx
+
+        # Fallback: random valid action index
+        rng = np.random.default_rng()
+        return int(rng.integers(0, len(valid_actions)))
+
+    else:
+        # valid_actions are integers (traditional case)
+        valid_action_ints = [int(a) for a in valid_actions]
+
+        # Strategy 1: Look for "ACTION: N" pattern
+        match = re.search(r"ACTION:\s*(\d+)", response_text, re.IGNORECASE)
+        if match:
+            action = int(match.group(1))
+            if action in valid_action_ints:
+                return action
+
+        # Strategy 2: Look for bare number at end
+        match = re.search(r"(\d+)\s*$", response_text.strip())
+        if match:
+            action = int(match.group(1))
+            if action in valid_action_ints:
+                return action
+
+        # Strategy 3: Look for any number in the text
+        numbers = re.findall(r"\b(\d+)\b", response_text)
+        for num_str in reversed(numbers):  # Try from end first
+            action = int(num_str)
+            if action in valid_action_ints:
+                return action
+
+        # Strategy 4: Look for action names and map to integers
+        action_names = {
+            "NOOP": 0,
+            "UP": 1,
+            "MOVE_UP": 1,
+            "DOWN": 2,
+            "MOVE_DOWN": 2,
+            "LEFT": 3,
+            "MOVE_LEFT": 3,
+            "RIGHT": 4,
+            "MOVE_RIGHT": 4,
+            "TOGGLE": 5,
+            "PICKUP": 6,
+            "DROP": 7,
+        }
+
+        for name, action_idx in action_names.items():
+            if name in response_text.upper() and action_idx in valid_action_ints:
+                return action_idx
+
+        # Fallback: Random valid action
+        rng = np.random.default_rng()
+        return int(rng.choice(valid_action_ints))
 
 
 def get_task_description(task_name: str) -> str:

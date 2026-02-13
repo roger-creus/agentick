@@ -23,7 +23,7 @@ def test_all_tasks_have_baselines():
     baseline_tasks = set(HUMAN_BASELINES.keys())
 
     assert len(all_tasks) == len(baseline_tasks), (
-        f"Task count mismatch: {len(all_tasks)} tasks, " f"{len(baseline_tasks)} baselines"
+        f"Task count mismatch: {len(all_tasks)} tasks, {len(baseline_tasks)} baselines"
     )
 
     for task in all_tasks:
@@ -35,17 +35,17 @@ def test_baseline_structure():
     required_fields = {"success_rate", "avg_steps", "optimal_ratio", "learning_curve", "difficulty"}
 
     for task_name, baseline in HUMAN_BASELINES.items():
-        assert all(
-            field in baseline for field in required_fields
-        ), f"Task {task_name} missing required fields"
+        assert all(field in baseline for field in required_fields), (
+            f"Task {task_name} missing required fields"
+        )
 
         # Check value ranges
         assert 0.0 <= baseline["success_rate"] <= 1.0, f"Invalid success_rate for {task_name}"
         assert baseline["avg_steps"] > 0, f"Invalid avg_steps for {task_name}"
         assert baseline["optimal_ratio"] >= 1.0, f"Invalid optimal_ratio for {task_name}"
-        assert (
-            len(baseline["learning_curve"]) == 4
-        ), f"Learning curve should have 4 points for {task_name}"
+        assert len(baseline["learning_curve"]) == 4, (
+            f"Learning curve should have 4 points for {task_name}"
+        )
 
         # Learning curve should be monotonically increasing
         curve = baseline["learning_curve"]
@@ -53,9 +53,9 @@ def test_baseline_structure():
             assert curve[i] <= curve[i + 1], f"Learning curve not monotonic for {task_name}"
 
         # Last learning curve point should match success_rate
-        assert (
-            abs(curve[-1] - baseline["success_rate"]) < 0.01
-        ), f"Learning curve endpoint mismatch for {task_name}"
+        assert abs(curve[-1] - baseline["success_rate"]) < 0.01, (
+            f"Learning curve endpoint mismatch for {task_name}"
+        )
 
 
 def test_get_human_baseline():
@@ -215,6 +215,6 @@ def test_all_tasks_covered():
     """Verify we have exactly the expected tasks."""
     expected_count = 41  # Update if tasks are added
 
-    assert (
-        len(HUMAN_BASELINES) == expected_count
-    ), f"Expected {expected_count} tasks, found {len(HUMAN_BASELINES)}"
+    assert len(HUMAN_BASELINES) == expected_count, (
+        f"Expected {expected_count} tasks, found {len(HUMAN_BASELINES)}"
+    )

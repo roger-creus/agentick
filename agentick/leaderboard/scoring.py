@@ -80,10 +80,6 @@ TASK_CAPABILITY_MAP = {
     "GraphColoring-v0": "combinatorial",
     "TileSorting-v0": "combinatorial",
     "PackingPuzzle-v0": "combinatorial",
-    # World Model
-    "EnvironmentShift-v0": "worldmodel",
-    "PhysicsDiscovery-v0": "worldmodel",
-    "RuleDiscoveryNavigation-v0": "worldmodel",
     # Adversarial
     "DeceptiveReward-v0": "adversarial",
     "DistributionShift-v0": "adversarial",

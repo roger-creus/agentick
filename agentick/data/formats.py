@@ -14,7 +14,7 @@ from agentick.data.collector import Trajectory
 def export_to_format(
     trajectories: list[Trajectory],
     output_path: str | Path,
-    format_type: Literal["jsonl", "hf_dataset", "d4rl", "conversation", "tinker"],
+    format_type: Literal["jsonl", "hf_dataset", "d4rl", "conversation"],
     **kwargs: Any,
 ) -> Path:
     """
@@ -34,7 +34,6 @@ def export_to_format(
         - hf_dataset: HuggingFace Datasets format
         - d4rl: D4RL-style HDF5 format for offline RL
         - conversation: Chat format for LLM fine-tuning
-        - tinker: Tinker API format
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,8 +46,6 @@ def export_to_format(
         return _export_d4rl(trajectories, output_path, **kwargs)
     elif format_type == "conversation":
         return _export_conversation(trajectories, output_path, **kwargs)
-    elif format_type == "tinker":
-        return _export_tinker(trajectories, output_path, **kwargs)
     else:
         raise ValueError(f"Unknown format: {format_type}")
 
@@ -88,7 +85,7 @@ def _export_hf_dataset(
     try:
         from datasets import Dataset
     except ImportError:
-        raise ImportError("datasets package required. Install with: pip install datasets")
+        raise ImportError("datasets package required. Install with: uv sync --extra finetune")
 
     # Flatten trajectories into steps
     episodes = []
@@ -125,7 +122,7 @@ def _export_d4rl(
     try:
         import h5py
     except ImportError:
-        raise ImportError("h5py required. Install with: pip install h5py")
+        raise ImportError("h5py required. Install with: uv sync --extra all")
 
     # Concatenate all trajectories
     all_observations = []
@@ -204,19 +201,3 @@ def _export_conversation(
             f.write(json.dumps(conv) + "\n")
 
     return output_path
-
-
-def _export_tinker(
-    trajectories: list[Trajectory],
-    output_path: Path,
-    **kwargs: Any,
-) -> Path:
-    """
-    Export to Tinker fine-tuning format.
-
-    Tinker expects specific format - for now using conversation format.
-    Actual Tinker API integration would be done in examples/finetune/tinker_finetune.py
-    """
-    # For now, use conversation format as base
-    # Actual Tinker format would be defined by their API
-    return _export_conversation(trajectories, output_path, **kwargs)

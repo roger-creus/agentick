@@ -11,7 +11,6 @@ from agentick.tasks import (
     navigation,
     reasoning,
     skill,
-    worldmodel,
 )
 
 __all__ = [
@@ -22,7 +21,6 @@ __all__ = [
     "control",
     "combinatorial",
     "multi_agent",
-    "worldmodel",
     "compositional",
     "adversarial",
     "meta",

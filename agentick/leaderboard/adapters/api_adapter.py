@@ -1,4 +1,4 @@
-"""API-based agent adapter supporting OpenAI, Anthropic, Gemini, and custom endpoints."""
+"""API-based agent adapter supporting OpenAI, Anthropic, and custom endpoints."""
 
 from __future__ import annotations
 
@@ -16,13 +16,12 @@ class APIAgent:
     Supports:
     - OpenAI (GPT-4o, GPT-4, etc.)
     - Anthropic (Claude Sonnet, Opus, etc.)
-    - Google Gemini
     - Custom HTTP endpoints
     """
 
     def __init__(
         self,
-        provider: Literal["openai", "anthropic", "gemini", "custom"],
+        provider: Literal["openai", "anthropic", "custom"],
         model: str,
         observation_mode: str = "language",
         api_key_env: str | None = None,
@@ -94,10 +93,6 @@ class APIAgent:
             return "https://api.openai.com/v1/chat/completions"
         elif self.provider == "anthropic":
             return "https://api.anthropic.com/v1/messages"
-        elif self.provider == "gemini":
-            return (
-                f"https://generativelanguage.googleapis.com/v1/models/{self.model}:generateContent"
-            )
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
@@ -207,29 +202,6 @@ class APIAgent:
 
         return text
 
-    def _call_gemini(self, prompt: str) -> str:
-        """Call Google Gemini API."""
-        url = f"{self.endpoint}?key={self.api_key}"
-
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "maxOutputTokens": self.max_tokens,
-                "temperature": self.temperature,
-            },
-        }
-
-        response = requests.post(url, json=payload, timeout=self.timeout)
-        response.raise_for_status()
-
-        data = response.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-
-        # Gemini doesn't provide token counts in response, approximate
-        self.total_tokens += len(prompt.split()) + len(text.split())
-
-        return text
-
     def _call_custom(self, prompt: str) -> str:
         """Call custom HTTP endpoint."""
         headers = self.kwargs.get("headers", {})
@@ -285,8 +257,6 @@ class APIAgent:
                     return self._call_openai(prompt)
                 elif self.provider == "anthropic":
                     return self._call_anthropic(prompt)
-                elif self.provider == "gemini":
-                    return self._call_gemini(prompt)
                 elif self.provider == "custom":
                     return self._call_custom(prompt)
                 else:

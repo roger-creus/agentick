@@ -1,5 +1,5 @@
 # API Agent Submission Template
-# For cloud API models (OpenAI, Anthropic, Gemini, custom)
+# For cloud API models (OpenAI, Anthropic, custom)
 
 agent_name: "GPT-4o-TextAgent-v1"
 author: "Your Name"
@@ -16,7 +16,7 @@ agent_type: "api"
 observation_mode: "language"  # ascii, language, language_structured, rgb_array, state_dict
 
 config:
-  provider: "openai"  # openai, anthropic, gemini, custom
+  provider: "openai"  # openai, anthropic, custom
   model: "gpt-4o"
   api_key_env: "OPENAI_API_KEY"  # Environment variable containing API key
   max_tokens: 100

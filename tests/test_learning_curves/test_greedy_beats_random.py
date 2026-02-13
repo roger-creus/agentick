@@ -58,8 +58,8 @@ def test_greedy_beats_random(task_name):
 
         # Greedy should be better (or at least not worse)
         # Allow small margin for randomness
-        assert (
-            greedy_mean >= random_mean - 0.1
-        ), f"Greedy ({greedy_mean:.2f}) should beat random ({random_mean:.2f})"
+        assert greedy_mean >= random_mean - 0.1, (
+            f"Greedy ({greedy_mean:.2f}) should beat random ({random_mean:.2f})"
+        )
     finally:
         env.close()

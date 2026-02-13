@@ -36,7 +36,7 @@ class OpenAIAgent(BaseLLMAgent):
 
                 self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
             except ImportError:
-                raise ImportError("OpenAI package not installed. Install with: pip install openai")
+                raise ImportError("OpenAI package not installed. Install with: uv sync --extra llm")
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to initialize OpenAI client. Set OPENAI_API_KEY environment variable. Error: {e}"

@@ -1,33 +1,15 @@
-"""Wrappers for Agentick environments."""
+"""Gymnasium environment wrappers for Agentick."""
 
-from agentick.wrappers.observation_wrappers import (
-    DictObservationWrapper,
-    FlattenObservationWrapper,
-    LanguageActionWrapper,
-    PixelObservationWrapper,
-    TextObservationWrapper,
-)
-from agentick.wrappers.recording_wrappers import (
-    EpisodeRecorder,
-    TrajectoryWrapper,
-)
-from agentick.wrappers.reward_wrappers import (
-    CurriculumWrapper,
-    DenseRewardWrapper,
-    RewardScaleWrapper,
-    SparseRewardWrapper,
+from agentick.wrappers.atari_preprocessing import (
+    FrameStack,
+    GrayscaleObservation,
+    ResizeObservation,
+    make_atari_env,
 )
 
 __all__ = [
-    "TextObservationWrapper",
-    "PixelObservationWrapper",
-    "DictObservationWrapper",
-    "FlattenObservationWrapper",
-    "LanguageActionWrapper",
-    "DenseRewardWrapper",
-    "SparseRewardWrapper",
-    "RewardScaleWrapper",
-    "CurriculumWrapper",
-    "EpisodeRecorder",
-    "TrajectoryWrapper",
+    "ResizeObservation",
+    "GrayscaleObservation",
+    "FrameStack",
+    "make_atari_env",
 ]

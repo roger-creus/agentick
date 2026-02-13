@@ -55,7 +55,7 @@ class HuggingFaceAgent:
         except ImportError:
             raise ImportError(
                 "HuggingFace transformers not installed. "
-                "Install with: pip install transformers torch"
+                "Install with: uv sync --extra llm"
             )
 
         # Load tokenizer

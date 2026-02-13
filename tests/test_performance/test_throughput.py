@@ -169,9 +169,9 @@ def test_large_vectorized_env_throughput():
     print(f"\nLarge vectorized env throughput ({n_envs} envs): {steps_per_sec:.0f} steps/sec")
     # Should still achieve good throughput even with 16 envs
     # Current target: >10k (CPU-bound on single thread), future optimization target: >80k
-    assert (
-        steps_per_sec > 10000
-    ), f"Expected >10000 steps/sec with {n_envs} envs, got {steps_per_sec:.0f}"
+    assert steps_per_sec > 10000, (
+        f"Expected >10000 steps/sec with {n_envs} envs, got {steps_per_sec:.0f}"
+    )
 
 
 def test_throughput_different_render_modes():
@@ -208,7 +208,7 @@ def test_throughput_different_render_modes():
 
     print(f"\nASCII mode: {steps_per_sec_ascii:.0f} steps/sec")
     print(f"RGB mode: {steps_per_sec_rgb:.0f} steps/sec")
-    print(f"ASCII is {steps_per_sec_ascii/steps_per_sec_rgb:.1f}x faster than RGB")
+    print(f"ASCII is {steps_per_sec_ascii / steps_per_sec_rgb:.1f}x faster than RGB")
 
     # ASCII should be faster (or at least not much slower)
     # Due to rendering overhead, RGB might be slower
@@ -243,10 +243,10 @@ def test_minimal_overhead():
     baseline_per_iter = baseline_time / n_iterations
     env_per_step = env_time / 1000
 
-    print(f"\nBaseline per iteration: {baseline_per_iter*1e6:.2f} μs")
-    print(f"Environment per step: {env_per_step*1e6:.2f} μs")
-    print(f"Overhead factor: {env_per_step/baseline_per_iter:.1f}x")
+    print(f"\nBaseline per iteration: {baseline_per_iter * 1e6:.2f} μs")
+    print(f"Environment per step: {env_per_step * 1e6:.2f} μs")
+    print(f"Overhead factor: {env_per_step / baseline_per_iter:.1f}x")
 
     # Environment step should not be excessively slow
     # Allow up to 100 microseconds per step
-    assert env_per_step < 100e-6, f"Step time {env_per_step*1e6:.1f}μs is too slow"
+    assert env_per_step < 100e-6, f"Step time {env_per_step * 1e6:.1f}μs is too slow"

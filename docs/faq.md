@@ -361,7 +361,7 @@ obs, _ = env.reset(seed=seed)
 
 ```python
 import agentick
-from agentick.interfaces import RLInterface
+# RLInterface removed - use standard RL training loop
 
 # Create vectorized environments for fast training
 envs = RLInterface.make_vectorized_env(
@@ -422,7 +422,7 @@ Choose the best action."""
 
 See [docs/agents/llm_agents.md](agents/llm_agents.md) for complete examples.
 
-### How do I use Agentick with vision-language models (GPT-4V, Gemini)?
+### How do I use Agentick with vision-language models (GPT-4o, Claude Sonnet)?
 
 ```python
 import agentick
@@ -777,7 +777,7 @@ print(env.spec.max_episode_steps)  # 100
 With vectorization:
 
 ```python
-from agentick.interfaces import RLInterface
+# RLInterface removed - use standard RL training loop
 
 # 16 parallel environments
 envs = RLInterface.make_vectorized_env("GoToGoal-v0", n_envs=16)
