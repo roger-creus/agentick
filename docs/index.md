@@ -115,7 +115,7 @@ See: [LLM Examples](/examples/llm/)
 ### Collect Training Data
 ```python
 from agentick.data.collector import TrajectoryCollector
-from agentick.agents.oracle import OracleAgent
+from agentick.benchmark.baselines import OracleAgent
 
 env = agentick.make("GoToGoal-v0")
 collector = TrajectoryCollector(env)

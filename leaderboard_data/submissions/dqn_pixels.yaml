@@ -1,0 +1,23 @@
+agent_name: "DQN-Pixels-v1"
+author: "Agentick RL Baseline"
+description: "DQN trained on RGB pixel observations with CNN"
+url: null
+tags: ["rl", "dqn", "pixels", "baseline"]
+license: "MIT"
+open_weights: true
+
+agent_type: "code"
+observation_mode: "rgb_array"
+
+config:
+  script_path: "examples/rl/dqn_pixels.py"
+  class_name: "DQNPixelAgent"
+  checkpoint_path: "checkpoints/dqn_pixels_best.pt"
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "GPU (8GB VRAM)"
+estimated_cost: "Free (after training)"
+training_data: "Self-play on Agentick tasks"
+training_compute: "~4 GPU hours"

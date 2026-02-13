@@ -1,0 +1,24 @@
+agent_name: "GPT-4o-Vision-v1"
+author: "OpenAI"
+description: "GPT-4o with vision capabilities (zero-shot RGB observations)"
+url: "https://openai.com/gpt-4"
+tags: ["vlm", "api", "zero-shot", "vision"]
+license: "proprietary"
+open_weights: false
+
+agent_type: "code"
+observation_mode: "rgb_array"
+
+config:
+  script_path: "examples/llm/openai_vision_agent.py"
+  class_name: "OpenAIVisionAgent"
+  model: "gpt-4o"
+  api_key_env: "OPENAI_API_KEY"
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "API"
+estimated_cost: "$20-100 for full suite"
+training_data: "None (zero-shot)"
+training_compute: "N/A"

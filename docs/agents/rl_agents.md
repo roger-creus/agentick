@@ -107,7 +107,7 @@ env = agentick.make("GoToGoal-v0", reward_mode="dense")
 ## Curriculum Learning
 
 ```python
-from agentick.wrappers import CurriculumWrapper
+from agentick.wrappers.reward_wrappers import CurriculumWrapper
 
 env = agentick.make("GoToGoal-v0", difficulty="easy")
 env = CurriculumWrapper(env, success_threshold=0.8, window_size=10)

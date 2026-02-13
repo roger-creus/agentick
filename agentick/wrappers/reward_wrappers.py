@@ -91,7 +91,12 @@ class CurriculumWrapper(gym.Wrapper):
             if len(self.recent_successes) >= self.window_size:
                 success_rate = sum(self.recent_successes) / len(self.recent_successes)
                 if success_rate >= self.success_threshold:
-                    # TODO: Advance difficulty
-                    pass
+                    # Advance difficulty if environment supports it
+                    if hasattr(self.env.unwrapped, "set_difficulty"):
+                        current = getattr(self.env.unwrapped, "difficulty", "easy")
+                        next_difficulty = {"easy": "medium", "medium": "hard"}.get(current)
+                        if next_difficulty:
+                            self.env.unwrapped.set_difficulty(next_difficulty)
+                            self.recent_successes.clear()  # Reset tracking
 
         return obs, reward, terminated, truncated, info

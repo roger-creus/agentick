@@ -1,0 +1,24 @@
+agent_name: "Claude-Sonnet-4-Vision-v1"
+author: "Anthropic"
+description: "Claude Sonnet 4 with vision capabilities (zero-shot RGB observations)"
+url: "https://anthropic.com/claude"
+tags: ["vlm", "api", "zero-shot", "vision"]
+license: "proprietary"
+open_weights: false
+
+agent_type: "code"
+observation_mode: "rgb_array"
+
+config:
+  script_path: "examples/llm/anthropic_vision_agent.py"
+  class_name: "AnthropicVisionAgent"
+  model: "claude-sonnet-4-20250514"
+  api_key_env: "ANTHROPIC_API_KEY"
+
+suites:
+  - "agentick-quick-v1"
+
+hardware: "API"
+estimated_cost: "$15-80 for full suite"
+training_data: "None (zero-shot)"
+training_compute: "N/A"

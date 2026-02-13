@@ -29,6 +29,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from agentick.wrappers.atari_preprocessing import make_atari_env
+
 
 try:
     import wandb
@@ -170,7 +172,7 @@ class ReplayBuffer:
         self.next_observations[self.pos] = torch.from_numpy(np.array(next_obs).astype(np.uint8))
         self.actions[self.pos] = action
         self.rewards[self.pos] = reward
-        self.dones[self.pos] = done
+        self.dones[self.pos] = int(done)
 
         self.pos = (self.pos + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
