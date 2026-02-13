@@ -361,15 +361,13 @@ obs, _ = env.reset(seed=seed)
 
 ```python
 import agentick
-# RLInterface removed - use standard RL training loop
+import gymnasium as gym
 
 # Create vectorized environments for fast training
-envs = RLInterface.make_vectorized_env(
-    "GoToGoal-v0",
-    n_envs=16,
-    render_mode="rgb_array",
-    difficulty="medium"
-)
+def make_env():
+    return agentick.make("GoToGoal-v0", render_mode="rgb_array", difficulty="medium")
+
+envs = gym.vector.SyncVectorEnv([make_env for _ in range(16)])
 
 # Use with your RL training code
 # Example with PyTorch + CleanRL
@@ -587,7 +585,8 @@ Common issues:
 3. **Memory issues**: Running out of RAM
    ```python
    # Reduce vectorization
-   envs = RLInterface.make_vectorized_env("GoToGoal-v0", n_envs=4)  # Not 16
+   import gymnasium as gym
+   envs = gym.vector.SyncVectorEnv([lambda: agentick.make("GoToGoal-v0") for _ in range(4)])  # Not 16
    ```
 
 ### Why are results not reproducible?
@@ -616,7 +615,8 @@ Common causes:
 
 ```python
 # Option 1: Reduce number of vectorized environments
-envs = RLInterface.make_vectorized_env("GoToGoal-v0", n_envs=4)
+import gymnasium as gym
+envs = gym.vector.SyncVectorEnv([lambda: agentick.make("GoToGoal-v0") for _ in range(4)])
 
 # Option 2: Use lower precision
 torch.set_default_dtype(torch.float16)
@@ -638,7 +638,8 @@ env = agentick.make("GoToGoal-v0", fast_mode=True)
 env = agentick.make("GoToGoal-v0", render_mode="state_dict", fast_mode=True)
 
 # Vectorize for RL
-envs = RLInterface.make_vectorized_env("GoToGoal-v0", n_envs=16)
+import gymnasium as gym
+envs = gym.vector.SyncVectorEnv([lambda: agentick.make("GoToGoal-v0") for _ in range(16)])
 ```
 
 ## Contributing & Custom Tasks
@@ -777,15 +778,16 @@ print(env.spec.max_episode_steps)  # 100
 With vectorization:
 
 ```python
-# RLInterface removed - use standard RL training loop
+import gymnasium as gym
+import agentick
 
 # 16 parallel environments
-envs = RLInterface.make_vectorized_env("GoToGoal-v0", n_envs=16)
+envs = gym.vector.SyncVectorEnv([lambda: agentick.make("GoToGoal-v0") for _ in range(16)])
 
 # ~10,000 steps per second on modern hardware
 obs, _ = envs.reset()
 for _ in range(1000):
-    actions = env.action_space.sample()  # Or from agent
+    actions = envs.action_space.sample()  # Or from agent
     obs, rewards, terminated, truncated, _ = envs.step(actions)
     # Process at ~10k steps/sec
 ```

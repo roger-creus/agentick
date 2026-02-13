@@ -6,38 +6,39 @@ Evaluate LLMs on Agentick using OpenAI, Anthropic, and HuggingFace.
 
 ```python
 import agentick
-from agentick.leaderboard.adapters import APIAdapter
+from agentick.leaderboard.adapters.api_adapter import APIAgent
 
 env = agentick.make("GoToGoal-v0", render_mode="language")
-llm_interface = LLMAgentInterface(env)
+agent = APIAgent(
+    provider="openai",
+    model="gpt-4o-mini",
+    observation_mode="language",
+    api_key_env="OPENAI_API_KEY",
+)
 
 obs, info = env.reset()
-prompt = llm_interface.format_prompt(obs, task_description="Navigate to goal")
-action = llm_interface.parse_action(llm_response_text)
+action = agent.act(obs, info)
 obs, reward, terminated, truncated, info = env.step(action)
 ```
 
 ## OpenAI
 
 ```python
-from openai import OpenAI
+import agentick
+from agentick.leaderboard.adapters.api_adapter import APIAgent
 
-client = OpenAI(api_key="sk-...")
 env = agentick.make("GoToGoal-v0", render_mode="language")
-llm_interface = LLMAgentInterface(env)
+agent = APIAgent(
+    provider="openai",
+    model="gpt-4o-mini",
+    observation_mode="language",
+    api_key_env="OPENAI_API_KEY",
+    temperature=0.0,
+)
 
 obs, info = env.reset()
 for step in range(100):
-    prompt = llm_interface.format_prompt(obs, task_description="Navigate to goal")
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
-    )
-
-    action_text = response.choices[0].message.content
-    action = llm_interface.parse_action(action_text)
+    action = agent.act(obs, info)
     obs, reward, terminated, truncated, info = env.step(action)
 
     if terminated or truncated:
@@ -49,24 +50,21 @@ for step in range(100):
 ## Anthropic
 
 ```python
-from anthropic import Anthropic
+import agentick
+from agentick.leaderboard.adapters.api_adapter import APIAgent
 
-client = Anthropic(api_key="sk-ant-...")
 env = agentick.make("GoToGoal-v0", render_mode="language")
-llm_interface = LLMAgentInterface(env)
+agent = APIAgent(
+    provider="anthropic",
+    model="claude-sonnet-4-20250514",
+    observation_mode="language",
+    api_key_env="ANTHROPIC_API_KEY",
+    max_tokens=100,
+)
 
 obs, info = env.reset()
 for step in range(100):
-    prompt = llm_interface.format_prompt(obs, task_description="Navigate maze")
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=100,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    action_text = response.content[0].text
-    action = llm_interface.parse_action(action_text)
+    action = agent.act(obs, info)
     obs, reward, terminated, truncated, info = env.step(action)
 
     if terminated or truncated:
@@ -77,64 +75,18 @@ for step in range(100):
 
 ## HuggingFace
 
-```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
+For local HuggingFace models, see the complete example in `examples/llm/huggingface_local_agent.py` which includes:
+- Custom agent class for model inference
+- Prompt engineering with few-shot examples
+- Action parsing from model outputs
+- Works with Qwen, Llama, and other instruction-tuned models
 
-model_name = "meta-llama/Llama-2-7b-chat-hf"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
+## Advanced Usage
 
-env = agentick.make("GoToGoal-v0", render_mode="language")
-llm_interface = LLMAgentInterface(env)
-
-obs, info = env.reset()
-for step in range(100):
-    prompt = llm_interface.format_prompt(obs, task_description="Navigate to goal")
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    outputs = model.generate(**inputs, max_new_tokens=50)
-    action_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    action = llm_interface.parse_action(action_text)
-    obs, reward, terminated, truncated, info = env.step(action)
-
-    if terminated or truncated:
-        break
-```
-
-**Example**: `examples/llm/huggingface_local_agent.py`
-
-## Prompt Templates
-
-```python
-# Basic
-llm_interface.format_prompt(obs, task_description="Your task")
-
-# Custom template
-template = "ENVIRONMENT: {observation}\nGOAL: {task_description}\nACTIONS: {valid_actions}"
-llm_interface.set_template(template)
-
-# Few-shot examples
-examples = [
-    {"observation": "At (1,1). Goal at (3,3).", "action": "move_right"},
-    {"observation": "At (2,1). Goal at (3,3).", "action": "move_down"}
-]
-llm_interface.add_few_shot_examples(examples)
-```
-
-## Action Parsing
-
-```python
-# Parse from LLM text
-action = llm_interface.parse_action("move_up")
-
-# Custom parser
-def custom_parser(text: str, valid_actions: list[str]) -> int:
-    for action_name in valid_actions:
-        if action_name.lower() in text.lower():
-            return env.action_space.get_action_index(action_name)
-    return env.action_space.get_action_index("noop")
-
-llm_interface.set_action_parser(custom_parser)
-```
+The `APIAgent` class handles prompt formatting and action parsing automatically. For custom prompt engineering or action parsing, see `examples/llm/huggingface_local_agent.py` which demonstrates:
+- Custom prompt templates with few-shot examples
+- Flexible action parsing from free-form text
+- Working with different model response formats
 
 ## Complete Examples
 

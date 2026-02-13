@@ -83,31 +83,15 @@ trainer.save_model("./sft_model")
 
 ## Step 4: Evaluate
 
+For a complete example of loading and evaluating a finetuned model, see `examples/llm/huggingface_local_agent.py`.
+
+To use your finetuned model:
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model = AutoModelForCausalLM.from_pretrained("./sft_model")
 tokenizer = AutoTokenizer.from_pretrained("./sft_model")
-
-env = agentick.make("GoToGoal-v0", difficulty="medium", render_mode="language")
-llm_interface = LLMAgentInterface(env)
-
-obs, info = env.reset()
-episode_reward = 0
-
-for step in range(100):
-    prompt = llm_interface.format_prompt(obs, task_description="Navigate to goal")
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    outputs = model.generate(**inputs, max_new_tokens=20)
-    action_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    action = llm_interface.parse_action(action_text)
-    obs, reward, terminated, truncated, info = env.step(action)
-    episode_reward += reward
-
-    if terminated or truncated:
-        break
-
-print(f"Episode reward: {episode_reward}")
+# Then follow the pattern in examples/llm/huggingface_local_agent.py
 ```
 
 ### Compare Before/After

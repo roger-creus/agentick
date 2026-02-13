@@ -110,12 +110,12 @@ All notable changes to Agentick are documented in this file. The project follows
 - Pixel rendering with sprite system
 - State dict export
 
-**Agent Interfaces**
-- RLInterface: Vectorized environment wrapper
-- LLMInterface: Text-based agent interface
-- VLMInterface: Vision-language model interface
-- BotInterface: Programmatic bot interface
-- HumanInterface: Interactive play interface
+**Agent Interfaces** _(Note: Some interfaces were later removed in favor of adapters)_
+- APIAdapter: Universal adapter for LLM/VLM agents (OpenAI, Anthropic, custom endpoints)
+- HuggingFaceAdapter: Local HuggingFace model support
+- CodeAdapter: Code-based agent evaluation
+- DockerAdapter: Containerized agent execution
+- AgentProtocol: Standard interface for custom agents
 
 **Reward System**
 - Dense reward shaping
