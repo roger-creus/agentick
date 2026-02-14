@@ -248,7 +248,7 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.core.actions import ActionType, Direction
-from agentick.core.registry import register_task
+from agentick.tasks.registry import register_task
 
 
 @register_task("TreasureHunt-v0", tags=["custom", "navigation", "exploration"])
@@ -408,15 +408,13 @@ class TreasureHuntTask(TaskSpec):
 ```python
 # In your_task.py file with @register_task decorator
 
-from agentick.core.registry import register_task
+from agentick.tasks.registry import register_task
 
 @register_task("MyTask-v0", tags=["custom", "navigation"])
 class MyTask(TaskSpec):
     ...
 
-# Or register manually
-from agentick.core.registry import register_task_class
-register_task_class("MyTask-v0", MyTask, tags=["custom"])
+# The decorator approach above is the recommended way to register tasks
 ```
 
 ### Test Your Task
@@ -540,11 +538,9 @@ def test_reward_computation():
 ## Advanced: Custom State Representations
 
 ```python
-from agentick.core.state import StateRepresentation
-
 class CustomTask(TaskSpec):
-    def get_state_representation(self) -> StateRepresentation:
-        """Define custom state representation."""
+    def get_state_representation(self) -> dict:
+        """Define custom state representation as a dictionary."""
         return {
             "agent_position": "tuple[int, int]",
             "agent_orientation": "Direction",

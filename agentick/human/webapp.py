@@ -15,7 +15,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from flask import Flask, jsonify, render_template_string, request, session
+
+try:
+    from flask import Flask, jsonify, render_template_string, request, session
+except ImportError:
+    Flask = None  # type: ignore[assignment,misc]
 
 from agentick import make
 from agentick.human.recorder import HumanDataRecorder
@@ -51,6 +55,11 @@ class HumanEvaluationWebApp:
             host: Host to bind server to
             port: Port to run server on
         """
+        if Flask is None:
+            raise ImportError(
+                "Flask is required for the web interface. "
+                "Install it with: pip install flask"
+            )
         self.app = Flask(__name__)
         self.app.secret_key = os.urandom(24)
         self.output_dir = Path(output_dir)

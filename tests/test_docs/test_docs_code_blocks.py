@@ -129,13 +129,6 @@ def test_imports_use_correct_paths():
     docs_dir = Path(__file__).parent.parent.parent / "docs"
     errors = []
 
-    # Correct patterns
-    correct_patterns = [
-        r"from agentick\.leaderboard\.adapters",
-        r"from agentick\.wrappers",
-        r"import agentick",
-    ]
-
     # Incorrect patterns that should not appear
     incorrect_patterns = [
         (r"from agentick\.agents", "Use 'agentick.leaderboard.adapters' instead"),

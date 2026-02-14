@@ -75,7 +75,7 @@ export OPENAI_API_KEY="your-key"
 uv run python examples/llm/openai_text_agent.py
 
 # Data collection
-uv run python examples/data/collect_oracle_trajectories.py
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
 ```
 
 See [examples/README.md](examples/README.md) for full list.
@@ -125,7 +125,6 @@ agentick/
 │   ├── data/              # Data collection
 │   └── visualization/     # Plotting utilities
 ├── examples/              # 40+ runnable examples
-├── experiments/           # Experiment configs
 ├── docs/                  # Documentation
 └── tests/                 # Test suite
 ```

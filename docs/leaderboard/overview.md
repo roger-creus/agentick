@@ -11,7 +11,7 @@ The Agentick Leaderboard is a benchmarking platform for evaluating and comparing
 2. **Choose Benchmark Suites**:
    - **Quick Sanity Check** (~2 minutes): 3 tasks, 3 seeds
    - **Category Suites**: Navigation, reasoning, memory, etc.
-   - **Full Benchmark** (~4 hours): All 38 tasks
+   - **Full Benchmark** (~4 hours): All 35 tasks
 
 3. **Run Evaluation**: Automated evaluation with:
    - Deterministic seeds for reproducibility
@@ -62,7 +62,7 @@ normalized_score = (agent_return - random_baseline) / (optimal_return - random_b
 | `memory` | 4 | 10 | ~25 min | Memory-dependent tasks |
 | `control` | 5 | 10 | ~30 min | Precise control and manipulation |
 | `generalization` | 5 | 10 | ~30 min | Zero-shot generalization |
-| `full` | 38 | 10 | ~4 hours | Complete benchmark |
+| `full` | 35 | 10 | ~4 hours | Complete benchmark |
 
 ## Submission Types
 

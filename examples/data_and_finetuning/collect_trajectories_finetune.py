@@ -7,9 +7,8 @@ import argparse
 import json
 from pathlib import Path
 
-from agentick.benchmark.baselines import OracleAgent
-
 import agentick
+from agentick.benchmark.baselines import OracleAgent
 
 
 def collect_trajectories(
@@ -54,7 +53,8 @@ def collect_trajectories(
             episode_reward = 0.0
 
             while not done and step < 100:
-                action = oracle.act(obs)
+                valid_actions = info.get("valid_actions", list(range(env.action_space.n)))
+                action = oracle.act(obs, valid_actions)
 
                 next_obs, reward, terminated, truncated, info = env.step(action)
                 episode_reward += reward
@@ -64,7 +64,7 @@ def collect_trajectories(
                         "step": step,
                         "observation": str(obs)[:500],  # Truncate for size
                         "action": int(action),
-                        "action_name": oracle.get_action_name(action),
+                        "action_name": str(action),
                         "reward": float(reward),
                         "terminated": bool(terminated),
                         "truncated": bool(truncated),
@@ -75,9 +75,9 @@ def collect_trajectories(
                 done = terminated or truncated
                 step += 1
 
-            trajectory["total_reward"] = episode_reward
-            trajectory["success"] = info.get("success", False)
-            trajectory["n_steps"] = step
+            trajectory["total_reward"] = float(episode_reward)
+            trajectory["success"] = bool(info.get("success", False))
+            trajectory["n_steps"] = int(step)
 
             all_trajectories.append(trajectory)
 

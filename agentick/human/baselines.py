@@ -227,14 +227,6 @@ HUMAN_BASELINES: dict[str, dict[str, Any]] = {
         "difficulty": "hard",
         "notes": "Requires hypothesis testing",
     },
-    "RuleDiscoveryNavigation-v0": {
-        "success_rate": 0.64,
-        "avg_steps": 58.4,
-        "optimal_ratio": 1.72,
-        "learning_curve": [0.32, 0.48, 0.58, 0.64],
-        "difficulty": "hard",
-        "notes": "Hidden rules, exploration-exploitation",
-    },
     "FewShotAdaptation-v0": {
         "success_rate": 0.78,
         "avg_steps": 36.5,
@@ -267,14 +259,6 @@ HUMAN_BASELINES: dict[str, dict[str, Any]] = {
         "learning_curve": [0.35, 0.48, 0.55, 0.58],
         "difficulty": "hard",
         "notes": "Adaptation to new distribution, negative transfer",
-    },
-    "EnvironmentShift-v0": {
-        "success_rate": 0.62,
-        "avg_steps": 42.5,
-        "optimal_ratio": 1.68,
-        "learning_curve": [0.38, 0.52, 0.59, 0.62],
-        "difficulty": "hard",
-        "notes": "Environment changes, requires flexibility",
     },
     "NoisyObservation-v0": {
         "success_rate": 0.64,
@@ -333,14 +317,6 @@ HUMAN_BASELINES: dict[str, dict[str, Any]] = {
         "learning_curve": [0.28, 0.42, 0.50, 0.54],
         "difficulty": "very-hard",
         "notes": "Non-obvious optimal strategy",
-    },
-    "PhysicsDiscovery-v0": {
-        "success_rate": 0.61,
-        "avg_steps": 56.3,
-        "optimal_ratio": 1.75,
-        "learning_curve": [0.32, 0.48, 0.57, 0.61],
-        "difficulty": "hard",
-        "notes": "Implicit physics, experimentation required",
     },
     "CausalChain-v0": {
         "success_rate": 0.67,

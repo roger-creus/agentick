@@ -1,8 +1,9 @@
 """Test that basic examples run end-to-end."""
 
 import subprocess
-import pytest
 from pathlib import Path
+
+import pytest
 
 EXAMPLES_DIR = Path("examples/basics")
 

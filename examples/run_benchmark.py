@@ -6,7 +6,7 @@ from agentick.benchmark import BenchmarkRunner, RandomAgent
 agent = RandomAgent(seed=42)
 
 # Run benchmark on quick suite
-runner = BenchmarkRunner(suite="quick", n_episodes=10)
+runner = BenchmarkRunner(suite="quick", n_episodes=100)
 results = runner.evaluate(agent_fn=agent, difficulty="easy")
 
 # Print results

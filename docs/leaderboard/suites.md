@@ -8,7 +8,7 @@ Complete documentation of all official benchmark suites used for leaderboard eva
 |-------|-------|-------|-----------|------|------------|
 | **agentick-quick-v1** | 5 | 10 | Easy | ~5 min | Quick iteration & testing |
 | **agentick-core-v1** | 27 | 50 | Medium | ~2 hours | Standard baseline |
-| **agentick-full-v1** | 38 | 50 | Medium | ~4-8 hours | Publication & SOTA |
+| **agentick-full-v1** | 35 | 50 | Medium | ~4-8 hours | Publication & SOTA |
 | **Navigation** | 5 | 30 | All | ~1 hour | Deep-dive: navigation |
 | **Memory** | 5 | 30 | All | ~1 hour | Deep-dive: memory |
 | **Reasoning** | 5 | 30 | All | ~1 hour | Deep-dive: reasoning |
@@ -109,7 +109,7 @@ Per-Capability:
 
 **Purpose**: Comprehensive evaluation including advanced capabilities
 
-The complete benchmark with all 38 official tasks.
+The complete benchmark with all 35 official tasks.
 
 - **Tasks** (35 total):
   - All 27 core tasks (see above)
@@ -587,10 +587,10 @@ This hash is reproducible and published, allowing verification that:
 
 ### Aggregated across all suites
 
-- **Total Official Tasks**: 38 unique tasks
+- **Total Official Tasks**: 35 unique tasks
 - **Total Suite Evaluations**: 15 suites
 - **Total Seeds Generated**: 1000+ deterministic seeds
-- **Tasks per Suite**: 2-38
+- **Tasks per Suite**: 2-35
 - **Difficulty Levels**: Easy, Medium, Hard, Extreme (subset per task)
 - **Observation Modes**: ASCII, Language, Structured Language, RGB, State Dict
 

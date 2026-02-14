@@ -107,7 +107,7 @@ env = agentick.make("GoToGoal-v0", render_mode="language")
 agent = APIAgent(provider="openai", model="gpt-4o")
 
 obs, info = env.reset()
-action = agent.act(env, obs, info)
+action = agent.act(obs, info)
 ```
 
 See: [LLM Examples](/examples/llm/)

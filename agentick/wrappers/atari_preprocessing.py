@@ -121,6 +121,7 @@ def make_atari_env(task_name: str, seed: int = 0, **kwargs) -> gym.Env:
     """
     import agentick
 
+    kwargs.pop("render_mode", None)
     env = agentick.make(task_name, render_mode="rgb_array", **kwargs)
     env = ResizeObservation(env, size=(84, 84))
     env = GrayscaleObservation(env)

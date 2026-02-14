@@ -1,0 +1,10 @@
+name: sanity_check
+description: Quick sanity check test (2 minutes)
+tasks:
+  - GoToGoal-v0
+  - MazeNavigation-v0
+agent_type: random
+num_seeds: 2
+episodes_per_seed: 1
+render_mode: rgb_array
+timeout: 50

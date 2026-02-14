@@ -1,32 +1,33 @@
 """
-Complete example: Creating a custom Agentick task.
+Complete example: Creating a custom task as a Gymnasium environment.
 
 Demonstrates:
-- Extending GridWorldEnv
+- Building a custom gridworld environment
 - Custom entities and mechanics
 - Reward shaping
 - Registration and testing
+
+Usage:
+    uv run python examples/advanced/custom_task.py
 """
 
 import gymnasium as gym
-
-from agentick.core.entity import Entity
-from agentick.core.env import AgentickEnv
-from agentick.tasks.registry import register_task
+import numpy as np
+from gymnasium import spaces
 
 
-class CollectGemsEnv(AgentickEnv):
+class CollectGemsEnv(gym.Env):
     """
     Custom task: Collect all gems in the shortest path.
 
     Goal: Agent must collect all gems before reaching the exit.
 
     Entities:
-    - Agent (blue square)
-    - Gems (yellow diamonds) - must collect all
-    - Exit (green circle) - reach after collecting gems
-    - Walls (gray blocks) - obstacles
-    - Lava (red) - instant failure if stepped on
+    - Agent (A) - player character
+    - Gems (G) - must collect all
+    - Exit (E) - reach after collecting gems
+    - Walls (#) - obstacles
+    - Lava (X) - instant failure if stepped on
 
     Reward structure:
     - +0.5 per gem collected
@@ -39,6 +40,15 @@ class CollectGemsEnv(AgentickEnv):
     - Collect all gems AND reach exit
     """
 
+    metadata = {"render_modes": ["ascii", "human"]}
+
+    EMPTY = 0
+    WALL = 1
+    GEM = 2
+    LAVA = 3
+    EXIT = 4
+    AGENT = 5
+
     def __init__(
         self,
         grid_size: int = 8,
@@ -46,6 +56,8 @@ class CollectGemsEnv(AgentickEnv):
         num_walls: int = 5,
         num_lava: int = 2,
         difficulty: str = "easy",
+        render_mode: str | None = "ascii",
+        max_steps: int = 100,
         **kwargs,
     ):
         """
@@ -57,213 +69,165 @@ class CollectGemsEnv(AgentickEnv):
             num_walls: Number of wall obstacles
             num_lava: Number of lava traps
             difficulty: Difficulty level
+            render_mode: How to render the environment
+            max_steps: Maximum steps per episode
         """
+        super().__init__()
+
         # Adjust parameters based on difficulty
         if difficulty == "easy":
-            grid_size = 6
-            num_gems = 2
-            num_walls = 3
-            num_lava = 1
+            grid_size, num_gems, num_walls, num_lava = 6, 2, 3, 1
         elif difficulty == "medium":
-            grid_size = 8
-            num_gems = 3
-            num_walls = 5
-            num_lava = 2
+            grid_size, num_gems, num_walls, num_lava = 8, 3, 5, 2
         elif difficulty == "hard":
-            grid_size = 10
-            num_gems = 4
-            num_walls = 8
-            num_lava = 3
+            grid_size, num_gems, num_walls, num_lava = 10, 4, 8, 3
         elif difficulty == "expert":
-            grid_size = 12
-            num_gems = 5
-            num_walls = 12
-            num_lava = 4
+            grid_size, num_gems, num_walls, num_lava = 12, 5, 12, 4
 
-        super().__init__(grid_size=grid_size, max_steps=100, **kwargs)
-
+        self.grid_size = grid_size
         self.num_gems = num_gems
         self.num_walls = num_walls
         self.num_lava = num_lava
-        self.difficulty = difficulty
+        self.max_steps = max_steps
+        self.render_mode = render_mode
 
-        # Track game state
+        # 4 movement directions: up, right, down, left
+        self.action_space = spaces.Discrete(4)
+        # Observation is the rendered text
+        self.observation_space = spaces.Text(min_length=1, max_length=100000)
+
+        # State
+        self.grid = None
+        self.agent_pos = (1, 1)
+        self.exit_pos = (0, 0)
         self.gems_collected = 0
         self.total_gems = 0
-        self.exit_pos = None
+        self.step_count = 0
 
     def reset(self, seed=None, options=None):
         """Reset the environment and generate new level."""
         super().reset(seed=seed)
 
-        # Reset state
+        self.step_count = 0
         self.gems_collected = 0
-        self.grid.clear()
+        self.grid = np.zeros((self.grid_size, self.grid_size), dtype=np.int8)
 
-        # Place agent in bottom-left corner
-        self.agent_pos = (1, self.grid.height - 2)
-        self.grid.set(
-            self.agent_pos[0],
-            self.agent_pos[1],
-            Entity(id="agent", entity_type="agent", position=self.agent_pos, properties={"color": "blue"}),
-        )
+        # Walls around border
+        self.grid[0, :] = self.WALL
+        self.grid[-1, :] = self.WALL
+        self.grid[:, 0] = self.WALL
+        self.grid[:, -1] = self.WALL
 
-        # Place exit in top-right corner
-        self.exit_pos = (self.grid.width - 2, 1)
-        self.grid.set(
-            self.exit_pos[0],
-            self.exit_pos[1],
-            Entity(id="goal", entity_type="goal", position=self.exit_pos, properties={"color": "green"}),
-        )
+        # Place agent in bottom-left interior
+        self.agent_pos = (1, self.grid_size - 2)
+        self.grid[self.agent_pos[1], self.agent_pos[0]] = self.AGENT
 
-        # Place gems randomly
+        # Place exit in top-right interior
+        self.exit_pos = (self.grid_size - 2, 1)
+        self.grid[self.exit_pos[1], self.exit_pos[0]] = self.EXIT
+
+        occupied = {self.agent_pos, self.exit_pos}
+
+        # Place gems
         self.total_gems = self.num_gems
-        gems_placed = 0
-        attempts = 0
-        max_attempts = 100
-
-        while gems_placed < self.num_gems and attempts < max_attempts:
-            x = self.np_random.integers(1, self.grid.width - 1)
-            y = self.np_random.integers(1, self.grid.height - 1)
-
-            # Don't place on agent or exit
-            if (x, y) not in [self.agent_pos, self.exit_pos]:
-                if self.grid.get(x, y) is None:
-                    self.grid.set(x, y, Entity(id=f"gem_{gems_placed}", entity_type="key", position=(x, y), properties={"color": "yellow"}))
-                    gems_placed += 1
-
-            attempts += 1
+        for _ in range(self.num_gems):
+            pos = self._place_random(occupied)
+            if pos:
+                self.grid[pos[1], pos[0]] = self.GEM
+                occupied.add(pos)
 
         # Place walls
-        walls_placed = 0
-        attempts = 0
+        for _ in range(self.num_walls):
+            pos = self._place_random(occupied)
+            if pos:
+                self.grid[pos[1], pos[0]] = self.WALL
+                occupied.add(pos)
 
-        while walls_placed < self.num_walls and attempts < max_attempts:
-            x = self.np_random.integers(1, self.grid.width - 1)
-            y = self.np_random.integers(1, self.grid.height - 1)
+        # Place lava
+        for _ in range(self.num_lava):
+            pos = self._place_random(occupied)
+            if pos:
+                self.grid[pos[1], pos[0]] = self.LAVA
+                occupied.add(pos)
 
-            # Don't block important positions
-            if (x, y) not in [self.agent_pos, self.exit_pos]:
-                if self.grid.get(x, y) is None:
-                    self.grid.set(x, y, Entity(id=f"wall_{walls_placed}", entity_type="wall", position=(x, y), properties={"color": "gray"}))
-                    walls_placed += 1
+        return self._get_obs(), self._get_info()
 
-            attempts += 1
-
-        # Place lava traps
-        lava_placed = 0
-        attempts = 0
-
-        while lava_placed < self.num_lava and attempts < max_attempts:
-            x = self.np_random.integers(1, self.grid.width - 1)
-            y = self.np_random.integers(1, self.grid.height - 1)
-
-            # Don't place near agent or exit
-            if (x, y) not in [self.agent_pos, self.exit_pos]:
-                if abs(x - self.agent_pos[0]) > 1 or abs(y - self.agent_pos[1]) > 1:
-                    if self.grid.get(x, y) is None:
-                        self.grid.set(x, y, Entity(id=f"lava_{lava_placed}", entity_type="lava", position=(x, y), properties={"color": "red"}))
-                        lava_placed += 1
-
-            attempts += 1
-
-        obs = self._get_obs()
-        info = self._get_info()
-
-        return obs, info
+    def _place_random(self, occupied, max_attempts=100):
+        """Place an entity at a random unoccupied interior position."""
+        for _ in range(max_attempts):
+            x = self.np_random.integers(1, self.grid_size - 1)
+            y = self.np_random.integers(1, self.grid_size - 1)
+            if (x, y) not in occupied:
+                return (x, y)
+        return None
 
     def step(self, action):
         """Take a step in the environment."""
-        # Get new position based on action
-        dx, dy = self._action_to_direction(action)
+        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+        dx, dy = directions[action]
         new_x = self.agent_pos[0] + dx
         new_y = self.agent_pos[1] + dy
 
-        reward = 0
+        reward = -0.01  # Step penalty
         terminated = False
 
-        # Check if move is valid
-        if not self.grid.in_bounds(new_x, new_y):
-            # Hit boundary - no move, small penalty
-            reward = -0.01
-        else:
-            entity = self.grid.get(new_x, new_y)
+        if 0 <= new_x < self.grid_size and 0 <= new_y < self.grid_size:
+            cell = self.grid[new_y, new_x]
 
-            if entity is None:
-                # Empty space - move and small step penalty
-                self._move_agent(new_x, new_y)
-                reward = -0.01
-
-            elif entity.entity_type == "wall":
-                # Hit wall - no move, small penalty
-                reward = -0.01
-
-            elif entity.entity_type == "key":
-                # Collect gem!
+            if cell == self.WALL:
+                pass  # Can't move into wall
+            elif cell == self.GEM:
                 self.gems_collected += 1
                 self._move_agent(new_x, new_y)
                 reward = 0.5
-
-            elif entity.entity_type == "lava":
-                # Stepped on lava - instant failure
+            elif cell == self.LAVA:
                 self._move_agent(new_x, new_y)
                 reward = -1.0
                 terminated = True
-
-            elif entity.entity_type == "goal":
-                # Reached exit
+            elif cell == self.EXIT:
                 self._move_agent(new_x, new_y)
-
                 if self.gems_collected >= self.total_gems:
-                    # Success! All gems collected
                     reward = 1.0
                     terminated = True
                 else:
-                    # Reached exit but missing gems
                     reward = -0.5
                     terminated = True
+            else:
+                self._move_agent(new_x, new_y)
 
-        # Increment step counter
         self.step_count += 1
-
-        # Check if max steps reached
         truncated = self.step_count >= self.max_steps
 
-        obs = self._get_obs()
         info = self._get_info()
-        info["gems_collected"] = self.gems_collected
-        info["total_gems"] = self.total_gems
         info["success"] = terminated and reward > 0
 
-        return obs, reward, terminated, truncated, info
+        return self._get_obs(), reward, terminated, truncated, info
 
-    def _move_agent(self, new_x: int, new_y: int):
+    def _move_agent(self, new_x, new_y):
         """Move agent to new position."""
-        # Clear old position
-        self.grid.set(self.agent_pos[0], self.agent_pos[1], None)
-
-        # Update position
+        self.grid[self.agent_pos[1], self.agent_pos[0]] = self.EMPTY
         self.agent_pos = (new_x, new_y)
-
-        # Set new position (might overwrite entity like gem)
-        self.grid.set(new_x, new_y, Entity(id="agent", entity_type="agent", position=(new_x, new_y), properties={"color": "blue"}))
-
-    def _action_to_direction(self, action: int) -> tuple[int, int]:
-        """Convert action to direction vector."""
-        # 0: up, 1: right, 2: down, 3: left
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-        return directions[action]
+        self.grid[new_y, new_x] = self.AGENT
 
     def _get_obs(self):
-        """Get current observation."""
-        if self.render_mode == "ascii":
-            return self.grid.render_ascii()
-        elif self.render_mode == "rgb_array":
-            return self.grid.render_rgb()
-        else:
-            return self.grid.to_numpy()
+        """Render grid as text."""
+        symbols = {
+            self.EMPTY: ". ",
+            self.WALL: "# ",
+            self.GEM: "G ",
+            self.LAVA: "X ",
+            self.EXIT: "E ",
+            self.AGENT: "A ",
+        }
+        lines = []
+        for y in range(self.grid_size):
+            line = ""
+            for x in range(self.grid_size):
+                line += symbols.get(self.grid[y, x], "? ")
+            lines.append(line)
+        return "\n".join(lines)
 
-    def _get_info(self) -> dict:
+    def _get_info(self):
         """Get info dictionary."""
         return {
             "step_count": self.step_count,
@@ -273,24 +237,21 @@ class CollectGemsEnv(AgentickEnv):
             "exit_pos": self.exit_pos,
         }
 
+    def render(self):
+        """Render the environment."""
+        obs = self._get_obs()
+        if self.render_mode == "human":
+            print(obs)
+        return obs
+
 
 def register_collect_gems_task():
-    """Register the CollectGems task."""
-    # Register with gymnasium
+    """Register the CollectGems task with Gymnasium."""
     gym.register(
         id="CollectGems-v0",
-        entry_point=lambda **kwargs: CollectGemsEnv(**kwargs),
+        entry_point="examples.advanced.custom_task:CollectGemsEnv",
     )
-
-    # Register with agentick
-    register_task(
-        task_id="CollectGems-v0",
-        task_class=CollectGemsEnv,
-        description="Collect all gems before reaching the exit",
-        capabilities=["navigation", "planning", "collection"],
-    )
-
-    print("✓ CollectGems-v0 task registered!")
+    print("CollectGems-v0 task registered!")
 
 
 def test_custom_task():
@@ -299,11 +260,8 @@ def test_custom_task():
     print("Testing CollectGems-v0 Custom Task")
     print("=" * 60)
 
-    # Register the task
-    register_collect_gems_task()
-
-    # Create environment
-    env = gym.make("CollectGems-v0", difficulty="easy", render_mode="ascii")
+    # Create directly (no registration needed for direct use)
+    env = CollectGemsEnv(difficulty="easy", render_mode="ascii")
 
     # Run a test episode
     obs, info = env.reset(seed=42)
@@ -315,7 +273,7 @@ def test_custom_task():
 
     # Run random agent
     print("\nRunning random agent...")
-    total_reward = 0
+    total_reward = 0.0
     max_gems = 0
 
     for step in range(100):
@@ -348,9 +306,9 @@ def main():
     """Run custom task demonstration."""
     test_custom_task()
 
-    print("\nNow you can use this task in experiments:")
-    print("  env = agentick.make('CollectGems-v0', difficulty='medium')")
-    print("  # or in ExperimentConfig: tasks=['CollectGems-v0']")
+    print("\nYou can also register and use via gym.make():")
+    print("  register_collect_gems_task()")
+    print("  env = gym.make('CollectGems-v0', difficulty='medium')")
 
 
 if __name__ == "__main__":

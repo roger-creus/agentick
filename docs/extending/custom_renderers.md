@@ -316,17 +316,16 @@ class JSONLDRenderer:
 ### Register Custom Renderer
 
 ```python
-from agentick.core.registry import register_renderer
-
-# Register the renderer
-register_renderer("jsonld", JSONLDRenderer)
-
-# Use in environment
+# Custom renderers can be used by passing them to environments directly.
+# The built-in render modes are: ascii, language, language_structured,
+# rgb_array, state_dict.
+#
+# To use a custom renderer, override the render() method in your task class:
 import agentick
 
 env = agentick.make(
     "GoToGoal-v0",
-    render_mode="jsonld",  # Use custom renderer
+    render_mode="ascii",  # Use built-in renderer
 )
 
 obs, info = env.reset()
@@ -582,11 +581,8 @@ def test_renderer_with_environment():
     """Test renderer works with actual environment."""
     import agentick
 
-    # Register custom renderer
-    register_renderer("test", JSONLDRenderer)
-
-    # Create environment with custom renderer
-    env = agentick.make("GoToGoal-v0", render_mode="test")
+    # Custom renderers are used by overriding render() in task classes
+    env = agentick.make("GoToGoal-v0", render_mode="ascii")
 
     obs, info = env.reset(seed=42)
 
@@ -615,13 +611,10 @@ def test_renderer_with_environment():
 
 ### Renderer Not Found
 ```python
-# Make sure to register before use
-from agentick.core.registry import register_renderer
-
-register_renderer("my_renderer", MyRenderer)
-
-# Then use
-env = agentick.make("Task-v0", render_mode="my_renderer")
+# Custom renderers are used by overriding the render() method
+# in your task class. Built-in modes: ascii, language,
+# language_structured, rgb_array, state_dict
+env = agentick.make("Task-v0", render_mode="ascii")
 ```
 
 ### Large Output Size

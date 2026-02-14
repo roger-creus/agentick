@@ -222,9 +222,9 @@ def main():
 
         results.append({
             "episode": episode + 1,
-            "reward": total_reward,
-            "steps": steps,
-            "success": success,
+            "reward": float(total_reward),
+            "steps": int(steps),
+            "success": bool(success),
         })
 
     env.close()

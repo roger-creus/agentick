@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 from PIL import Image
@@ -240,7 +241,8 @@ def wrap_env_with_video_recording(
 
     if episode_trigger is None:
         # Record all episodes
-        episode_trigger = lambda _: True
+        def episode_trigger(_):
+            return True
 
     wrapped_env = GymRecordVideo(
         env,

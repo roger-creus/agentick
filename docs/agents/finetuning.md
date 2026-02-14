@@ -29,13 +29,13 @@ collector.save_trajectories(trajectories, "data/oracle_trajectories.json")
 ## Step 2: Export Dataset
 
 ```python
-from agentick.data import export_to_huggingface
+from agentick.data import export_to_format
 from datasets import load_dataset
 
-export_to_huggingface(
-    trajectories_path="data/oracle_trajectories.json",
+export_to_format(
+    trajectories,
     output_path="data/hf_dataset",
-    format="sft"
+    format_type="hf_dataset",
 )
 
 dataset = load_dataset("data/hf_dataset")
