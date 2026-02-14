@@ -51,7 +51,7 @@ def test_profile_all_tasks_small():
     results = {k: v for k, v in results.items() if not k.startswith("Test")}
 
     # Should have results for all non-test tasks
-    assert len(results) >= 40  # We have 41 tasks
+    assert len(results) >= 38  # We have 38 tasks
 
     # All results should be valid
     for task_name, result in results.items():
@@ -147,7 +147,7 @@ def test_full_profiling_run():
     results = profile_all_tasks(num_steps=1000)
 
     # Should have results for most tasks
-    assert len(results) >= 40
+    assert len(results) >= 38
 
     # Generate report
     report = generate_profiling_report(results)

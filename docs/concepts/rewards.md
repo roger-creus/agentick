@@ -38,12 +38,12 @@ for step in range(100):
 ### Built-in Potential Functions
 
 ```python
-from agentick.rewards import (
+from agentick.rewards.potential import (
     manhattan_distance_potential,
     euclidean_distance_potential,
     subgoal_potential,
     inventory_potential,
-    composite_potential
+    composite_potential,
 )
 
 # Manhattan distance
@@ -91,7 +91,7 @@ curiosity = CuriosityReward(reward_scale=0.1, prediction_window=10)
 ### Information Gain & Novelty
 
 ```python
-from agentick.rewards import InformationGainReward, NoveltyReward
+from agentick.rewards.intrinsic import InformationGainReward, NoveltyReward
 
 info_gain = InformationGainReward(reward_scale=0.1)
 novelty = NoveltyReward(reward_scale=0.1, memory_size=100)

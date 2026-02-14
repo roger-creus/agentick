@@ -16,7 +16,6 @@ Usage:
 
 from pathlib import Path
 
-
 from agentick.wrappers import make_atari_env
 
 try:
@@ -31,8 +30,9 @@ except ImportError:
     print("⚠️  stable-baselines3 not installed. Install with: uv sync --extra rl")
 
 try:
-    import wandb
     from wandb.integration.sb3 import WandbCallback
+
+    import wandb
 
     WANDB_AVAILABLE = True
 except ImportError:
@@ -207,7 +207,7 @@ def main():
             f"Episode {episode + 1:2d}: {success_str} Steps: {steps:3d}, Reward: {total_reward:6.2f}"
         )
 
-    print(f"\nFinal Results:")
+    print("\nFinal Results:")
     print(f"  Mean return: {sum(returns) / len(returns):.2f} ± {(max(returns) - min(returns)) / 2:.2f}")
     print(f"  Mean length: {sum(lengths) / len(lengths):.2f}")
 
@@ -227,7 +227,7 @@ def main():
     print("\n✓ Training complete!")
     print(f"  Checkpoints: {checkpoint_dir}")
     print(f"  Videos: {video_folder}")
-    print(f"  TensorBoard logs: ./logs/sb3_dqn")
+    print("  TensorBoard logs: ./logs/sb3_dqn")
 
 
 if __name__ == "__main__":

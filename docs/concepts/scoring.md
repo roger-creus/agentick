@@ -428,7 +428,7 @@ Multi-Agent: 0.51    ★★★☆☆  Some cooperation ability
 3. **Tiebreaker 2**: Worst capability score (breadth)
 
 ```python
-from agentick.leaderboard.rankings import compute_leaderboard
+from agentick.leaderboard.rankings import compute_rankings
 
 results = {
     "PPO-CNN": compute_aggregate_score(ppo_task_scores),
@@ -436,7 +436,7 @@ results = {
     "DQN": compute_aggregate_score(dqn_task_scores),
 }
 
-leaderboard = compute_leaderboard(results)
+leaderboard = compute_rankings(results)
 
 for rank, (agent_name, score) in enumerate(leaderboard, 1):
     agg = results[agent_name]
@@ -465,7 +465,7 @@ Rank  Agent Name           Score        95% CI       Worst Capability
 Pairwise comparisons using bootstrap hypothesis testing:
 
 ```python
-from agentick.leaderboard.comparison import compare_agents
+from agentick.leaderboard.comparison import compare_entries
 
 comparison = compare_agents(
     results_agent_a,

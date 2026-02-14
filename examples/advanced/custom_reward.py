@@ -279,13 +279,9 @@ def demo_efficiency_reward():
     obs, info = env.reset(seed=42)
     total_reward = 0
 
-    # Use oracle for demonstration
-    from agentick.agents.oracle import OracleAgent
-
-    oracle = OracleAgent(env.env)  # Pass unwrapped env
-
+    # Use random actions for demonstration
     for step in range(50):
-        action = oracle.act(obs, info)
+        action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
 
         total_reward += reward

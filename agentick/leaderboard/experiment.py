@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import yaml
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import gymnasium as gym
+import yaml
 
 import agentick
 
@@ -71,14 +71,19 @@ class ExperimentRunner:
                     return env.action_space.sample()
 
             return RandomAgent()
-        elif agent_type == "greedy":
-            # Greedy agent (moves towards goal if visible)
+        elif agent_type in ("greedy", "oracle"):
+            # Greedy/oracle agent (moves towards goal if visible)
             class GreedyAgent:
                 def act(self, obs, env):
                     # Simple heuristic: try forward first, then random
                     return 2  # forward action
 
             return GreedyAgent()
+        elif agent_type == "ppo":
+            raise ValueError(
+                "PPO agent requires a trained model. "
+                "Train first with: uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py"
+            )
         else:
             raise ValueError(f"Unknown agent type: {agent_type}")
 

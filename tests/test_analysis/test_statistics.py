@@ -32,9 +32,11 @@ def test_bootstrap_ci():
 
 def test_permutation_test():
     """Test permutation test."""
+    rng = np.random.default_rng(42)
+
     # Same distribution - should not be significant
-    group_a = np.random.normal(0, 1, 50)
-    group_b = np.random.normal(0, 1, 50)
+    group_a = rng.normal(0, 1, 50)
+    group_b = rng.normal(0, 1, 50)
 
     result = permutation_test(group_a, group_b, n_permutations=1000)
 
@@ -43,7 +45,7 @@ def test_permutation_test():
     assert not result.significant
 
     # Different distributions - should be significant
-    group_c = np.random.normal(5, 1, 50)
+    group_c = rng.normal(5, 1, 50)
     result2 = permutation_test(group_a, group_c, n_permutations=1000)
 
     assert result2.p_value < 0.05  # Should be significant

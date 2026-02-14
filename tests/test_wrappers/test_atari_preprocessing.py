@@ -1,7 +1,6 @@
 """Test Atari preprocessing wrappers."""
 
 import numpy as np
-import pytest
 
 import agentick
 from agentick.wrappers import (

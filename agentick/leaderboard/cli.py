@@ -7,15 +7,15 @@ import argparse
 from dotenv import load_dotenv
 
 import agentick
-
-# Load environment variables from .env file
-load_dotenv()
 from agentick.leaderboard.evaluator import LeaderboardEvaluator
 from agentick.leaderboard.integrity import verify_result
 from agentick.leaderboard.result import EvaluationResult
 from agentick.leaderboard.submission import SubmissionSpec
 from agentick.leaderboard.suites import list_suites
 from agentick.tasks.registry import list_tasks
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def cmd_evaluate(args):
@@ -133,7 +133,7 @@ def cmd_info(args):
         # Action meanings if available
         if hasattr(test_env, 'get_action_meanings'):
             meanings = test_env.get_action_meanings()
-            print(f"\nActions:")
+            print("\nActions:")
             for i, meaning in enumerate(meanings):
                 print(f"  {i}: {meaning}")
 
@@ -143,13 +143,13 @@ def cmd_info(args):
 
     # Baselines if available
     if hasattr(task_class, 'baselines'):
-        print(f"\nBaseline Scores:")
+        print("\nBaseline Scores:")
         for baseline_name, score in task_class.baselines.items():
             print(f"  {baseline_name}: {score:.2f}")
 
     print(f"\n{'=' * 80}")
-    print(f"To run this task:")
-    print(f"  import agentick")
+    print("To run this task:")
+    print("  import agentick")
     print(f"  env = agentick.make('{task_class.name}', difficulty='medium')")
 
     return 0
@@ -238,8 +238,8 @@ def cmd_submit_validate(args):
         print("\nSubmission is valid but has warnings.")
     else:
         print("✓ Submission is valid!")
-        print(f"\nSubmission: {submission.name}")
-        print(f"Model: {submission.model}")
+        print(f"\nSubmission: {submission.agent_name}")
+        print(f"Model: {submission.config.get('model', 'N/A')}")
 
     return 0
 

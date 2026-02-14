@@ -144,7 +144,7 @@ Use the plotting utilities:
 from agentick.visualization.experiment_plots import ExperimentPlotter
 
 plotter = ExperimentPlotter("results")
-plotter.plot_all(output_dir="plots")
+plotter.plot_all()
 ```
 
 Generates:

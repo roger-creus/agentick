@@ -96,7 +96,7 @@ uv run agentick evaluate --submission submission.yaml --suite agentick-quick-v1 
 # 5. View and verify results
 uv run agentick verify results/evaluation_result.json
 
-# 6. Full evaluation (38 tasks, ~4 hours)
+# 6. Full evaluation (35 tasks, ~4 hours)
 uv run agentick evaluate --submission submission.yaml --suite agentick-core-v1 --output results/
 
 # 7. Submit
@@ -109,7 +109,7 @@ uv run agentick submit upload results/submission_results.json
 |-------|-------|-------|------|
 | `quick` | 3 | 3 | ~2 min |
 | `smoke` | 10 | 5 | ~10 min |
-| `full` | 38 | 10 | ~4 hours |
+| `full` | 35 | 10 | ~4 hours |
 
 ## CLI Commands
 

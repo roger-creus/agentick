@@ -10,7 +10,7 @@ Requirements:
     uv sync
 
 Usage:
-    uv run python examples/data/collect_random_trajectories.py
+    uv run python examples/data_and_finetuning/collect_random_trajectories.py
 """
 
 import argparse
@@ -87,7 +87,10 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    collector = TrajectoryCollector()
+    collector = TrajectoryCollector(
+        buffer_size=args.num_episodes + 10,
+        collect_observations=True,
+    )
 
     # Collect trajectories
     print("Collecting trajectories...")
@@ -97,9 +100,9 @@ def main():
     successes = 0
 
     for episode in range(args.num_episodes):
-        obs, info = env.reset(seed=args.seed + episode)
+        collector.start_episode(metadata={"episode": episode})
 
-        collector.start_episode(obs, info)
+        obs, info = env.reset(seed=args.seed + episode)
 
         done = False
         episode_reward = 0
@@ -109,13 +112,18 @@ def main():
             # Random action
             action = env.action_space.sample()
 
-            obs, reward, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            collector.add_step(action, obs, reward, done, info)
+            collector.add_step(obs, action, reward, done, info)
 
+            obs = next_obs
             episode_reward += reward
             steps += 1
+
+            # Safety limit
+            if steps > 500:
+                break
 
         collector.end_episode()
 
@@ -143,15 +151,14 @@ def main():
     # Save trajectories
     print("\nSaving trajectories...")
 
-    # Save as JSON
-    json_path = output_dir / "trajectories.json"
-    collector.save_json(str(json_path))
-    print(f"✓ Saved JSON: {json_path}")
+    # Save each trajectory as JSON
+    trajectories = collector.get_trajectories()
+    for i, traj in enumerate(trajectories):
+        traj_path = output_dir / f"trajectory_{i:04d}.json"
+        with open(traj_path, "w") as f:
+            json.dump(traj.to_dict(), f, indent=2, default=str)
 
-    # Save as pickle
-    pkl_path = output_dir / "trajectories.pkl"
-    collector.save_pickle(str(pkl_path))
-    print(f"✓ Saved pickle: {pkl_path}")
+    print(f"✓ Saved {len(trajectories)} trajectories to {output_dir}")
 
     # Save summary statistics
     stats = {

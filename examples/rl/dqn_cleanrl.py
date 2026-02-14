@@ -31,7 +31,6 @@ import torch.optim as optim
 
 from agentick.wrappers.atari_preprocessing import make_atari_env
 
-
 try:
     import wandb
 
