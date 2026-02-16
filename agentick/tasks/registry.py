@@ -106,6 +106,8 @@ def make(
     reward_mode: str = "sparse",
     seed: int | None = None,
     fast_mode: bool = False,
+    render_3d: bool | None = None,
+    asset_dir: str | None = None,
     **kwargs: Any,
 ) -> AgentickEnv:
     """
@@ -114,10 +116,13 @@ def make(
     Args:
         task_name: Name of the task (e.g., "GoToGoal-v0")
         difficulty: Difficulty level (easy, medium, hard, expert)
-        render_mode: Rendering mode
+        render_mode: Rendering mode. Use ``"rgb_array_2d"`` for the flat 2D sprite renderer.
         reward_mode: Reward mode (sparse, dense)
         seed: Random seed for task generation
         fast_mode: Enable fast mode for state_dict rendering (skip expensive conversions)
+        render_3d: ``True`` = use 3D isometric renderer (requires render3d extra),
+            ``False`` or ``None`` = use 2D sprite renderer.
+        asset_dir: Custom directory for GLB model assets.
         **kwargs: Additional task parameters
 
     Returns:
@@ -154,6 +159,8 @@ def make(
         render_mode=render_mode,
         reward_mode=reward_mode,
         fast_mode=fast_mode,
+        render_3d=render_3d,
+        asset_dir=asset_dir,
         **kwargs,
     )
 

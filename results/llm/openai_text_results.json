@@ -1,0 +1,475 @@
+{
+  "agent": "OpenAI GPT-4o-mini",
+  "model": "gpt-4o-mini",
+  "task": "GoToGoal-v0",
+  "difficulty": "easy",
+  "episodes": [
+    {
+      "episode": 1,
+      "steps": [
+        {
+          "step": 1,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 2,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 3,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 4,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 5,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 6,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 7,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 8,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 9,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 10,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 11,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 12,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 13,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 14,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 15,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 16,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 17,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 18,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 19,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 20,
+          "action": 0,
+          "reward": 0.0
+        }
+      ],
+      "total_reward": 0.0,
+      "success": false,
+      "num_steps": 20
+    },
+    {
+      "episode": 2,
+      "steps": [
+        {
+          "step": 1,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 2,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 3,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 4,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 5,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 6,
+          "action": 1,
+          "reward": 0.0
+        }
+      ],
+      "total_reward": 0.0,
+      "success": true,
+      "num_steps": 6
+    },
+    {
+      "episode": 3,
+      "steps": [
+        {
+          "step": 1,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 2,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 3,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 4,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 5,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 6,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 7,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 8,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 9,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 10,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 11,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 12,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 13,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 14,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 15,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 16,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 17,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 18,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 19,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 20,
+          "action": 2,
+          "reward": 0.0
+        }
+      ],
+      "total_reward": 0.0,
+      "success": false,
+      "num_steps": 20
+    },
+    {
+      "episode": 4,
+      "steps": [
+        {
+          "step": 1,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 2,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 3,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 4,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 5,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 6,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 7,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 8,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 9,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 10,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 11,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 12,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 13,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 14,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 15,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 16,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 17,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 18,
+          "action": 1,
+          "reward": 0.0
+        }
+      ],
+      "total_reward": 0.0,
+      "success": true,
+      "num_steps": 18
+    },
+    {
+      "episode": 5,
+      "steps": [
+        {
+          "step": 1,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 2,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 3,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 4,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 5,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 6,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 7,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 8,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 9,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 10,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 11,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 12,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 13,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 14,
+          "action": 1,
+          "reward": 0.0
+        },
+        {
+          "step": 15,
+          "action": 3,
+          "reward": 0.0
+        },
+        {
+          "step": 16,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 17,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 18,
+          "action": 0,
+          "reward": 0.0
+        },
+        {
+          "step": 19,
+          "action": 2,
+          "reward": 0.0
+        },
+        {
+          "step": 20,
+          "action": 2,
+          "reward": 0.0
+        }
+      ],
+      "total_reward": 0.0,
+      "success": false,
+      "num_steps": 20
+    }
+  ],
+  "summary": {
+    "mean_reward": 0.0,
+    "std_reward": 0.0,
+    "success_rate": 0.4,
+    "total_api_calls": 97,
+    "total_tokens": 26149
+  }
+}
