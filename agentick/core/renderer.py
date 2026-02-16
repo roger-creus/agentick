@@ -563,7 +563,7 @@ def create_renderer(
             verbosity=verbosity,
             perspective=perspective,
         )
-    elif mode in ("rgb_array", "human"):
+    elif mode in ("rgb_array", "rgb_array_2d", "human"):
         config = RenderConfig(tile_size=tile_size, show_hud=show_hud, **kwargs)
         return EnhancedPixelRenderer(config)
     elif mode == "state_dict":

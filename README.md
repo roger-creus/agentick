@@ -10,7 +10,7 @@ Agentick provides 38 procedurally generated tasks for evaluating AI agents. Trai
 ## Key Features
 
 - **38 Tasks** across navigation, memory, reasoning, skill discovery, control, and more
-- **Multi-Modal Observations**: text, pixels, language, structured state
+- **Multi-Modal Observations**: text, 3D isometric pixels, 2D sprites, language, structured state
 - **Training-First**: vectorized environments, trajectory export, curriculum learning
 - **Universal Support**: RL, LLMs, VLMs, bots, humans
 - **Capability Decomposition**: radar charts showing agent strengths/weaknesses
@@ -56,6 +56,7 @@ uv run agentick --version
 uv sync --extra rl         # RL training (torch, wandb)
 uv sync --extra llm        # LLM agents (openai, anthropic)
 uv sync --extra viz        # Visualization (matplotlib, seaborn)
+uv sync --extra render3d   # 3D isometric rendering (trimesh, pyrender)
 uv sync --extra all        # Everything
 ```
 
