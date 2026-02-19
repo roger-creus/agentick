@@ -1,87 +1,105 @@
-"""Train PPO agent and evaluate on benchmark tasks.
+"""Train PPO agent from pixels and evaluate on benchmark tasks.
 
-This script demonstrates:
-1. Training a PPO agent on AgentICK tasks
-2. Saving the trained model
-3. Evaluating the trained agent on benchmark suite
+Trains a separate PPO (CnnPolicy) for each (task, difficulty) pair using
+Atari-style preprocessing (84x84 grayscale, frame-stacked). Evaluates
+periodically and records videos of the final policy.
 
 Requirements:
     uv sync --extra rl
 
 Usage:
-    uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py
-    uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py --timesteps 100000
+    # Full benchmark from config:
+    uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py \
+        --config examples/experiments/full_benchmark/configs/ppo_pixels_dense.yaml
+
+    # Quick single-task test:
+    uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py \
+        --config examples/experiments/full_benchmark/configs/ppo_pixels_dense.yaml \
+        --tasks GoToGoal-v0 --difficulties easy --timesteps 10000
+
+    # Resume a crashed run:
+    uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py \
+        --config examples/experiments/full_benchmark/configs/ppo_pixels_dense.yaml \
+        --resume results/ppo_benchmarks/ppo-pixels-dense-300k_20260219_120000
 """
 
+from __future__ import annotations
+
 import argparse
-
-print("=" * 80)
-print("PPO TRAINING AND EVALUATION")
-print("=" * 80)
-print()
-print("⚠️  This script requires:")
-print("   - GPU for efficient training")
-print("   - 2-4 hours for full training")
-print("   - stable-baselines3 or CleanRL installed")
-print()
-print("For a quick test, this script will:")
-print("   1. Print what would be trained")
-print("   2. Skip to evaluation with a random policy")
-print()
+import sys
 
 
-def main():
-    """Train PPO and evaluate."""
-    parser = argparse.ArgumentParser(description="Train and evaluate PPO agent")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Train PPO from pixels on Agentick benchmark tasks",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Path to YAML experiment config",
+    )
+    parser.add_argument(
+        "--tasks",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Override tasks (e.g. GoToGoal-v0 MazeNavigation-v0)",
+    )
+    parser.add_argument(
+        "--difficulties",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Override difficulties (e.g. easy medium)",
+    )
     parser.add_argument(
         "--timesteps",
         type=int,
-        default=100000,
-        help="Total training timesteps (default: 100k for quick test)",
+        default=None,
+        help="Override total_timesteps per task",
     )
     parser.add_argument(
-        "--checkpoint-dir",
+        "--resume",
         type=str,
-        default="checkpoints/ppo_pixels",
-        help="Directory to save model checkpoints",
+        default=None,
+        help="Path to previous run directory to resume from",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Override device (cpu, cuda, auto)",
     )
     args = parser.parse_args()
 
-    print("Configuration:")
-    print(f"  Total timesteps: {args.timesteps:,}")
-    print(f"  Checkpoint dir: {args.checkpoint_dir}")
-    print()
-
-    # Check if we have the required dependencies
+    # Check dependencies
     try:
         import stable_baselines3  # noqa: F401
-        has_sb3 = True
     except ImportError:
-        has_sb3 = False
+        print("stable-baselines3 is required for PPO training.")
+        print("Install with: uv sync --extra rl")
+        sys.exit(1)
 
-    if not has_sb3:
-        print("❌ stable-baselines3 not found")
-        print()
-        print("To run PPO training:")
-        print("  1. Install: uv sync --extra rl")
-        print("  2. See examples/rl/sb3_ppo.py for training code")
-        print("  3. After training, use run_single_benchmark.py to evaluate")
-        print()
-        print("Skipping training and evaluation.")
-        return
+    from agentick.experiments.config import load_config
+    from agentick.experiments.training_runner import TrainingBenchmarkRunner
 
-    print("Training would proceed as follows:")
-    print()
-    print("1. Create vectorized environment with multiple AgentICK tasks")
-    print("2. Initialize PPO agent with CNN policy for pixel observations")
-    print("3. Train for specified timesteps with periodic checkpoints")
-    print("4. Save best model based on evaluation reward")
-    print("5. Load best model and run full benchmark evaluation")
-    print()
-    print("For actual implementation, see:")
-    print("  - examples/rl/sb3_ppo.py")
-    print("  - examples/rl/ppo_cleanrl.py")
-    print()
+    # Load config
+    config = load_config(args.config)
+
+    # Apply CLI overrides
+    if args.tasks:
+        config.tasks = args.tasks
+    if args.difficulties:
+        config.difficulties = args.difficulties
+    if args.timesteps and config.training:
+        config.training.total_timesteps = args.timesteps
+    if args.device and config.training:
+        config.training.device = args.device
+
+    # Run
+    runner = TrainingBenchmarkRunner(config)
+    runner.run(resume_from=args.resume)
 
 
 if __name__ == "__main__":

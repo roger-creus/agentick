@@ -11,6 +11,7 @@ DIFFICULTY AXES (multi-dimensional):
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -27,10 +28,10 @@ class DynamicObstaclesTask(TaskSpec):
     capability_tags = ["reactive_planning", "navigation"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_obs": 2, "move_prob": 0.50, "pursuing": False}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=100, params={"n_obs": 3, "move_prob": 0.75, "pursuing": False}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=150, params={"n_obs": 5, "move_prob": 1.00, "pursuing": False}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=200, params={"n_obs": 7, "move_prob": 1.00, "pursuing": True}),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_obs": 2, "move_prob": 0.50, "pursuing": False, "n_walls": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=100, params={"n_obs": 3, "move_prob": 0.75, "pursuing": False, "n_walls": 3}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=150, params={"n_obs": 5, "move_prob": 1.00, "pursuing": False, "n_walls": 6}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=200, params={"n_obs": 7, "move_prob": 1.00, "pursuing": True, "n_walls": 9}),
     }
 
     _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
@@ -54,6 +55,24 @@ class DynamicObstaclesTask(TaskSpec):
         goal_pos  = (int(rng.integers(size-3, size-1)), int(rng.integers(size-3, size-1)))
 
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+
+        # Add interior walls to create chokepoints
+        n_walls = p.get("n_walls", 0)
+        if n_walls > 0:
+            wall_candidates = [
+                (x, y) for x in range(1, size-1) for y in range(1, size-1)
+                if (x, y) != agent_pos and (x, y) != goal_pos
+            ]
+            rng.shuffle(wall_candidates)
+            placed = 0
+            for wx, wy in wall_candidates:
+                if placed >= n_walls:
+                    break
+                grid.terrain[wy, wx] = CellType.WALL
+                if goal_pos in grid.flood_fill(agent_pos):
+                    placed += 1
+                else:
+                    grid.terrain[wy, wx] = CellType.EMPTY
 
         # Place obstacles away from agent start (safe zone radius 2)
         candidates = [

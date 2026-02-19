@@ -161,7 +161,9 @@ class FogOfWarExplorationTask(TaskSpec):
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
             d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
-            if (grid.terrain[ny, nx] == CellType.EMPTY and grid.objects[ny, nx] != ObjectType.GOAL):
+            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] != ObjectType.GOAL):
                 new_g.append((nx, ny))
             else:
                 d = int(rng.integers(0, 4)); new_g.append((gx, gy))

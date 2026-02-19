@@ -9,6 +9,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -99,6 +100,12 @@ class LightsOutTask(TaskSpec):
     def on_env_reset(self, agent, grid, config):
         """Cache config and count initial lights for reward tracking."""
         self._adjacent_toggle = config.get("adjacent_toggle", False)
+        # Build set of all light grid positions (lights + decoys form the toggle grid)
+        self._light_grid = set()
+        for lx, ly in config.get("light_positions", []):
+            self._light_grid.add((lx, ly))
+        for dx, dy in config.get("decoy_positions", []):
+            self._light_grid.add((dx, dy))
         self._lights_remaining = sum(
             1 for y in range(grid.height) for x in range(grid.width)
             if grid.objects[y, x] == ObjectType.SWITCH
@@ -108,18 +115,23 @@ class LightsOutTask(TaskSpec):
     def on_agent_moved(self, pos, agent, grid):
         """Toggle lights immediately on step — fires BEFORE reward computation."""
         x, y = pos
-        if grid.objects[y, x] == ObjectType.SWITCH:
-            grid.objects[y, x] = ObjectType.NONE
-            self._lights_remaining -= 1
+        self._toggle_cell(x, y, grid)
 
         # Adjacent toggle mode
         if self._adjacent_toggle:
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 nx, ny = x + dx, y + dy
                 if 0 < nx < grid.width - 1 and 0 < ny < grid.height - 1:
-                    if grid.objects[ny, nx] == ObjectType.SWITCH:
-                        grid.objects[ny, nx] = ObjectType.NONE
-                        self._lights_remaining -= 1
+                    self._toggle_cell(nx, ny, grid)
+
+    def _toggle_cell(self, x, y, grid):
+        """Toggle a single cell: ON→OFF or OFF→ON, but only at light grid positions."""
+        if grid.objects[y, x] == ObjectType.SWITCH:
+            grid.objects[y, x] = ObjectType.NONE
+            self._lights_remaining -= 1
+        elif (x, y) in self._light_grid and grid.objects[y, x] == ObjectType.NONE:
+            grid.objects[y, x] = ObjectType.SWITCH
+            self._lights_remaining += 1
 
     # ── Reward & success ─────────────────────────────────────────────────────
 

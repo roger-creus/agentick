@@ -3,8 +3,8 @@
 PROCEDURAL DIVERSITY + CREATIVE DIFFICULTY AXES:
   - easy:   1 shift, goal moves once, fake goal visible from start
   - medium: 2 shifts, goal moves twice, multiple fake goals
-  - hard:   3 shifts, goal teleports randomly, walls appear/disappear
-  - expert: 4 shifts, walls change + multiple fake goals + short windows
+  - hard:   3 shifts, faster shifts, terrain type changes, walls change
+  - expert: 4 shifts, 2x shift speed, 4 terrain flips, short windows
 
 MECHANICS:
   - Phase 0: Real goal at pos A (GOAL object), fake goals as TARGET objects
@@ -15,6 +15,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -31,19 +32,49 @@ class DistributionShiftTask(TaskSpec):
     capability_tags = ["generalization", "ood", "robustness"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_shifts": 1, "n_fakes": 1, "walls_change": False}),
-        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=130, params={"n_shifts": 2, "n_fakes": 2, "walls_change": False}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=200, params={"n_shifts": 3, "n_fakes": 3, "walls_change": True}),
-        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=280, params={"n_shifts": 4, "n_fakes": 4, "walls_change": True}),
+        "easy":   DifficultyConfig(
+            name="easy", grid_size=7, max_steps=80,
+            params={
+                "n_shifts": 1, "n_fakes": 1,
+                "walls_change": False,
+                "shift_speed": 1.0, "terrain_changes": 0,
+            },
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=9, max_steps=130,
+            params={
+                "n_shifts": 2, "n_fakes": 2,
+                "walls_change": False,
+                "shift_speed": 1.0, "terrain_changes": 0,
+            },
+        ),
+        "hard":   DifficultyConfig(
+            name="hard", grid_size=11, max_steps=200,
+            params={
+                "n_shifts": 3, "n_fakes": 3,
+                "walls_change": True,
+                "shift_speed": 1.5, "terrain_changes": 2,
+            },
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=13, max_steps=280,
+            params={
+                "n_shifts": 4, "n_fakes": 4,
+                "walls_change": True,
+                "shift_speed": 2.0, "terrain_changes": 4,
+            },
+        ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n_shifts      = p.get("n_shifts", 1)
-        n_fakes       = p.get("n_fakes", 1)
-        walls_change  = p.get("walls_change", False)
+        n_shifts        = p.get("n_shifts", 1)
+        n_fakes         = p.get("n_fakes", 1)
+        walls_change    = p.get("walls_change", False)
+        shift_speed     = p.get("shift_speed", 1.0)
+        terrain_changes = p.get("terrain_changes", 0)
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -62,10 +93,15 @@ class DistributionShiftTask(TaskSpec):
         # Fake goals (placed at start, stay throughout as visual lures)
         fake_goals       = interior[n_goal_positions: n_goal_positions + n_fakes]
 
-        # Interval between shifts
+        # Interval between shifts — shift_speed > 1 makes shifts
+        # come faster, compressing the time the agent has to react
         total_steps   = self.get_max_steps()
-        shift_interval = total_steps // (n_shifts + 1)
-        shift_steps   = [shift_interval * (i+1) for i in range(n_shifts)]
+        shift_interval = max(
+            1, int(total_steps / ((n_shifts + 1) * shift_speed)),
+        )
+        shift_steps = [
+            shift_interval * (i + 1) for i in range(n_shifts)
+        ]
 
         # Optional: wall patches to add/remove at each shift
         wall_patches = []
@@ -77,6 +113,19 @@ class DistributionShiftTask(TaskSpec):
                 wall_patches.append(list(patch))
         else:
             wall_patches = [[] for _ in range(n_shifts)]
+
+        # Terrain change cells: cells that flip between EMPTY
+        # and HAZARD/WATER at each shift (hard/expert only)
+        terrain_cells = []
+        if terrain_changes > 0:
+            tc_pool = [
+                pos for pos in interior[n_goal_positions + n_fakes:]
+                if pos not in {
+                    p for patch in wall_patches for p in patch
+                }
+            ]
+            rng.shuffle(tc_pool)
+            terrain_cells = tc_pool[:terrain_changes]
 
         # Place initial goal and fake goals
         if goal_sequence:
@@ -93,6 +142,9 @@ class DistributionShiftTask(TaskSpec):
             "shift_steps":    shift_steps,
             "wall_patches":   wall_patches,
             "n_shifts":       n_shifts,
+            "shift_speed":    shift_speed,
+            "terrain_changes": terrain_changes,
+            "_terrain_cells": terrain_cells,
             "max_steps":      self.get_max_steps(),
             # backward-compat keys for tests
             "goal_a":         goal_sequence[0] if goal_sequence else None,
@@ -153,6 +205,15 @@ class DistributionShiftTask(TaskSpec):
                             grid.terrain[wy, wx] = CellType.WALL
                         else:
                             grid.terrain[wy, wx] = CellType.EMPTY
+
+            # Terrain type changes: flip designated cells
+            # between EMPTY and HAZARD at each shift
+            for tx, ty in config.get("_terrain_cells", []):
+                if 0 < tx < grid.width-1 and 0 < ty < grid.height-1:
+                    if grid.terrain[ty, tx] == CellType.EMPTY:
+                        grid.terrain[ty, tx] = CellType.HAZARD
+                    elif grid.terrain[ty, tx] == CellType.HAZARD:
+                        grid.terrain[ty, tx] = CellType.EMPTY
 
             config["_shifted"] = shifted + 1
             config["_phase"]   = new_phase

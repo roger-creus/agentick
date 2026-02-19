@@ -9,6 +9,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -121,12 +122,6 @@ class ResourceManagementTask(TaskSpec):
         if grid.objects[ay, ax] == ObjectType.KEY:
             grid.objects[ay, ax] = ObjectType.NONE
             config["_resources_held"] = config.get("_resources_held", 0) + 1
-        # Unlock door when enough resources
-        cost = config.get("door_cost", 1)
-        if config.get("_resources_held", 0) >= cost:
-            dx, dy = config.get("door_pos", (0, 0))
-            if grid.objects[dy, dx] == ObjectType.SWITCH:
-                grid.objects[dy, dx] = ObjectType.NONE  # door unlocked
         # Move guards and check collision
         guards = config.get("_guard_positions", [])
         dirs   = config.get("_guard_dirs", [])
@@ -158,13 +153,20 @@ class ResourceManagementTask(TaskSpec):
         """Agent can enter door gap only if they have enough resources."""
         x, y = pos
         if grid.objects[y, x] == ObjectType.SWITCH:
-            # Door: check resources
-            return False  # blocked until resources collected (on_env_step unlocks)
+            config = getattr(self, "_config", {})
+            held = config.get("_resources_held", 0)
+            cost = config.get("door_cost", 1)
+            return held >= cost
         return True
 
     def on_agent_moved(self, pos, agent, grid):
         x, y = pos
         config = getattr(self, "_config", {})
+        # Spend resources when entering the door cell
+        if grid.objects[y, x] == ObjectType.SWITCH:
+            cost = config.get("door_cost", 1)
+            config["_resources_held"] = config.get("_resources_held", 0) - cost
+            grid.objects[y, x] = ObjectType.NONE  # door unlocked
         if grid.objects[y, x] == ObjectType.NPC:
             config["_guard_collision"] = True
 

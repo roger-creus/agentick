@@ -15,6 +15,7 @@ PROCEDURAL DIVERSITY (per seed):
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -31,10 +32,22 @@ class CausalChainTask(TaskSpec):
     capability_tags = ["reasoning", "causal_reasoning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=100, params={"n_switches": 2}),
-        "medium": DifficultyConfig(name="medium",  grid_size=11, max_steps=180, params={"n_switches": 3}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=280, params={"n_switches": 4}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=420, params={"n_switches": 5}),
+        "easy": DifficultyConfig(
+            name="easy", grid_size=9, max_steps=100,
+            params={"n_switches": 2, "n_obstacles": 0, "n_decoys": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=11, max_steps=180,
+            params={"n_switches": 3, "n_obstacles": 3, "n_decoys": 1},
+        ),
+        "hard": DifficultyConfig(
+            name="hard", grid_size=13, max_steps=280,
+            params={"n_switches": 4, "n_obstacles": 5, "n_decoys": 2},
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=15, max_steps=420,
+            params={"n_switches": 5, "n_obstacles": 7, "n_decoys": 3},
+        ),
     }
 
     def generate(self, seed):
@@ -145,10 +158,19 @@ class CausalChainTask(TaskSpec):
         for sx, sy in switch_positions:
             grid.objects[sy, sx] = ObjectType.TARGET  # unactivated = TARGET
 
+        # Decoy switches: look identical but don't count
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
+        decoy_free = [p for p in free if p not in switch_positions]
+        rng.shuffle(decoy_free)
+        decoy_positions = decoy_free[:n_decoys]
+        for dx, dy in decoy_positions:
+            grid.objects[dy, dx] = ObjectType.TARGET
+
         return grid, {
             "agent_start":      agent_pos,
             "goal_positions":   [goal_cell],
             "switch_positions": switch_positions,
+            "decoy_positions":  decoy_positions,
             "gate_pos":         gate_cell,
             "room_cells":       room_cells,
             "n_switches":       n,

@@ -14,6 +14,7 @@ DIFFICULTY AXES:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -30,10 +31,22 @@ class DelayedGratificationTask(TaskSpec):
     capability_tags = ["credit_assignment", "long_horizon"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_decoys": 1, "n_walls": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=100, params={"n_decoys": 2, "n_walls": 3}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=150, params={"n_decoys": 3, "n_walls": 6}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=200, params={"n_decoys": 4, "n_walls": 9}),
+        "easy": DifficultyConfig(
+            name="easy", grid_size=7, max_steps=60,
+            params={"n_decoys": 1, "n_walls": 0, "n_hazards": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=10, max_steps=100,
+            params={"n_decoys": 2, "n_walls": 3, "n_hazards": 0},
+        ),
+        "hard": DifficultyConfig(
+            name="hard", grid_size=13, max_steps=150,
+            params={"n_decoys": 3, "n_walls": 6, "n_hazards": 2},
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=15, max_steps=200,
+            params={"n_decoys": 4, "n_walls": 9, "n_hazards": 4},
+        ),
     }
 
     def generate(self, seed):
@@ -104,6 +117,24 @@ class DelayedGratificationTask(TaskSpec):
             grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
             for dx, dy in decoy_positions:
                 grid.objects[dy, dx] = ObjectType.KEY  # KEY = decoy visual
+
+            # Place hazard terrain (must avoid on optimal path)
+            n_hazards = self.difficulty_config.params.get("n_hazards", 0)
+            hazard_candidates = [
+                p for p in free
+                if p not in used and grid.terrain[p[1], p[0]] == CellType.EMPTY
+            ]
+            rng.shuffle(hazard_candidates)
+            hazard_positions = []
+            for hp in hazard_candidates[:n_hazards * 2]:
+                hx, hy = hp
+                grid.terrain[hy, hx] = CellType.HAZARD
+                if goal_pos in grid.flood_fill(agent_pos):
+                    hazard_positions.append(hp)
+                else:
+                    grid.terrain[hy, hx] = CellType.EMPTY
+                if len(hazard_positions) >= n_hazards:
+                    break
 
             return grid, {
                 "agent_start":    agent_pos,

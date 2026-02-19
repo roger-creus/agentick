@@ -30,25 +30,25 @@ class MazeNavigationTask(TaskSpec):
             name="easy",
             grid_size=7,
             max_steps=60,
-            params={"loop_freq": 0.30, "n_guards": 0, "algorithm": "binary_tree"},
+            params={"loop_freq": 0.30, "n_guards": 0, "n_hazards": 0, "algorithm": "binary_tree"},
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=11,
             max_steps=120,
-            params={"loop_freq": 0.15, "n_guards": 1, "algorithm": "recursive_backtracker"},
+            params={"loop_freq": 0.15, "n_guards": 1, "n_hazards": 2, "algorithm": "recursive_backtracker"},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=15,
             max_steps=250,
-            params={"loop_freq": 0.08, "n_guards": 2, "algorithm": "recursive_backtracker"},
+            params={"loop_freq": 0.08, "n_guards": 2, "n_hazards": 4, "algorithm": "recursive_backtracker"},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=21,
             max_steps=500,
-            params={"loop_freq": 0.03, "n_guards": 3, "algorithm": "recursive_backtracker"},
+            params={"loop_freq": 0.03, "n_guards": 3, "n_hazards": 6, "algorithm": "recursive_backtracker"},
         ),
     }
 
@@ -180,6 +180,27 @@ class MazeNavigationTask(TaskSpec):
         for gx, gy in guard_positions:
             grid.objects[gy, gx] = ObjectType.NPC
 
+        # Place hazards at dead ends (cells with only one open neighbor)
+        n_hazards = p.get("n_hazards", 0)
+        if n_hazards > 0:
+            dead_ends = []
+            for pos in valid_positions:
+                if pos == agent_pos or pos == goal_pos or pos in path_set:
+                    continue
+                if pos in set(guard_positions):
+                    continue
+                px, py = pos
+                neighbors = sum(
+                    1 for ddx, ddy in self._DIRS
+                    if 0 <= px+ddx < size and 0 <= py+ddy < size
+                    and grid.terrain[py+ddy, px+ddx] == CellType.EMPTY
+                )
+                if neighbors == 1:
+                    dead_ends.append(pos)
+            rng.shuffle(dead_ends)
+            for hx, hy in dead_ends[:n_hazards]:
+                grid.terrain[hy, hx] = CellType.HAZARD
+
         config = {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
@@ -197,8 +218,17 @@ class MazeNavigationTask(TaskSpec):
 
     def on_env_reset(self, agent, grid, config):
         config["_guard_collision"] = False
+        config["_hazard_hit"] = False
         config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
         self._config = config
+
+    def on_agent_moved(self, pos, agent, grid):
+        x, y = pos
+        config = getattr(self, "_config", {})
+        if grid.terrain[y, x] == CellType.HAZARD:
+            config["_hazard_hit"] = True
+        if grid.objects[y, x] == ObjectType.NPC:
+            config["_guard_collision"] = True
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
@@ -211,7 +241,9 @@ class MazeNavigationTask(TaskSpec):
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
             d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
-            if (grid.terrain[ny, nx] == CellType.EMPTY and grid.objects[ny, nx] != ObjectType.GOAL):
+            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] != ObjectType.GOAL):
                 new_g.append((nx, ny))
             else:
                 d = int(rng.integers(0, 4)); new_g.append((gx, gy))
@@ -222,7 +254,9 @@ class MazeNavigationTask(TaskSpec):
             if grid.terrain[gy, gx] == CellType.EMPTY: grid.objects[gy, gx] = ObjectType.NPC
 
     def check_done(self, state):
-        if state.get("config", {}).get("_guard_collision", False): return True
+        config = state.get("config", {})
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
+            return True
         return self.check_success(state)
 
     def compute_dense_reward(self, old_state, action, new_state, info):
@@ -246,7 +280,9 @@ class MazeNavigationTask(TaskSpec):
 
     def check_success(self, state):
         """Check if agent reached the goal."""
-        if state.get("config", {}).get("_guard_collision", False): return False
+        config = state.get("config", {})
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
+            return False
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position

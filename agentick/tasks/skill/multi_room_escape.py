@@ -9,6 +9,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -27,10 +28,10 @@ class MultiRoomEscapeTask(TaskSpec):
     capability_tags = ["skill_composition", "long_horizon"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=11, max_steps=100, params={"n_rooms": 2, "n_guards": 0, "dark": False}),
-        "medium": DifficultyConfig(name="medium",  grid_size=15, max_steps=200, params={"n_rooms": 3, "n_guards": 1, "dark": False}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=19, max_steps=350, params={"n_rooms": 4, "n_guards": 2, "dark": True}),
-        "expert": DifficultyConfig(name="expert",  grid_size=23, max_steps=550, params={"n_rooms": 5, "n_guards": 3, "dark": True}),
+        "easy":   DifficultyConfig(name="easy",   grid_size=11, max_steps=100, params={"n_rooms": 2, "n_guards": 0, "dark": False, "n_hazards": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=15, max_steps=200, params={"n_rooms": 3, "n_guards": 1, "dark": False, "n_hazards": 2}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=19, max_steps=350, params={"n_rooms": 4, "n_guards": 2, "dark": True, "n_hazards": 4}),
+        "expert": DifficultyConfig(name="expert",  grid_size=23, max_steps=550, params={"n_rooms": 5, "n_guards": 3, "dark": True, "n_hazards": 6}),
     }
 
     _DIRS = _MRE_DIRS
@@ -82,6 +83,17 @@ class MultiRoomEscapeTask(TaskSpec):
         goal_x, goal_y = goal_pos
         grid.objects[goal_y, goal_x] = ObjectType.GOAL
 
+        # Place hazards in rooms (not on agent start or goal)
+        n_hazards = self.difficulty_config.params.get("n_hazards", 0)
+        hazard_candidates = [p for p in reachable if p != agent_pos and p != goal_pos
+                            and abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]) > 2]
+        rng.shuffle(hazard_candidates)
+        for hx, hy in hazard_candidates[:n_hazards]:
+            grid.terrain[hy, hx] = CellType.HAZARD
+            # Verify goal still reachable
+            if goal_pos not in grid.flood_fill(agent_pos):
+                grid.terrain[hy, hx] = CellType.EMPTY
+
         # Guards in intermediate rooms (not first or last room)
         used = {agent_pos, goal_pos}
         guard_positions = []
@@ -110,6 +122,7 @@ class MultiRoomEscapeTask(TaskSpec):
 
     def on_env_reset(self, agent, grid, config):
         config["_guard_collision"] = False
+        config["_hazard_hit"] = False
         config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
         self._config = config  # cache for on_agent_moved
 
@@ -118,6 +131,8 @@ class MultiRoomEscapeTask(TaskSpec):
         config = getattr(self, "_config", {})
         if grid.objects[y, x] == ObjectType.NPC:
             config["_guard_collision"] = True
+        if grid.terrain[y, x] == CellType.HAZARD:
+            config["_hazard_hit"] = True
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
@@ -162,7 +177,7 @@ class MultiRoomEscapeTask(TaskSpec):
 
     def check_success(self, state):
         config = state.get("config", {})
-        if config.get("_guard_collision", False):
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
             return False
         if "grid" not in state or "agent" not in state:
             return False
@@ -171,7 +186,7 @@ class MultiRoomEscapeTask(TaskSpec):
 
     def check_done(self, state):
         config = state.get("config", {})
-        if config.get("_guard_collision", False):
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
             return True
         return self.check_success(state)
 
