@@ -37,9 +37,14 @@ uv run python examples/experiments/full_benchmark/run_single_benchmark.py \
     examples/experiments/full_benchmark/configs/oracle_agent.yaml
 
 echo ""
-echo "[3/7] Training and evaluating PPO..."
-echo "(Skipping PPO - requires GPU and long training time)"
-echo "To run PPO: uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py"
+echo "[3/7] Training and evaluating PPO (dense rewards)..."
+uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py \
+    --config examples/experiments/full_benchmark/configs/ppo_pixels_dense.yaml
+
+echo ""
+echo "[3b/7] Training and evaluating PPO (sparse rewards)..."
+uv run python examples/experiments/full_benchmark/train_and_eval_ppo.py \
+    --config examples/experiments/full_benchmark/configs/ppo_pixels_sparse.yaml
 
 echo ""
 echo "[4/7] Running OpenAI text agent..."

@@ -27,6 +27,7 @@ ALL_TASKS = list_tasks()
 def _bfs_path(grid, start, goal, env=None) -> list[tuple[int, int]] | None:
     """BFS path from start to goal. Avoids WALL and respects can_agent_enter if env given."""
     from collections import deque
+
     from agentick.core.types import CellType
     queue = deque([(start, [start])])
     visited = {start}
@@ -231,7 +232,6 @@ def test_nav_task_can_succeed(task_name, seeds):
 @pytest.mark.timeout(60)
 def test_dynamic_obstacles_can_succeed():
     """DynamicObstacles: agent avoids moving blockers, reaches goal."""
-    from agentick.core.types import ObjectType
     import agentick
     # Try multiple seeds; find one where agent can navigate safely
     # The agent waits (noop) up to 3 steps when an obstacle is directly adjacent
@@ -288,13 +288,31 @@ def test_switch_task_can_succeed(task_name, switch_key):
     env.reset(seed=42)
     cfg = env.task_config
     switches = cfg.get(switch_key, [])
-    term = False
-    for wp in switches:
-        if term:
-            break
-        obs, rew, term, trunc, info = _walk_to(env, wp[0], wp[1])
-        if not term and not trunc:
-            obs, rew, term, trunc, info = _noop(env)  # register step-on
+
+    if task_name == "LightsOut-v0":
+        # LightsOut toggles cells when stepped on — teleport next to each light
+        # then step onto it to avoid toggling other lights along the path
+        from agentick.core.types import CellType
+        for wp in switches:
+            lx, ly = wp
+            # Place agent adjacent to light (try left first, then other directions)
+            for dx, dy, action in [(-1, 0, 4), (1, 0, 3), (0, -1, 2), (0, 1, 1)]:
+                nx, ny = lx + dx, ly + dy
+                if (0 < nx < env.grid.width - 1 and 0 < ny < env.grid.height - 1
+                        and env.grid.terrain[ny, nx] != CellType.WALL):
+                    env.agent.position = (nx, ny)
+                    obs, rew, term, trunc, info = env.step(action)
+                    break
+            if term or trunc:
+                break
+    else:
+        term = False
+        for wp in switches:
+            if term:
+                break
+            obs, rew, term, trunc, info = _walk_to(env, wp[0], wp[1])
+            if not term and not trunc:
+                obs, rew, term, trunc, info = _noop(env)  # register step-on
 
     # LightsOut success is state-based (all lights off) — no goal position required
     goal_positions = cfg.get("goal_positions", [])
@@ -333,7 +351,7 @@ def test_multi_goal_route_can_succeed():
             break
         obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     env.close()
-    assert info.get("success"), f"MultiGoalRoute: couldn't trigger success"
+    assert info.get("success"), "MultiGoalRoute: couldn't trigger success"
 
 
 @pytest.mark.timeout(60)
@@ -469,27 +487,8 @@ def test_sequence_memory_can_succeed():
     assert info["success"], f"SequenceMemory: couldn't trigger success (seq={seq})"
 
 
-@pytest.mark.timeout(60)
-def test_graph_coloring_can_succeed():
-    """GraphColoring: visit all color zones then reach goal."""
-    env = agentick.make("GraphColoring-v0", difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    term, trunc, info = False, False, {}
-    for zones_key in ["color0_zones", "color1_zones"]:
-        for p in cfg.get(zones_key, []):
-            if term or trunc:
-                break
-            obs, rew, term, trunc, info = _walk_to(env, p[0], p[1])
-            if not term and not trunc:
-                obs, rew, term, trunc, info = _noop(env)
-    goal = cfg["goal_positions"][0]
-    if not term and not trunc:
-        obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
-        if not term and not trunc:
-            obs, rew, term, trunc, info = _noop(env)
-    env.close()
-    assert info.get("success"), f"GraphColoring: couldn't trigger success"
+
+# Old test_graph_coloring_can_succeed removed — replaced by updated version below
 
 
 @pytest.mark.timeout(60)
@@ -585,19 +584,26 @@ def _push_box(env, steps: int, direction: int) -> tuple:
 
 @pytest.mark.timeout(60)
 def test_task_interference_can_succeed():
-    """TaskInterference: collect all goal objects to trigger success."""
+    """TaskInterference: collect-and-deliver — pick up KEY then deliver to matching GOAL."""
     env = agentick.make("TaskInterference-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
+    keys = cfg.get("key_positions", [])
+    goals = cfg.get("goal_positions", [])
     term, trunc, info = False, False, {}
-    for g in cfg.get("goal_positions", []):
+    for i in range(len(keys)):
         if term or trunc:
             break
-        obs, rew, term, trunc, info = _walk_to(env, int(g[0]), int(g[1]))
+        # Pick up key i
+        _walk_to(env, keys[i][0], keys[i][1])
+        if env.done:
+            break
+        # Deliver to matching goal i
+        obs, rew, term, trunc, info = _walk_to(env, goals[i][0], goals[i][1])
     if not term and not trunc:
         obs, rew, term, trunc, info = _noop(env)
     env.close()
-    assert info.get("success"), "TaskInterference: couldn't collect all goals"
+    assert info.get("success"), "TaskInterference: couldn't complete all sub-tasks"
 
 
 @pytest.mark.timeout(60)
@@ -663,7 +669,7 @@ def test_sokoban_push_can_succeed():
     if not env.done:
         obs, rew, term, trunc, info = env.step(push_act)
     env.close()
-    assert info.get("success"), f"SokobanPush: push mechanic failed"
+    assert info.get("success"), "SokobanPush: push mechanic failed"
 
 
 @pytest.mark.timeout(60)
@@ -795,21 +801,6 @@ def test_switch_circuit_can_succeed():
 
 
 @pytest.mark.timeout(60)
-def test_sequence_memory_can_succeed():
-    """SequenceMemory: visit targets in correct order."""
-    env = agentick.make("SequenceMemory-v0", difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    term, trunc, info = False, False, {}
-    for t in cfg["sequence"]:
-        if term or trunc:
-            break
-        obs, rew, term, trunc, info = _walk_to(env, t[0], t[1])
-    env.close()
-    assert info.get("success"), "SequenceMemory: sequence visit failed"
-
-
-@pytest.mark.timeout(60)
 def test_precise_navigation_can_succeed():
     """PreciseNavigation: visit all waypoints then reach goal."""
     env = agentick.make("PreciseNavigation-v0", difficulty="easy", seed=42, reward_mode="sparse")
@@ -825,16 +816,34 @@ def test_precise_navigation_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_graph_coloring_can_succeed():
-    """GraphColoring: visit color0 zones then color1 zones then goal."""
+    """GraphColoring: pick up colors and assign to nodes with no adjacency violation."""
     env = agentick.make("GraphColoring-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    for z in cfg["color0_zones"] + cfg["color1_zones"]:
-        _walk_to(env, z[0], z[1])
+    nodes = cfg.get("node_positions", [])
+    stations = cfg.get("color_stations", [])
+    adj = cfg.get("adjacency", {})
+
+    # Greedy coloring: assign colors respecting adjacency constraints
+    node_colors = {}
+    for i, node in enumerate(nodes):
+        used = set()
+        for nb in adj.get(i, adj.get(str(i), [])):
+            if nb in node_colors or str(nb) in node_colors:
+                used.add(node_colors.get(nb, node_colors.get(str(nb))))
+        color = 0
+        while color in used:
+            color += 1
+        node_colors[i] = color
+        # Walk to color station, then walk to node
+        if color < len(stations) and not env.done:
+            _walk_to(env, stations[color][0], stations[color][1])
+        if not env.done:
+            obs, rew, term, trunc, info = _walk_to(env, node[0], node[1])
     if not env.done:
-        obs, rew, term, trunc, info = _walk_to(env, *cfg["goal_positions"][0])
+        obs, rew, term, trunc, info = _noop(env)
     env.close()
-    assert info.get("success"), "GraphColoring: zone visit or goal failed"
+    assert info.get("success"), "GraphColoring: couldn't color all nodes"
 
 
 @pytest.mark.timeout(60)

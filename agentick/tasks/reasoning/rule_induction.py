@@ -10,6 +10,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec

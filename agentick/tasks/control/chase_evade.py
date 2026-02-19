@@ -14,6 +14,7 @@ DIFFICULTY AXES (multi-dimensional):
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -30,10 +31,38 @@ class ChaseEvadeTask(TaskSpec):
     capability_tags = ["reactive_control", "prediction"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"n_targets": 1, "evade_prob": 0.60, "n_obstacles": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=200, params={"n_targets": 2, "evade_prob": 0.75, "n_obstacles": 2}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"n_targets": 3, "evade_prob": 0.90, "n_obstacles": 4}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=500, params={"n_targets": 4, "evade_prob": 1.00, "n_obstacles": 6}),
+        "easy":   DifficultyConfig(
+            name="easy", grid_size=7, max_steps=100,
+            params={
+                "n_targets": 1, "evade_prob": 0.60,
+                "n_obstacles": 0,
+                "target_speed": 1, "n_powerups": 0,
+            },
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=10, max_steps=200,
+            params={
+                "n_targets": 2, "evade_prob": 0.75,
+                "n_obstacles": 2,
+                "target_speed": 1, "n_powerups": 0,
+            },
+        ),
+        "hard":   DifficultyConfig(
+            name="hard", grid_size=13, max_steps=350,
+            params={
+                "n_targets": 3, "evade_prob": 0.90,
+                "n_obstacles": 4,
+                "target_speed": 2, "n_powerups": 1,
+            },
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=15, max_steps=500,
+            params={
+                "n_targets": 4, "evade_prob": 1.00,
+                "n_obstacles": 6,
+                "target_speed": 3, "n_powerups": 2,
+            },
+        ),
     }
 
     _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # (dx, dy): up/down/left/right
@@ -45,6 +74,8 @@ class ChaseEvadeTask(TaskSpec):
         n_targets    = p.get("n_targets", 1)
         evade_prob   = p.get("evade_prob", 0.6)
         n_obstacles  = p.get("n_obstacles", 0)
+        target_speed = p.get("target_speed", 1)
+        n_powerups   = p.get("n_powerups", 0)
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -52,12 +83,13 @@ class ChaseEvadeTask(TaskSpec):
         grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Agent at top-left area (randomized a bit)
         agent_pos = (int(rng.integers(1, 3)), int(rng.integers(1, 3)))
 
-        # Random interior obstacles (placed away from agent start)
-        interior = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                    if abs(x-agent_pos[0])+abs(y-agent_pos[1]) > 2]
+        interior = [
+            (x, y) for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > 2
+        ]
         rng.shuffle(interior)
         obstacle_cells = set()
         for i in range(min(n_obstacles, len(interior) // 4)):
@@ -65,106 +97,153 @@ class ChaseEvadeTask(TaskSpec):
             grid.terrain[oy, ox] = CellType.WALL
             obstacle_cells.add((ox, oy))
 
-        # Place targets spread across the far side of the grid
-        walkable = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                    if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
-                    and abs(x-agent_pos[0])+abs(y-agent_pos[1]) > size//2]
+        walkable = [
+            (x, y) for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and (x, y) != agent_pos
+            and abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > size // 2
+        ]
         if len(walkable) < n_targets:
-            walkable = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                        if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos]
+            walkable = [
+                (x, y) for x in range(1, size - 1)
+                for y in range(1, size - 1)
+                if grid.terrain[y, x] == CellType.EMPTY
+                and (x, y) != agent_pos
+            ]
         rng.shuffle(walkable)
         target_positions = walkable[:n_targets]
 
         for tx, ty in target_positions:
             grid.objects[ty, tx] = ObjectType.ENEMY
 
-        # Verify agent can reach all targets
         reachable = grid.flood_fill(agent_pos)
         for t in target_positions:
             if t not in reachable:
-                # fallback: no obstacles
-                for x in range(1, size-1):
-                    for y in range(1, size-1):
+                for x in range(1, size - 1):
+                    for y in range(1, size - 1):
                         if grid.terrain[y, x] == CellType.WALL:
                             grid.terrain[y, x] = CellType.EMPTY
                 break
 
+        used = {agent_pos} | set(target_positions) | obstacle_cells
+        powerup_positions = []
+        if n_powerups > 0:
+            pw_candidates = [
+                (x, y) for x in range(1, size - 1)
+                for y in range(1, size - 1)
+                if grid.terrain[y, x] == CellType.EMPTY
+                and (x, y) not in used
+            ]
+            rng.shuffle(pw_candidates)
+            for pp in pw_candidates[:n_powerups]:
+                px, py = pp
+                grid.objects[py, px] = ObjectType.RESOURCE
+                powerup_positions.append(pp)
+
         return grid, {
-            "agent_start":    agent_pos,
-            "goal_positions": list(target_positions),
-            "evade_prob":     evade_prob,
-            "_rng_seed":      int(rng.integers(0, 2**31)),
-            "max_steps":      self.get_max_steps(),
+            "agent_start":       agent_pos,
+            "goal_positions":    list(target_positions),
+            "evade_prob":        evade_prob,
+            "target_speed":      target_speed,
+            "powerup_positions": powerup_positions,
+            "_rng_seed":         int(rng.integers(0, 2**31)),
+            "max_steps":         self.get_max_steps(),
         }
 
     # ── Hooks ─────────────────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
-        config["_live_targets"] = list(config.get("goal_positions", []))
-        config["_evade_rng"]    = np.random.default_rng(config.get("_rng_seed", 0))
-        # backward-compat alias (tests may use _live_target)
-        config["_live_target"]  = config["_live_targets"][0] if config["_live_targets"] else None
+        config["_live_targets"] = list(
+            config.get("goal_positions", [])
+        )
+        config["_evade_rng"] = np.random.default_rng(
+            config.get("_rng_seed", 0)
+        )
+        config["_live_target"] = (
+            config["_live_targets"][0]
+            if config["_live_targets"] else None
+        )
+        config["_speed_boost"] = 0
         self._last_n = len(config["_live_targets"])
         self._config = config
-        # Redraw all targets
         for tx, ty in config["_live_targets"]:
             grid.objects[ty, tx] = ObjectType.ENEMY
 
     def on_agent_moved(self, pos, agent, grid):
-        """Tag any NPC the agent steps onto — fires BEFORE check_success."""
         config = getattr(self, "_config", {})
         ax, ay = pos
-        # Use grid-object check (robust: doesn't depend on position-tuple format)
         if grid.objects[ay, ax] == ObjectType.ENEMY:
             grid.objects[ay, ax] = ObjectType.NONE
             targets = config.get("_live_targets", [])
-            config["_live_targets"] = [(tx, ty) for tx, ty in targets if (tx, ty) != (ax, ay)]
+            config["_live_targets"] = [
+                (tx, ty) for tx, ty in targets
+                if (tx, ty) != (ax, ay)
+            ]
+        if grid.objects[ay, ax] == ObjectType.RESOURCE:
+            grid.objects[ay, ax] = ObjectType.NONE
+            config["_speed_boost"] = config.get(
+                "_speed_boost", 0
+            ) + 5
+
+    def _move_target_once(self, tx, ty, ax, ay, grid, rng, evade):
+        if rng.random() < evade:
+            best, best_d = (tx, ty), abs(tx - ax) + abs(ty - ay)
+            for dx, dy in self._DIRS:
+                nx, ny = tx + dx, ty + dy
+                if (0 < nx < grid.width - 1
+                        and 0 < ny < grid.height - 1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and grid.objects[ny, nx] != ObjectType.ENEMY):
+                    d = abs(nx - ax) + abs(ny - ay)
+                    if d > best_d:
+                        best_d, best = d, (nx, ny)
+            return best
+        moves = [(tx + dx, ty + dy) for dx, dy in self._DIRS]
+        valid = [
+            (x, y) for x, y in moves
+            if (0 < x < grid.width - 1
+                and 0 < y < grid.height - 1
+                and grid.terrain[y, x] == CellType.EMPTY
+                and grid.objects[y, x] != ObjectType.ENEMY)
+        ]
+        if valid:
+            return valid[int(rng.integers(len(valid)))]
+        return (tx, ty)
 
     def on_env_step(self, agent, grid, config, step_count):
-        """Move all live targets (greedy evasion). Also tag if NPC lands on agent."""
-        targets  = config.get("_live_targets", [])
-        rng      = config.get("_evade_rng")
-        evade    = config.get("evade_prob", 0.7)
-        ax, ay   = agent.position
+        targets = config.get("_live_targets", [])
+        rng     = config.get("_evade_rng")
+        evade   = config.get("evade_prob", 0.7)
+        speed   = config.get("target_speed", 1)
+        ax, ay  = agent.position
 
-        # Erase old positions
         for tx, ty in targets:
             if grid.objects[ty, tx] == ObjectType.ENEMY:
                 grid.objects[ty, tx] = ObjectType.NONE
 
         new_targets = []
         for tx, ty in targets:
-            if rng.random() < evade:
-                # Greedy: move to maximize distance from agent
-                best, best_d = (tx, ty), abs(tx-ax)+abs(ty-ay)
-                for dx, dy in self._DIRS:
-                    nx, ny = tx+dx, ty+dy
-                    if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                            and grid.terrain[ny, nx] == CellType.EMPTY
-                            and grid.objects[ny, nx] not in (ObjectType.ENEMY,)):
-                        d = abs(nx-ax)+abs(ny-ay)
-                        if d > best_d:
-                            best_d, best = d, (nx, ny)
-                new_targets.append(best)
-            else:
-                moves = [(tx+dx, ty+dy) for dx, dy in self._DIRS]
-                valid = [(x, y) for x, y in moves
-                         if (0 < x < grid.width-1 and 0 < y < grid.height-1
-                             and grid.terrain[y, x] == CellType.EMPTY
-                             and grid.objects[y, x] != ObjectType.ENEMY)]
-                new_targets.append(valid[int(rng.integers(len(valid)))] if valid else (tx, ty))
+            cx, cy = tx, ty
+            for _ in range(speed):
+                cx, cy = self._move_target_once(
+                    cx, cy, ax, ay, grid, rng, evade
+                )
+            new_targets.append((cx, cy))
 
-        # Draw new positions; check if any landed on agent
         final_targets = []
         for tx, ty in new_targets:
             if (tx, ty) == (ax, ay):
-                # NPC ran INTO agent — counts as a tag!
-                pass  # don't add back to live targets
+                pass
             else:
                 grid.objects[ty, tx] = ObjectType.ENEMY
                 final_targets.append((tx, ty))
 
         config["_live_targets"] = final_targets
+
+        boost = config.get("_speed_boost", 0)
+        if boost > 0:
+            config["_speed_boost"] = boost - 1
 
     # ── Reward & success ─────────────────────────────────────────────────────
 

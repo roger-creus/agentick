@@ -9,6 +9,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -30,10 +31,10 @@ class SokobanPushTask(TaskSpec):
     capability_tags = ["reasoning", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=70,  params={"n_boxes": 1, "n_targets": 1, "n_obstacles": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_boxes": 2, "n_targets": 2, "n_obstacles": 3}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"n_boxes": 3, "n_targets": 3, "n_obstacles": 5}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=600, params={"n_boxes": 4, "n_targets": 4, "n_obstacles": 8}),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=70,  params={"n_boxes": 1, "n_targets": 1, "n_obstacles": 0, "n_hazards": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_boxes": 2, "n_targets": 2, "n_obstacles": 3, "n_hazards": 0}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"n_boxes": 3, "n_targets": 3, "n_obstacles": 5, "n_hazards": 3}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=600, params={"n_boxes": 4, "n_targets": 4, "n_obstacles": 8, "n_hazards": 5}),
     }
 
     def generate(self, seed):
@@ -93,6 +94,23 @@ class SokobanPushTask(TaskSpec):
             else:
                 grid.terrain[wy, wx] = CellType.EMPTY
 
+        # Place hazard terrain (agent loses if stepped on, boxes can't be pushed onto)
+        n_hazards = self.difficulty_config.params.get("n_hazards", 0)
+        if n_hazards > 0:
+            hazard_candidates = [p for p in free if p not in used
+                                and grid.terrain[p[1], p[0]] == CellType.EMPTY]
+            placed_h = 0
+            for hx, hy in hazard_candidates:
+                if placed_h >= n_hazards:
+                    break
+                grid.terrain[hy, hx] = CellType.HAZARD
+                # Verify all critical positions still reachable
+                reachable = grid.flood_fill(agent_pos)
+                if all(q in reachable for q in critical):
+                    placed_h += 1
+                else:
+                    grid.terrain[hy, hx] = CellType.EMPTY
+
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": target_positions,
@@ -101,7 +119,13 @@ class SokobanPushTask(TaskSpec):
             "max_steps": self.get_max_steps(),
         }
 
-    # ── Box pushing hook ──────────────────────────────────────────────────────
+    # ── Hooks ──────────────────────────────────────────────────────────────────
+
+    def on_agent_moved(self, pos, agent, grid):
+        x, y = pos
+        config = getattr(self, "_current_config", {})
+        if grid.terrain[y, x] == CellType.HAZARD:
+            config["_hazard_hit"] = True
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
         """If moving into a box, try to push it one step further."""
@@ -114,9 +138,9 @@ class SokobanPushTask(TaskSpec):
             dy = y - ay
             nx, ny = x + dx, y + dy
 
-            # Can push if next cell is empty (terrain and objects)
+            # Can push if next cell is empty (terrain and objects, not wall/hazard)
             if (0 <= nx < grid.width and 0 <= ny < grid.height
-                    and grid.terrain[ny, nx] != CellType.WALL
+                    and grid.terrain[ny, nx] not in (CellType.WALL, CellType.HAZARD)
                     and grid.objects[ny, nx] not in (ObjectType.BOX,)):
                 # Move box
                 grid.objects[y, x] = ObjectType.NONE
@@ -132,6 +156,7 @@ class SokobanPushTask(TaskSpec):
 
     def on_env_reset(self, agent, grid, config):
         """Cache config and compute initial box-to-target distance for reward shaping."""
+        config["_hazard_hit"] = False
         self._current_config = config
         # Pre-compute initial distance so box-progress reward fires from step 1
         boxes = config.get("box_positions", [])
@@ -170,8 +195,17 @@ class SokobanPushTask(TaskSpec):
             reward += 1.0
         return reward
 
+    def check_done(self, state):
+        config = state.get("config", {})
+        if config.get("_hazard_hit", False):
+            return True
+        return self.check_success(state)
+
     def check_success(self, state):
         """All boxes must be on target positions."""
+        config = state.get("config", {})
+        if config.get("_hazard_hit", False):
+            return False
         if "grid" not in state or "config" not in state:
             return False
         grid = state["grid"]

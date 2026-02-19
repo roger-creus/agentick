@@ -26,25 +26,25 @@ class MultiGoalRouteTask(TaskSpec):
             name="easy",
             grid_size=7,
             max_steps=100,
-            params={"n_goals": 2},
+            params={"n_goals": 2, "n_obstacles": 0, "n_decoys": 0},
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=10,
             max_steps=200,
-            params={"n_goals": 3},
+            params={"n_goals": 3, "n_obstacles": 3, "n_decoys": 1},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=13,
-            max_steps=300,
-            params={"n_goals": 4},
+            max_steps=350,
+            params={"n_goals": 4, "n_obstacles": 5, "n_decoys": 2},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=15,
             max_steps=500,
-            params={"n_goals": 5},
+            params={"n_goals": 5, "n_obstacles": 8, "n_decoys": 3},
         ),
     }
 
@@ -69,6 +69,8 @@ class MultiGoalRouteTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         n_goals = self.difficulty_config.params.get("n_goals", 2)
+        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
 
         grid = Grid(size, size)
 
@@ -78,8 +80,9 @@ class MultiGoalRouteTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Add some random obstacles
-        for _ in range(size // 2):
+        # Add random interior obstacles
+        n_walls = max(n_obstacles, size // 2)
+        for _ in range(n_walls):
             x, y = rng.integers(1, size - 1), rng.integers(1, size - 1)
             if grid.terrain[y, x] == CellType.EMPTY:
                 grid.terrain[y, x] = CellType.WALL
@@ -120,9 +123,19 @@ class MultiGoalRouteTask(TaskSpec):
             goal_positions.append(goal_pos)
             grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
+        # Place decoy targets (look like goals but don't count)
+        decoy_positions = []
+        remaining = [p for p in reachable_positions[n_goals:]
+                     if p not in set(goal_positions)]
+        for dp in remaining[:n_decoys]:
+            dx, dy = dp
+            grid.objects[dy, dx] = ObjectType.TARGET
+            decoy_positions.append(dp)
+
         config = {
             "agent_start": agent_pos,
             "goal_positions": goal_positions,
+            "decoy_positions": decoy_positions,
             "goals_visited": [],
             "max_steps": self.get_max_steps(),
         }

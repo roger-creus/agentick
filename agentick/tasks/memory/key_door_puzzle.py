@@ -14,6 +14,7 @@ wall layout, guard patrol routes.
 """
 
 import numpy as np
+
 from agentick.core.entity import Entity
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType

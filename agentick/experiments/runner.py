@@ -227,6 +227,13 @@ class ExperimentRunner:
         self.start_time: float | None = None
         self.end_time: float | None = None
 
+        # Create agent if config specifies LLM/VLM
+        self.agent = None
+        if config.agent.type in ("llm", "vlm"):
+            from agentick.agents.factory import create_agent
+
+            self.agent = create_agent(config.agent)
+
     def run(self, resume_from: str | Path | None = None, n_parallel: int = 1) -> ExperimentResults:
         """
         Run the experiment with crash-safe checkpoint support.
@@ -238,6 +245,11 @@ class ExperimentRunner:
         Returns:
             ExperimentResults with all data
         """
+        # LLM/VLM agents are not picklable -- force sequential execution
+        if self.agent is not None and n_parallel > 1:
+            print("Note: LLM/VLM agents require sequential execution, setting n_parallel=1")
+            n_parallel = 1
+
         # Check for resume
         if resume_from:
             checkpoint = self._load_checkpoint(Path(resume_from))
@@ -255,6 +267,12 @@ class ExperimentRunner:
         # Collect metadata
         metadata = self._collect_metadata()
         metadata["start_time"] = self.start_time
+
+        # Record agent info in metadata
+        if self.agent is not None:
+            metadata["agent_name"] = self.agent.name
+            metadata["agent_type"] = self.config.agent.type
+            metadata["observation_modes"] = self.agent.observation_modes
 
         # Generate seeds if not provided
         seeds = self.config.seeds
@@ -353,6 +371,10 @@ class ExperimentRunner:
         summary = self._compute_summary(per_task_results)
         summary["total_time_seconds"] = self.end_time - self.start_time
         summary["total_episodes"] = total_episodes
+
+        # Include aggregate agent stats
+        if self.agent is not None:
+            summary["agent_stats"] = self.agent.get_stats()
 
         # Create results object
         results = ExperimentResults(
@@ -588,6 +610,14 @@ class ExperimentRunner:
             episodes_dir = output_dir / "per_task" / task_name / "episodes"
             episodes_dir.mkdir(parents=True, exist_ok=True)
 
+            # Determine render mode: agent needs take priority
+            if self.agent is not None:
+                render_mode = self.agent.observation_modes[0]
+            elif self.config.render_modes:
+                render_mode = self.config.render_modes[0]
+            else:
+                render_mode = None
+
             # Run episodes
             for seed_idx, seed in enumerate(seeds):
                 for ep_idx in range(self.config.n_episodes):
@@ -597,9 +627,7 @@ class ExperimentRunner:
                     env = agentick.make(
                         task_name,
                         difficulty=difficulty,
-                        render_mode=self.config.render_modes[0]
-                        if self.config.render_modes
-                        else None,
+                        render_mode=render_mode,
                     )
 
                     # Run episode
@@ -633,6 +661,10 @@ class ExperimentRunner:
         """Run a single episode."""
         obs, info = env.reset(seed=seed)
 
+        # Reset agent state at episode start
+        if self.agent is not None:
+            self.agent.reset()
+
         trajectory = {
             "seed": seed,
             "seed_idx": seed_idx,
@@ -649,8 +681,11 @@ class ExperimentRunner:
         total_reward = 0.0
 
         while not (terminated or truncated):
-            # Get action from agent (for now, random)
-            action = env.action_space.sample()
+            # Get action from agent or fall back to random
+            if self.agent is not None:
+                action = self.agent.act(obs, info)
+            else:
+                action = env.action_space.sample()
 
             # Step environment
             obs, reward, terminated, truncated, info = env.step(action)
@@ -678,13 +713,21 @@ class ExperimentRunner:
             with open(episode_file, "w") as f:
                 json.dump(trajectory, f, indent=2)
 
-        return {
+        # Build episode result
+        episode_result: dict[str, Any] = {
             "seed": seed,
             "episode_idx": ep_idx,
             "return": total_reward,
             "length": step_count,
             "success": trajectory["success"],
         }
+
+        # Include agent stats if available
+        if self.agent is not None:
+            stats = self.agent.get_stats()
+            episode_result["agent_stats"] = stats
+
+        return episode_result
 
     def _compute_metrics(self, episodes: list[dict[str, Any]]) -> dict[str, Any]:
         """Compute metrics from episodes."""
@@ -713,6 +756,22 @@ class ExperimentRunner:
 
         if "mean_length" in self.config.metrics:
             metrics["mean_length"] = float(np.mean(lengths))
+
+        # Agent-specific metrics (aggregated from episode-level agent_stats)
+        agent_stats_list = [ep.get("agent_stats") for ep in episodes if ep.get("agent_stats")]
+        if agent_stats_list:
+            if "mean_latency" in self.config.metrics:
+                latencies = [s["mean_latency"] for s in agent_stats_list if s.get("mean_latency")]
+                if latencies:
+                    metrics["mean_latency"] = float(np.mean(latencies))
+            if "total_tokens" in self.config.metrics:
+                metrics["total_tokens"] = sum(
+                    s.get("total_tokens", 0) for s in agent_stats_list
+                )
+            if "total_api_calls" in self.config.metrics:
+                metrics["total_api_calls"] = sum(
+                    s.get("total_calls", 0) for s in agent_stats_list
+                )
 
         return metrics
 

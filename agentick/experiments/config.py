@@ -9,6 +9,18 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 
+class TrainingConfig(BaseModel):
+    """Configuration for PPO/RL training runs."""
+
+    total_timesteps: int = Field(default=300_000, description="Total training timesteps per task")
+    n_envs: int = Field(default=8, description="Number of parallel training environments")
+    eval_frequency: int = Field(default=10_000, description="Evaluate every N timesteps")
+    n_eval_episodes: int = Field(default=10, description="Episodes per evaluation")
+    checkpoint_frequency: int = Field(default=50_000, description="Save checkpoint every N steps")
+    save_best_model: bool = Field(default=True, description="Keep best model by eval reward")
+    device: str = Field(default="auto", description="Torch device (auto, cpu, cuda)")
+
+
 class AgentConfig(BaseModel):
     """Configuration for agent."""
 
@@ -45,6 +57,9 @@ class ExperimentConfig(BaseModel):
     )
     output_dir: str = Field(default="results", description="Output directory")
     tags: list[str] = Field(default_factory=list, description="Tags for filtering")
+    training: TrainingConfig | None = Field(
+        default=None, description="Training config (None = eval-only mode)"
+    )
     base_config: str | None = Field(default=None, description="Base config to inherit from")
 
     class Config:
@@ -199,6 +214,9 @@ class ExperimentConfig(BaseModel):
             "max_return",
             "action_efficiency",
             "exploration_efficiency",
+            "mean_latency",
+            "total_tokens",
+            "total_api_calls",
         ]
         for metric in self.metrics:
             if metric not in valid_metrics:
@@ -211,6 +229,17 @@ class ExperimentConfig(BaseModel):
             pass
 
         return errors
+
+
+    def get_primary_render_mode(self) -> str | None:
+        """Get the primary render mode, preferring agent observation modes."""
+        if self.agent.type in ("llm", "vlm"):
+            obs_modes = self.agent.hyperparameters.get("observation_modes", [])
+            if obs_modes:
+                return obs_modes[0]
+        if self.render_modes:
+            return self.render_modes[0]
+        return None
 
 
 def load_config(path: str | Path, config_dir: str | Path | None = None) -> ExperimentConfig:

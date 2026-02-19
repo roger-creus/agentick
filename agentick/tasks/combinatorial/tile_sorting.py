@@ -8,6 +8,7 @@ MECHANICS:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -165,8 +166,8 @@ class TileSortingTask(TaskSpec):
             return False
         # Count remaining TARGET cells (not yet covered by box)
         remaining_targets = sum(
-            1 for ty, tx in [(y, x) for y in range(grid.height) for x in range(grid.width)]
-            if grid.objects[ty, tx] == ObjectType.TARGET
+            1 for y in range(grid.height) for x in range(grid.width)
+            if grid.objects[y, x] == ObjectType.TARGET
         )
         return remaining_targets == 0
 

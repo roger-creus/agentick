@@ -2,13 +2,18 @@
 
 MECHANICS:
   - N colored zones on the grid (TARGET cells in different quadrants)
-  - An instruction (integer index) encoded in the observation specifies which zone
+  - An instruction (integer index) encoded in the observation specifies
+    which zone
   - Agent must go to the correct zone matching the instruction
   - Wrong zone = penalty; correct zone = success
   - Tests grounded instruction following without language
+  - At hard+: multi_step requires visiting intermediate waypoint zones
+    first; n_conditionals adds switches that must be hit before the
+    goal is active
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -27,11 +32,42 @@ class InstructionFollowingTask(TaskSpec):
     capability_tags = ["language", "grounding", "instruction"]
 
     difficulty_configs = {
-        # n_zones: target zones | n_distractors: fake zones | n_guards: patrolling NPCs
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_zones": 2, "n_distractors": 0, "n_guards": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=150, params={"n_zones": 3, "n_distractors": 1, "n_guards": 0}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=220, params={"n_zones": 4, "n_distractors": 2, "n_guards": 1}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=320, params={"n_zones": 5, "n_distractors": 3, "n_guards": 2}),
+        # n_zones: target zones | n_distractors: fake zones
+        # n_guards: patrolling NPCs
+        # multi_step: require visiting intermediate zones first
+        # n_conditionals: zones that only count if a switch is hit
+        "easy":   DifficultyConfig(
+            name="easy", grid_size=7, max_steps=80,
+            params={
+                "n_zones": 2, "n_distractors": 0,
+                "n_guards": 0,
+                "multi_step": False, "n_conditionals": 0,
+            },
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=10, max_steps=150,
+            params={
+                "n_zones": 3, "n_distractors": 1,
+                "n_guards": 0,
+                "multi_step": False, "n_conditionals": 0,
+            },
+        ),
+        "hard":   DifficultyConfig(
+            name="hard", grid_size=13, max_steps=220,
+            params={
+                "n_zones": 4, "n_distractors": 2,
+                "n_guards": 1,
+                "multi_step": True, "n_conditionals": 1,
+            },
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=15, max_steps=320,
+            params={
+                "n_zones": 5, "n_distractors": 3,
+                "n_guards": 2,
+                "multi_step": True, "n_conditionals": 2,
+            },
+        ),
     }
 
     _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
@@ -42,6 +78,12 @@ class InstructionFollowingTask(TaskSpec):
         n             = self.difficulty_config.params.get("n_zones", 2)
         n_distractors = self.difficulty_config.params.get("n_distractors", 0)
         n_guards      = self.difficulty_config.params.get("n_guards", 0)
+        multi_step    = self.difficulty_config.params.get(
+            "multi_step", False,
+        )
+        n_conditionals = self.difficulty_config.params.get(
+            "n_conditionals", 0,
+        )
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -86,12 +128,43 @@ class InstructionFollowingTask(TaskSpec):
             distractor_positions.append(p)
             used.add(p)
 
+        # Conditional switches: the agent must step on these
+        # SWITCH cells before the true goal becomes "active"
+        # (only at hard/expert with n_conditionals > 0)
+        cond_free = [
+            p for p in free[n_distractors:] if p not in used
+        ]
+        rng.shuffle(cond_free)
+        conditional_positions = []
+        for p in cond_free:
+            if len(conditional_positions) >= n_conditionals:
+                break
+            sx, sy = p
+            grid.objects[sy, sx] = ObjectType.SWITCH
+            conditional_positions.append(p)
+            used.add(p)
+
+        # Multi-step waypoints: intermediate zones the agent must
+        # visit (in order) before the final goal zone
+        # Pick from non-instruction zones as waypoints
+        waypoint_zones = []
+        if multi_step and n > 2:
+            others = [
+                zone_positions[i]
+                for i in range(n)
+                if i != instruction
+            ]
+            n_wp = min(len(others), max(1, n // 2))
+            waypoint_zones = others[:n_wp]
+
         # Guards: NPC objects placed at distance from agent
-        guard_candidates = [p for p in free[n_distractors:] if p not in used
-                            and abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]) > 2
-                            and p != true_goal]
-        rng.shuffle(guard_candidates)
-        guard_positions = guard_candidates[:n_guards]
+        guard_pool = [
+            p for p in free[n_distractors:] if p not in used
+            and abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]) > 2
+            and p != true_goal
+        ]
+        rng.shuffle(guard_pool)
+        guard_positions = guard_pool[:n_guards]
         for gx, gy in guard_positions:
             grid.objects[gy, gx] = ObjectType.NPC
             used.add((gx, gy))
@@ -102,25 +175,55 @@ class InstructionFollowingTask(TaskSpec):
             "zone_positions": zone_positions,
             "instruction": instruction,
             "distractor_positions": distractor_positions,
+            "multi_step": multi_step,
+            "n_conditionals": n_conditionals,
+            "_conditional_positions": conditional_positions,
+            "_waypoint_zones": waypoint_zones,
             "_guard_positions": guard_positions,
-            "_guard_dirs": [int(rng.integers(0, 4)) for _ in guard_positions],
+            "_guard_dirs": [
+                int(rng.integers(0, 4))
+                for _ in guard_positions
+            ],
             "_guard_seed": int(rng.integers(0, 2**31)),
             "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
-        """Reset wrong-zone flag, guard state; cache config for on_agent_moved."""
+        """Reset wrong-zone flag, guard/conditional state."""
         config["_wrong_zone"] = False
         config["_guard_collision"] = False
-        config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
+        config["_guard_rng"] = np.random.default_rng(
+            config.get("_guard_seed", 0),
+        )
+        config["_switches_hit"] = set()
+        config["_waypoints_visited"] = set()
         self._config = config
 
     def on_agent_moved(self, pos, agent, grid):
-        """Detect wrong zone / guard collision immediately — fires BEFORE reward/done checks."""
+        """Detect wrong zone, guard collision, switch/waypoint visits."""
         x, y = pos
         config = getattr(self, "_config", {})
         true_goal = config.get("goal_positions", [None])[0]
-        if grid.objects[y, x] == ObjectType.TARGET and (x, y) != tuple(true_goal or ()):
+
+        # Collect conditional switches
+        if grid.objects[y, x] == ObjectType.SWITCH:
+            conds = config.get("_conditional_positions", [])
+            if (x, y) in [tuple(c) for c in conds]:
+                config.setdefault("_switches_hit", set()).add(
+                    (x, y),
+                )
+                grid.objects[y, x] = ObjectType.NONE
+
+        # Track waypoint zone visits (multi-step)
+        wp_zones = config.get("_waypoint_zones", [])
+        if wp_zones and (x, y) in [tuple(w) for w in wp_zones]:
+            config.setdefault("_waypoints_visited", set()).add(
+                (x, y),
+            )
+
+        if grid.objects[y, x] == ObjectType.TARGET and (
+            (x, y) != tuple(true_goal or ())
+        ):
             config["_wrong_zone"] = True
         if grid.objects[y, x] == ObjectType.NPC:
             config["_guard_collision"] = True
@@ -178,12 +281,27 @@ class InstructionFollowingTask(TaskSpec):
         return reward
 
     def check_success(self, state):
-        """True success: agent reached the CORRECT goal zone (no guard collision)."""
+        """True success: all conditions met and agent at GOAL."""
         config = state.get("config", {})
-        if config.get("_guard_collision", False) or config.get("_wrong_zone", False):
+        if config.get("_guard_collision", False):
+            return False
+        if config.get("_wrong_zone", False):
             return False
         if "grid" not in state or "agent" not in state:
             return False
+
+        # All conditional switches must be hit first
+        conds = config.get("_conditional_positions", [])
+        hits = config.get("_switches_hit", set())
+        if len(hits) < len(conds):
+            return False
+
+        # All multi-step waypoint zones must be visited
+        wp_zones = config.get("_waypoint_zones", [])
+        wp_visited = config.get("_waypoints_visited", set())
+        if len(wp_visited) < len(wp_zones):
+            return False
+
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 

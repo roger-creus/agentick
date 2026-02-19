@@ -18,12 +18,12 @@ DIFFICULTY AXES:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
-
 
 # Visual encoding: use different ObjectTypes to show breadcrumb "size"
 # The agent sees visually distinct markers for each position in sequence
@@ -45,10 +45,10 @@ class BreadcrumbTrailTask(TaskSpec):
     capability_tags = ["long_horizon", "memory"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=100, params={"n_crumbs": 3, "fade_steps": 20}),
-        "medium": DifficultyConfig(name="medium",  grid_size=11, max_steps=150, params={"n_crumbs": 4, "fade_steps": 15}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=200, params={"n_crumbs": 5, "fade_steps": 10}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=300, params={"n_crumbs": 6, "fade_steps": 6}),
+        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=100, params={"n_crumbs": 3, "fade_steps": 20, "n_obstacles": 0, "n_false_crumbs": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=11, max_steps=150, params={"n_crumbs": 4, "fade_steps": 15, "n_obstacles": 3, "n_false_crumbs": 1}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=200, params={"n_crumbs": 5, "fade_steps": 10, "n_obstacles": 5, "n_false_crumbs": 2}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=300, params={"n_crumbs": 6, "fade_steps": 6, "n_obstacles": 8, "n_false_crumbs": 3}),
     }
 
     def generate(self, seed):
@@ -56,6 +56,8 @@ class BreadcrumbTrailTask(TaskSpec):
         size = self.difficulty_config.grid_size
         n_crumbs = self.difficulty_config.params.get("n_crumbs", 3)
         fade = self.difficulty_config.params.get("fade_steps", 20)
+        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
+        n_false_crumbs = self.difficulty_config.params.get("n_false_crumbs", 0)
 
         # OPEN ARENA — no internal walls, only border walls
         grid = Grid(size, size)
@@ -104,6 +106,31 @@ class BreadcrumbTrailTask(TaskSpec):
         for i, (cx, cy) in enumerate(crumb_positions):
             obj_type = CRUMB_TYPES[min(i, len(CRUMB_TYPES) - 1)]
             grid.objects[cy, cx] = obj_type
+
+        # Add interior obstacles (walls) with flood-fill solvability check
+        obstacle_candidates = [p for p in candidates if p not in used]
+        critical = [agent_pos, goal_pos] + crumb_positions
+        placed_walls = 0
+        for wx, wy in obstacle_candidates:
+            if placed_walls >= n_obstacles:
+                break
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            if all(q in reachable for q in critical):
+                placed_walls += 1
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
+        # Place false crumbs (look like real crumbs but aren't in the sequence)
+        false_candidates = [p for p in candidates if p not in used
+                           and grid.terrain[p[1], p[0]] == CellType.EMPTY]
+        false_crumb_positions = []
+        for fp in false_candidates[:n_false_crumbs]:
+            fx, fy = fp
+            # Use a random crumb type to look convincing
+            obj_type = CRUMB_TYPES[int(rng.integers(len(CRUMB_TYPES)))]
+            grid.objects[fy, fx] = obj_type
+            false_crumb_positions.append(fp)
 
         # Goal placed but INACTIVE — only active after all crumbs collected
         # We DON'T place GOAL object yet — we'll place it in on_env_reset

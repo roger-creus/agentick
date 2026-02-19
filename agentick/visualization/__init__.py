@@ -1,3 +1,5 @@
 """Visualization and plotting for publication-quality figures."""
 
-__all__ = []
+from agentick.visualization.comparison_plots import AgentComparisonPlotter
+
+__all__ = ["AgentComparisonPlotter"]

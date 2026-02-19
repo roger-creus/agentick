@@ -1,0 +1,24 @@
+name: qwen3-4b-language
+description: "Qwen3-4B-Instruct LLM, markovian zero-shot, language observations"
+agent:
+  type: llm
+  hyperparameters:
+    backend: huggingface_llm
+    model: Qwen/Qwen3-4B-Instruct
+    harness: markovian_zero_shot
+    observation_modes: [language]
+    device: auto
+    dtype: bfloat16
+    max_new_tokens: 50
+    temperature: 0.0
+tasks: "full"
+difficulties: [easy, medium, hard, expert]
+training: null
+n_episodes: 3
+n_seeds: 3
+render_modes: [language]
+record_trajectories: true
+record_videos: false
+output_dir: results/llm_benchmarks
+tags: [llm, language, qwen3-4b, benchmark]
+metrics: [mean_return, success_rate, mean_length, mean_latency, total_tokens]

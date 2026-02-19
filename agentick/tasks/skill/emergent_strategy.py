@@ -15,6 +15,7 @@ DIFFICULTY AXES:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -33,19 +34,49 @@ class EmergentStrategyTask(TaskSpec):
     # Key bonus: 0.2 per key, goal: 1.0
     # Optimal = 1.0 + n_keys * 0.2 (collect all keys + reach goal)
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=80,  params={"n_keys": 2, "barrier_closes": 25, "key_bonus": 0.2}),
-        "medium": DifficultyConfig(name="medium",  grid_size=12, max_steps=150, params={"n_keys": 3, "barrier_closes": 35, "key_bonus": 0.2}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=15, max_steps=250, params={"n_keys": 4, "barrier_closes": 45, "key_bonus": 0.2}),
-        "expert": DifficultyConfig(name="expert",  grid_size=18, max_steps=400, params={"n_keys": 5, "barrier_closes": 55, "key_bonus": 0.2}),
+        "easy":   DifficultyConfig(
+            name="easy", grid_size=9, max_steps=80,
+            params={
+                "n_keys": 2, "barrier_closes": 25,
+                "key_bonus": 0.2,
+                "n_barriers": 1, "barrier_warning": 0,
+            },
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=12, max_steps=150,
+            params={
+                "n_keys": 3, "barrier_closes": 35,
+                "key_bonus": 0.2,
+                "n_barriers": 1, "barrier_warning": 0,
+            },
+        ),
+        "hard":   DifficultyConfig(
+            name="hard", grid_size=15, max_steps=250,
+            params={
+                "n_keys": 4, "barrier_closes": 45,
+                "key_bonus": 0.2,
+                "n_barriers": 2, "barrier_warning": 3,
+            },
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=18, max_steps=400,
+            params={
+                "n_keys": 5, "barrier_closes": 55,
+                "key_bonus": 0.2,
+                "n_barriers": 3, "barrier_warning": 5,
+            },
+        ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n_keys         = p.get("n_keys", 2)
-        barrier_closes = p.get("barrier_closes", 25)
-        key_bonus      = p.get("key_bonus", 0.2)
+        n_keys          = p.get("n_keys", 2)
+        barrier_closes  = p.get("barrier_closes", 25)
+        key_bonus       = p.get("key_bonus", 0.2)
+        n_barriers      = p.get("n_barriers", 1)
+        barrier_warning = p.get("barrier_warning", 0)
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -53,55 +84,72 @@ class EmergentStrategyTask(TaskSpec):
         grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Barrier is a horizontal row in the middle (randomly offset slightly)
-        mid = size // 2
-        barrier_row = int(rng.integers(mid - 1, mid + 2))
-        barrier_row = max(2, min(size - 3, barrier_row))
+        interior = size - 2
+        barrier_rows = []
+        barrier_close_times = []
+        for i in range(n_barriers):
+            row = 1 + (i + 1) * interior // (n_barriers + 1)
+            row = max(2, min(size - 3, row))
+            if row in barrier_rows:
+                row = min(size - 3, row + 1)
+            barrier_rows.append(row)
+            offset = i * 10
+            barrier_close_times.append(barrier_closes + offset)
 
-        # Agent always starts on the TOP side (above barrier)
-        agent_pos = (int(rng.integers(1, size-1)), int(rng.integers(1, barrier_row-1)))
-        # Goal always on the BOTTOM side (below barrier)
-        goal_pos  = (int(rng.integers(1, size-1)), int(rng.integers(barrier_row+1, size-1)))
+        first_barrier = barrier_rows[0]
+        agent_pos = (
+            int(rng.integers(1, size - 1)),
+            int(rng.integers(1, max(2, first_barrier - 1))),
+        )
+        last_barrier = barrier_rows[-1]
+        goal_pos = (
+            int(rng.integers(1, size - 1)),
+            int(rng.integers(
+                min(last_barrier + 1, size - 2), size - 1
+            )),
+        )
 
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        # Keys placed on the AGENT'S side (above barrier), spread out
-        top_side = [(x, y) for x in range(1, size-1) for y in range(1, barrier_row)
-                    if (x, y) != agent_pos]
+        top_side = [
+            (x, y) for x in range(1, size - 1)
+            for y in range(1, first_barrier)
+            if (x, y) != agent_pos
+        ]
         rng.shuffle(top_side)
         key_positions = top_side[:min(n_keys, len(top_side))]
         for kx, ky in key_positions:
             grid.objects[ky, kx] = ObjectType.KEY
 
-        # Verify: from agent_pos, agent CAN reach barrier_row (needs steps <= barrier_closes)
-        # Minimum steps to collect all keys and reach barrier: rough estimate
-        # (We set barrier_closes generously enough so it's always feasible)
-
         return grid, {
-            "agent_start":     agent_pos,
-            "goal_positions":  [goal_pos],
-            "key_positions":   key_positions,
-            "n_keys":          n_keys,
-            "barrier_row":     barrier_row,
-            "barrier_closes":  barrier_closes,
-            "key_bonus":       key_bonus,
-            "max_steps":       self.get_max_steps(),
+            "agent_start":         agent_pos,
+            "goal_positions":      [goal_pos],
+            "key_positions":       key_positions,
+            "n_keys":              n_keys,
+            "barrier_row":         barrier_rows[0],
+            "barrier_rows":        barrier_rows,
+            "barrier_close_times": barrier_close_times,
+            "barrier_closes":      barrier_closes,
+            "barrier_warning":     barrier_warning,
+            "key_bonus":           key_bonus,
+            "max_steps":           self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
         config["_keys_collected"] = 0
         config["_barrier_closed"] = False
         config["_hit_barrier"]    = False
+        rows = config.get("barrier_rows", [config.get("barrier_row")])
+        config["_barriers_closed"] = [False] * len(rows)
+        config["_barriers_warned"] = [False] * len(rows)
         self._last_keys = 0
         self._config    = config
-        # Redraw keys
         for kx, ky in config.get("key_positions", []):
             grid.objects[ky, kx] = ObjectType.KEY
-        # Clear any leftover hazards
-        barrier_row = config.get("barrier_row", grid.height // 2)
-        for x in range(1, grid.width-1):
-            if grid.terrain[barrier_row, x] == CellType.HAZARD:
-                grid.terrain[barrier_row, x] = CellType.EMPTY
+        for row in rows:
+            for x in range(1, grid.width - 1):
+                if grid.terrain[row, x] == CellType.HAZARD:
+                    grid.terrain[row, x] = CellType.EMPTY
 
     def on_agent_moved(self, pos, agent, grid):
         """Collect keys immediately — fires BEFORE reward/success."""
@@ -112,18 +160,41 @@ class EmergentStrategyTask(TaskSpec):
             config["_keys_collected"] = config.get("_keys_collected", 0) + 1
 
     def on_env_step(self, agent, grid, config, step_count):
-        barrier_row   = config.get("barrier_row", grid.height // 2)
-        closes_at     = config.get("barrier_closes", 25)
-        ax, ay        = agent.position
+        rows = config.get(
+            "barrier_rows",
+            [config.get("barrier_row", grid.height // 2)],
+        )
+        close_times = config.get(
+            "barrier_close_times",
+            [config.get("barrier_closes", 25)],
+        )
+        warning = config.get("barrier_warning", 0)
+        closed_flags = config.get("_barriers_closed", [False] * len(rows))
+        warned_flags = config.get("_barriers_warned", [False] * len(rows))
+        ax, ay = agent.position
 
-        # Close barrier after closes_at steps
-        if step_count >= closes_at and not config.get("_barrier_closed", False):
-            for x in range(1, grid.width-1):
-                if grid.terrain[barrier_row, x] == CellType.EMPTY:
-                    grid.terrain[barrier_row, x] = CellType.HAZARD
+        for idx, (row, closes_at) in enumerate(
+            zip(rows, close_times)
+        ):
+            if warning > 0 and not warned_flags[idx]:
+                if step_count >= closes_at - warning:
+                    for x in range(1, grid.width - 1):
+                        if grid.terrain[row, x] == CellType.EMPTY:
+                            grid.terrain[row, x] = CellType.WATER
+                    warned_flags[idx] = True
+
+            if step_count >= closes_at and not closed_flags[idx]:
+                for x in range(1, grid.width - 1):
+                    t = grid.terrain[row, x]
+                    if t in (CellType.EMPTY, CellType.WATER):
+                        grid.terrain[row, x] = CellType.HAZARD
+                closed_flags[idx] = True
+
+        config["_barriers_closed"] = closed_flags
+        config["_barriers_warned"] = warned_flags
+        if any(closed_flags):
             config["_barrier_closed"] = True
 
-        # Collision with barrier (in case agent is on hazard cell)
         if grid.terrain[ay, ax] == CellType.HAZARD:
             config["_hit_barrier"] = True
 

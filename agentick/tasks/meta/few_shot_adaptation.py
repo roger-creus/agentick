@@ -19,6 +19,7 @@ CREATIVE DIFFICULTY AXES:
 """
 
 import numpy as np
+
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -102,7 +103,7 @@ class FewShotAdaptationTask(TaskSpec):
             "goal_positions": [true_goal],
             "all_targets":   all_targets,
             "true_idx":      true_idx,
-            "true_goal":     list(true_goal),
+            "true_goal":     tuple(true_goal),
             "reveal_steps":  reveal,
             "n_guards":      n_guards,
             "_guard_positions": guard_positions,
@@ -126,7 +127,7 @@ class FewShotAdaptationTask(TaskSpec):
         config = getattr(self, "_config", {})
         x, y = pos
         tg = config.get("true_goal")
-        if tg and [x, y] == tg and not config.get("_goal_reached", False):
+        if tg and (x, y) == tuple(tg) and not config.get("_goal_reached", False):
             config["_goal_reached"] = True
 
     def on_env_step(self, agent, grid, config, step_count):

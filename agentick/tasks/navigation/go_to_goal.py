@@ -31,25 +31,37 @@ class GoToGoalTask(TaskSpec):
             name="easy",
             grid_size=5,
             max_steps=20,
-            params={"wall_density": 0.0, "n_guards": 0, "n_hazards": 0},
+            params={
+                "wall_density": 0.0, "n_guards": 0,
+                "n_hazards": 0, "n_decoys": 0,
+            },
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=10,
             max_steps=50,
-            params={"wall_density": 0.12, "n_guards": 1, "n_hazards": 0},
+            params={
+                "wall_density": 0.12, "n_guards": 1,
+                "n_hazards": 0, "n_decoys": 0,
+            },
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=15,
             max_steps=100,
-            params={"wall_density": 0.20, "n_guards": 2, "n_hazards": 4},
+            params={
+                "wall_density": 0.20, "n_guards": 2,
+                "n_hazards": 4, "n_decoys": 2,
+            },
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=20,
             max_steps=200,
-            params={"wall_density": 0.25, "n_guards": 3, "n_hazards": 8},
+            params={
+                "wall_density": 0.25, "n_guards": 3,
+                "n_hazards": 8, "n_decoys": 4,
+            },
         ),
     }
 
@@ -140,6 +152,16 @@ class GoToGoalTask(TaskSpec):
                 rng.shuffle(hazard_candidates)
                 for hx, hy in hazard_candidates[:n_hazards]:
                     grid.terrain[hy, hx] = CellType.HAZARD
+
+                # Place decoy goals (look like goal but aren't)
+                n_decoys = self.difficulty_config.params.get("n_decoys", 0)
+                decoy_candidates = [p for p in reachable_positions
+                                    if p != goal_pos
+                                    and grid.terrain[p[1], p[0]] == CellType.EMPTY
+                                    and p not in (optimal_path or [])]
+                rng.shuffle(decoy_candidates)
+                for dx, dy in decoy_candidates[:n_decoys]:
+                    grid.objects[dy, dx] = ObjectType.TARGET
 
                 # Place guard NPCs on reachable empty cells
                 n_guards = self.difficulty_config.params.get("n_guards", 0)
