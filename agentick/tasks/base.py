@@ -119,6 +119,23 @@ class TaskSpec(ABC):
         """
         pass
 
+    def check_done(self, state: dict[str, Any]) -> bool:
+        """
+        Check if the episode should end (may or may not be a success).
+
+        Override this in tasks where the episode can end without success
+        (e.g. stepping on a decoy that traps the agent). The default
+        implementation delegates to check_success, meaning episodes only
+        end on success or time-limit truncation.
+
+        Args:
+            state: Current state dict
+
+        Returns:
+            True if the episode should terminate (regardless of success)
+        """
+        return bool(self.check_success(state))
+
     def get_optimal_return(self, difficulty: str | None = None) -> float:
         """
         Get theoretical optimal return for this task.

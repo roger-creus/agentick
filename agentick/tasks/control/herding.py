@@ -1,5 +1,14 @@
-"""Herding - Guide multiple entities to target zone"""
+"""Herding - Herd NPC sheep into a pen (goal zone).
 
+MECHANICS:
+  - N sheep NPCs placed randomly on the grid
+  - Sheep flee from agent (move away when agent is adjacent)
+  - A pen zone (bottom-right corner, marked TARGET) is the goal
+  - Success = all sheep inside the pen zone
+  - Agent acts as a herder, using their movement to guide sheep
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -9,132 +18,177 @@ from agentick.tasks.registry import register_task
 
 @register_task("Herding-v0", tags=["multi_objective_control"])
 class HerdingTask(TaskSpec):
-    """Test multi-objective control by guiding multiple entities to a target.
-
-    The agent must herd a group of autonomous entities toward a designated
-    target zone on the grid. Each entity reacts to the agent's proximity
-    by moving away, so the agent must position itself strategically to
-    steer the entire group collectively. The challenge lies in managing
-    multiple moving objects simultaneously, preventing stragglers from
-    escaping while keeping the herd cohesive and moving in the desired
-    direction.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with few entities and a large target zone,
-          100 max steps.
-        - medium: 10x10 grid with more entities and a moderate target
-          zone, 200 max steps.
-        - hard: 13x13 grid with many entities and a small target zone,
-          300 max steps.
-        - expert: 15x15 grid with numerous fast-moving entities and a
-          tight target zone, 500 max steps.
-
-    Capabilities Tested:
-        - multi_objective_control: The agent must simultaneously manage
-          the positions and trajectories of multiple independent entities
-          while navigating them all toward a shared goal.
-
-    Example:
-        >>> env = agentick.make("Herding-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Position yourself to guide all entities into the target zone
-    """
+    """Herd all sheep into the pen using movement-based pressure."""
 
     name = "Herding-v0"
-    description = "Guide multiple entities to target zone"
+    description = "Herd sheep into the goal pen"
     capability_tags = ["multi_objective_control"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        # n_sheep: animals to herd | pen_size: target pen area | n_obstacles: wall clusters
+        # sheep_speed: steps per sheep move (lower=faster) | pen_rand: randomize pen location
+        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=120, params={"n_sheep": 2, "pen_size": 2, "n_obstacles": 0, "sheep_speed": 3, "pen_rand": False}),
+        "medium": DifficultyConfig(name="medium",  grid_size=12, max_steps=220, params={"n_sheep": 3, "pen_size": 2, "n_obstacles": 2, "sheep_speed": 2, "pen_rand": True}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=15, max_steps=350, params={"n_sheep": 4, "pen_size": 3, "n_obstacles": 4, "sheep_speed": 2, "pen_rand": True}),
+        "expert": DifficultyConfig(name="expert",  grid_size=18, max_steps=600, params={"n_sheep": 5, "pen_size": 3, "n_obstacles": 6, "sheep_speed": 1, "pen_rand": True}),
     }
 
+    _DIRS = [(1,0),(-1,0),(0,1),(0,-1)]
+
     def generate(self, seed):
-        """Generate a herding task instance.
+        rng = np.random.default_rng(seed)
+        size      = self.difficulty_config.grid_size
+        p         = self.difficulty_config.params
+        n_sheep   = p.get("n_sheep", 2)
+        pen_size  = p.get("pen_size", 2)
+        n_obs     = p.get("n_obstacles", 0)
+        pen_rand  = p.get("pen_rand", False)
 
-        Creates a walled grid with autonomous entities and a target zone.
-        The agent starts at (1, 1) and must guide all entities into the
-        target zone by strategic positioning.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+
+        # Randomize pen corner
+        if pen_rand:
+            pen_corners = [(size-1-pen_size, size-1-pen_size),   # bottom-right (default)
+                           (1, size-1-pen_size),                  # bottom-left
+                           (size-1-pen_size, 1),                  # top-right
+                           (1, 1)]                                # top-left
+            pen_origin_x, pen_origin_y = pen_corners[int(rng.integers(0, 4))]
+        else:
+            pen_origin_x, pen_origin_y = size-1-pen_size, size-1-pen_size
+
+        # Agent starts in opposite-ish corner from pen
+        possible_starts = [(1,1),(1,size-2),(size-2,1),(size-2,size-2)]
+        rng.shuffle(possible_starts)
+        agent_pos = possible_starts[0]
+
+        # Place pen cells
+        pen_cells = set()
+        for py in range(pen_origin_y, min(pen_origin_y+pen_size, size-1)):
+            for px in range(pen_origin_x, min(pen_origin_x+pen_size, size-1)):
+                if 0 < px < size-1 and 0 < py < size-1 and (px,py) != agent_pos:
+                    grid.objects[py, px] = ObjectType.TARGET
+                    pen_cells.add((px, py))
+
+        # Add obstacle clusters (not on pen or agent)
+        placed_obs = 0
+        obs_candidates = [(x,y) for x in range(2, size-2) for y in range(2, size-2)
+                          if (x,y) not in pen_cells and (x,y) != agent_pos]
+        rng.shuffle(obs_candidates)
+        for ox, oy in obs_candidates[:n_obs*4]:
+            if placed_obs >= n_obs: break
+            grid.terrain[oy, ox] = CellType.WALL
+            if len(grid.flood_fill(agent_pos)) < n_sheep + 2:
+                grid.terrain[oy, ox] = CellType.EMPTY
+            else:
+                placed_obs += 1
+
+        # Place sheep in region away from pen
+        reachable = list(grid.flood_fill(agent_pos) - {agent_pos} - pen_cells)
+        rng.shuffle(reachable)
+        sheep_positions = [p for p in reachable[:n_sheep]]
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
-            "max_steps": self.get_max_steps(),
+            "agent_start":    agent_pos,
+            "goal_positions": list(pen_cells),
+            "pen_cells":      list(pen_cells),
+            "sheep_positions": sheep_positions,
+            "max_steps":      self.get_max_steps(),
+            "_rng_seed":      int(rng.integers(0, 2**31)),
+            "_sheep_speed":   p.get("sheep_speed", 3),
         }
 
+    # ── Dynamic sheep movement ────────────────────────────────────────────────
+
+    def on_env_reset(self, agent, grid, config):
+        config["_live_sheep"] = list(config.get("sheep_positions", []))
+        config["_sheep_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
+        self._draw_sheep(grid, config["_live_sheep"], draw=True)
+
+    def on_env_step(self, agent, grid, config, step_count):
+        if "_live_sheep" not in config:
+            return
+        sheep = config["_live_sheep"]
+        rng   = config["_sheep_rng"]
+        speed = config.get("_sheep_speed", 3)
+        ax, ay = agent.position
+
+        # Only move sheep every `speed` steps (lower speed = more frequent)
+        if step_count % speed != 0:
+            return
+
+        self._draw_sheep(grid, sheep, draw=False)
+        new_sheep = []
+
+        for sx, sy in sheep:
+            dist = abs(sx - ax) + abs(sy - ay)
+            if dist <= 2:
+                # Flee from agent: move away
+                best = (sx, sy)
+                best_d = dist
+                for dx, dy in self._DIRS:
+                    nx, ny = sx + dx, sy + dy
+                    d = abs(nx - ax) + abs(ny - ay)
+                    if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
+                            and grid.terrain[ny, nx] == CellType.EMPTY
+                            and d > best_d):
+                        best_d = d
+                        best = (nx, ny)
+                new_sheep.append(best)
+            else:
+                # Random walk occasionally
+                if rng.random() < 0.3:
+                    moves = [(sx+dx, sy+dy) for dx,dy in self._DIRS]
+                    valid = [(x,y) for x,y in moves
+                             if 0<x<grid.width-1 and 0<y<grid.height-1
+                             and grid.terrain[y,x] == CellType.EMPTY]
+                    new_sheep.append(valid[int(rng.integers(len(valid)))] if valid else (sx,sy))
+                else:
+                    new_sheep.append((sx, sy))
+
+        config["_live_sheep"] = new_sheep
+        self._draw_sheep(grid, new_sheep, draw=True)
+
+    def _draw_sheep(self, grid, sheep, draw: bool):
+        for sx, sy in sheep:
+            if 0 <= sx < grid.width and 0 <= sy < grid.height:
+                if draw:
+                    grid.objects[sy, sx] = ObjectType.SHEEP
+                elif grid.objects[sy, sx] == ObjectType.SHEEP:
+                    grid.objects[sy, sx] = ObjectType.NONE
+
+    # ── Reward & success ─────────────────────────────────────────────────────
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to herd all
-        entities into the target zone with minimal wasted movement.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        config = new_state.get("config", {})
+        pen = set(map(tuple, config.get("pen_cells", [])))
+        sheep = config.get("_live_sheep", [])
+        if pen and sheep:
+            # Continuous: reward sheep already in pen each step
+            n_in_pen = sum(1 for s in sheep if tuple(s) in pen)
+            reward += 0.05 * n_in_pen
+            # Approach: agent toward nearest sheep not yet in pen
+            out_sheep = [s for s in sheep if tuple(s) not in pen]
+            if out_sheep and "agent_position" in new_state:
+                ax, ay = new_state["agent_position"]
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                ns_new = min(abs(ax-sx)+abs(ay-sy) for sx,sy in out_sheep)
+                ns_old = min(abs(ox-sx)+abs(oy-sy) for sx,sy in out_sheep)
+                reward += 0.02 * (ns_old - ns_new)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell, indicating
-        that all entities have been herded into the target zone.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
+        """All sheep must be in the pen."""
+        config = state.get("config", {})
+        pen = set(map(tuple, config.get("pen_cells", [])))
+        sheep = config.get("_live_sheep", config.get("sheep_positions", []))
+        if not sheep or not pen:
             return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return all(tuple(s) in pen for s in sheep)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot coordinate entity movements toward the
-        target zone, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

@@ -1,5 +1,13 @@
-"""TileSorting - Sort colored tiles into zones"""
+"""TileSorting - Push colored tiles into matching goal zones (Sokoban-style).
 
+MECHANICS:
+  - N BOX tiles placed on the grid (each needs to go to a TARGET zone)
+  - Walk into a box to push it one cell in that direction
+  - Success = every box is on a TARGET cell
+  - Simplified: any box on any target counts (unlabeled matching)
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -7,132 +15,160 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-@register_task("TileSorting-v0", tags=["combinatorial_reasoning"])
+@register_task("TileSorting-v0", tags=["combinatorial_logic", "planning"])
 class TileSortingTask(TaskSpec):
-    """Test combinatorial reasoning by sorting colored tiles into zones.
-
-    The agent operates on a grid containing colored tiles scattered across
-    the playfield. Each tile must be moved to its corresponding
-    color-coded target zone. The agent can push or carry tiles one at a
-    time, and must plan efficient routes that avoid blocking future moves.
-    The core challenge is determining an ordering of tile placements that
-    avoids deadlocks and minimizes total movement.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with few tiles and colors, 100 max steps.
-        - medium: 10x10 grid with more tiles and additional colors,
-          200 max steps.
-        - hard: 13x13 grid with many tiles and tight zone layouts,
-          300 max steps.
-        - expert: 15x15 grid with numerous tiles, many colors, and
-          constrained pathways, 500 max steps.
-
-    Capabilities Tested:
-        - combinatorial_reasoning: The agent must determine the optimal
-          sequence and routing for sorting tiles into their target zones
-          while avoiding move-blocking configurations.
-
-    Example:
-        >>> env = agentick.make("TileSorting-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Move each colored tile to its matching target zone
-    """
+    """Push all tiles into their matching target zones."""
 
     name = "TileSorting-v0"
-    description = "Sort colored tiles into zones"
-    capability_tags = ["combinatorial_reasoning"]
+    description = "Push tiles into target zones"
+    capability_tags = ["combinatorial_logic", "planning"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"n_tiles": 2, "n_distractors": 0, "n_obstacles": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=180, params={"n_tiles": 3, "n_distractors": 1, "n_obstacles": 3}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=300, params={"n_tiles": 4, "n_distractors": 2, "n_obstacles": 5}),
+        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=500, params={"n_tiles": 5, "n_distractors": 3, "n_obstacles": 8}),
     }
 
     def generate(self, seed):
-        """Generate a tile sorting task instance.
+        rng = np.random.default_rng(seed)
+        size          = self.difficulty_config.grid_size
+        n             = self.difficulty_config.params.get("n_tiles", 2)
+        n_distractors = self.difficulty_config.params.get("n_distractors", 0)
+        n_obstacles   = self.difficulty_config.params.get("n_obstacles", 0)
 
-        Creates a walled grid with colored tiles scattered across the
-        playfield and a goal position. The agent starts at (1, 1) and
-        must sort all tiles into their corresponding target zones.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        agent_pos = (1, 1)
+        free = [(x, y) for x in range(2, size - 2) for y in range(2, size - 2)
+                if (x, y) != agent_pos]
+        rng.shuffle(free)
+
+        tile_positions   = free[:n]
+        taken = set(tile_positions) | {agent_pos}
+        target_positions = [p for p in free[n:] if p not in taken][:n]
+        used = taken | set(target_positions)
+
+        for bx, by in tile_positions:
+            grid.objects[by, bx] = ObjectType.BOX
+        for tx, ty in target_positions:
+            grid.objects[ty, tx] = ObjectType.TARGET
+
+        # Distractors: extra SWITCH objects (visual noise, not BOX/TARGET)
+        distractor_positions = []
+        for p in free[n:]:
+            if len(distractor_positions) >= n_distractors:
+                break
+            if p not in used:
+                dx2, dy2 = p
+                grid.objects[dy2, dx2] = ObjectType.SWITCH
+                distractor_positions.append(p)
+                used.add(p)
+
+        # Interior walls — flood-fill check
+        wall_positions = []
+        wall_candidates = [p for p in free if p not in used]
+        critical = [agent_pos] + tile_positions + target_positions
+        for p in wall_candidates:
+            if len(wall_positions) >= n_obstacles:
+                break
+            wx, wy = p
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            if all(q in reachable for q in critical):
+                wall_positions.append(p)
+                used.add(p)
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": target_positions,
+            "tile_positions": tile_positions,
+            "target_positions": target_positions,
+            "distractor_positions": distractor_positions,
+            "n_tiles": n,
             "max_steps": self.get_max_steps(),
         }
 
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """Sokoban push: agent walks into tile → push it one cell forward."""
+        x, y = pos
+        if grid.objects[y, x] != ObjectType.BOX:
+            return True  # passable
+        # Compute push direction from agent's current position
+        ax, ay = agent.position
+        dx, dy = x - ax, y - ay
+        nbx, nby = x + dx, y + dy
+        # Target cell must be in-bounds, non-wall, and passable
+        if not (0 < nbx < grid.width - 1 and 0 < nby < grid.height - 1):
+            return False
+        if grid.terrain[nby, nbx] == CellType.WALL:
+            return False
+        dest_obj = grid.objects[nby, nbx]
+        if dest_obj not in (ObjectType.NONE, ObjectType.TARGET):
+            return False  # blocked by another tile, etc.
+        # Push the tile
+        grid.objects[y, x] = ObjectType.NONE
+        grid.objects[nby, nbx] = ObjectType.BOX  # covers TARGET too
+        return True  # agent enters vacated tile cell
+
+    def on_env_reset(self, agent, grid, config):
+        agent.inventory.clear()  # prevent accidental TARGET pickup leak
+        tiles = config.get("tile_positions", [])
+        targets = config.get("target_positions", [])
+        if tiles and targets:
+            self._last_tile_dist = sum(
+                min(abs(tx-ttx)+abs(ty-tty) for ttx,tty in targets) for tx,ty in tiles
+            )
+        else:
+            self._last_tile_dist = None
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to sort all
-        colored tiles into their target zones with minimal total movement.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        if "grid" not in new_state or "config" not in new_state:
+            return reward
+        grid = new_state["grid"]
+        config = new_state.get("config", {})
+        from agentick.core.types import ObjectType
+        tiles = [(x, y) for y in range(grid.height) for x in range(grid.width)
+                 if grid.objects[y, x] == ObjectType.BOX]
+        targets = config.get("target_positions", [])
+        if tiles and targets:
+            total_d = sum(min(abs(tx2-ttx)+abs(ty2-tty) for ttx,tty in targets)
+                         for tx2,ty2 in tiles)
+            if self._last_tile_dist is not None and total_d < self._last_tile_dist:
+                reward += 0.2 * (self._last_tile_dist - total_d)
+            self._last_tile_dist = total_d
+            # Approach reward: agent → nearest tile (outweighs step penalty)
+            if "agent_position" in new_state:
+                ax, ay = new_state["agent_position"]
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                nb_new = min(abs(ax-tx2)+abs(ay-ty2) for tx2,ty2 in tiles)
+                nb_old = min(abs(ox-tx2)+abs(oy-ty2) for tx2,ty2 in tiles)
+                reward += 0.05 * (nb_old - nb_new)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell, indicating
-        that all colored tiles have been sorted into their matching zones.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
+        """All boxes must be on target cells."""
+        if "grid" not in state or "config" not in state:
             return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        grid = state["grid"]
+        targets = set(map(tuple, state["config"].get("target_positions", [])))
+        if not targets:
+            return False
+        # Count remaining TARGET cells (not yet covered by box)
+        remaining_targets = sum(
+            1 for ty, tx in [(y, x) for y in range(grid.height) for x in range(grid.width)]
+            if grid.objects[ty, tx] == ObjectType.TARGET
+        )
+        return remaining_targets == 0
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent is unlikely to sort all tiles into their correct
-        zones in the right order, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

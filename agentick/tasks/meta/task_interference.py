@@ -87,13 +87,13 @@ class TaskInterferenceTask(TaskSpec):
 
         agent_pos = (1, 1)
 
-        # Place multiple goals for different tasks
-        goals = []
-        for i in range(n_tasks):
-            goal_x = rng.integers(2, size - 2)
-            goal_y = rng.integers(2, size - 2)
-            goals.append((goal_x, goal_y))
-            grid.objects[goal_y, goal_x] = ObjectType.GOAL
+        # Place multiple goals — guaranteed unique, non-overlapping, reachable
+        free = [(x, y) for x in range(2, size-2) for y in range(2, size-2)
+                if (x, y) != agent_pos]
+        rng.shuffle(free)
+        goals = free[:n_tasks]
+        for gx, gy in goals:
+            grid.objects[gy, gx] = ObjectType.GOAL
 
         return grid, {
             "agent_start": agent_pos,
@@ -102,22 +102,42 @@ class TaskInterferenceTask(TaskSpec):
             "n_tasks": n_tasks,
         }
 
+    def on_env_reset(self, agent, grid, config):
+        """Track collected goals as instance variable (avoids mutable grid reference bug)."""
+        self._goals_collected = 0
+        self._goals_collected_last = 0
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Remove goal when stepped on — fires BEFORE reward computation."""
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.GOAL:
+            grid.objects[y, x] = ObjectType.NONE
+            self._goals_collected += 1
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to complete
-        all interleaved tasks efficiently without interference.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        """Dense reward: +1.0 per goal collected, approach shaping, +1.0 for all done."""
+        reward = -0.01
+        # Use instance counter (immune to mutable grid reference issue)
+        new_c = self._goals_collected
+        old_c = self._goals_collected_last
+        if new_c > old_c:
+            reward += 1.0 * (new_c - old_c)
+        self._goals_collected_last = new_c
+        # Approach shaping toward nearest remaining GOAL
+        if "agent_position" in new_state and "grid" in new_state:
+            ax, ay = new_state["agent_position"]
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            g = new_state["grid"]
+            from agentick.core.types import ObjectType as OT
+            goals = [(x, y) for y in range(g.height) for x in range(g.width)
+                     if g.objects[y, x] == OT.GOAL]
+            if goals:
+                d_new = min(abs(ax-gx)+abs(ay-gy) for gx,gy in goals)
+                d_old = min(abs(ox-gx)+abs(oy-gy) for gx,gy in goals)
+                reward += 0.05 * (d_old - d_new)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
         """Check if the task objective is complete.

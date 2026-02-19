@@ -30,6 +30,10 @@ class ObjectType(IntEnum):
     TOOL = 7
     RESOURCE = 8
     BREADCRUMB = 9
+    NPC = 10        # neutral/allied NPC (rendered as cyan circle)
+    ENEMY = 11      # enemy / adversary (rendered as red circle)
+    SHEEP = 12      # herding target (rendered as white circle)
+    BLOCKER = 13    # moving obstacle / blocker (rendered as orange square)
 
 
 class AgentType(IntEnum):

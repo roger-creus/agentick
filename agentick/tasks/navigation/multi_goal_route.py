@@ -101,15 +101,23 @@ class MultiGoalRouteTask(TaskSpec):
         agent_pos = valid_positions[agent_idx]
         valid_positions.pop(agent_idx)
 
+        # Only place goals in cells reachable from agent (connectivity check)
+        reachable = grid.flood_fill(agent_pos)
+        reachable_positions = [p for p in valid_positions if p in reachable]
+        if len(reachable_positions) < n_goals:
+            # Fallback: clear all interior obstacles to guarantee connectivity
+            grid.terrain[1:size-1, 1:size-1] = CellType.EMPTY
+            reachable_positions = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                                   if (x, y) != agent_pos]
+        rng.shuffle(reachable_positions)
+
         # Place goals spread out
         goal_positions = []
-        for _ in range(n_goals):
-            if not valid_positions:
+        for i in range(n_goals):
+            if i >= len(reachable_positions):
                 break
-            goal_idx = rng.choice(len(valid_positions))
-            goal_pos = valid_positions[goal_idx]
+            goal_pos = reachable_positions[i]
             goal_positions.append(goal_pos)
-            valid_positions.pop(goal_idx)
             grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
         config = {
@@ -121,39 +129,57 @@ class MultiGoalRouteTask(TaskSpec):
 
         return grid, config
 
+    def on_env_reset(self, agent, grid, config):
+        """Reset visited-goal tracking on episode start."""
+        config["goals_visited"] = []
+        self._n_goals = len(config.get("goal_positions", []))
+        self._visited_goals_set = set()
+        self._last_visited_count = 0  # must reset to avoid stale reward at episode start
+
+    def on_agent_moved(self, new_pos, agent, grid):
+        """Track goal visits when agent steps onto a GOAL cell (fires before success check)."""
+        x, y = new_pos
+        if grid.objects[y, x] == ObjectType.GOAL:
+            if not hasattr(self, "_visited_goals_set"):
+                self._visited_goals_set = set()
+            if new_pos not in self._visited_goals_set:
+                self._visited_goals_set.add(new_pos)
+                grid.objects[y, x] = ObjectType.NONE  # consume the goal object
+
     def compute_dense_reward(self, old_state, action, new_state, info):
         """Reward for visiting goals and moving toward nearest unvisited goal."""
         reward = -0.01  # Step penalty
-
-        # Check if visited a new goal
-        if "config" in new_state:
-            config = new_state["config"]
-            agent_pos = new_state["agent_position"]
-
-            # Track visited goals in state
-            if "goals_visited" not in old_state:
-                old_state["goals_visited"] = []
-            if "goals_visited" not in new_state:
-                new_state["goals_visited"] = old_state["goals_visited"].copy()
-
-            # Check if at a goal position
-            if agent_pos in config["goal_positions"]:
-                if agent_pos not in new_state["goals_visited"]:
-                    new_state["goals_visited"].append(agent_pos)
-                    reward += 1.0  # Big reward for visiting new goal
-
+        # _visited_goals_set is updated by on_agent_moved before this is called
+        visited = getattr(self, "_visited_goals_set", set())
+        old_visited = getattr(self, "_last_visited_count", 0)
+        new_visited = len(visited)
+        if new_visited > old_visited:
+            reward += 1.0
+        self._last_visited_count = new_visited
+        # Approach shaping: guide toward nearest remaining (unvisited) goal
+        if "agent" in new_state and "grid" in new_state:
+            from agentick.core.types import ObjectType as OT
+            g = new_state["grid"]
+            unvisited = [(x, y) for y in range(g.height) for x in range(g.width)
+                         if g.objects[y, x] == OT.GOAL]
+            if unvisited:
+                ax, ay = new_state["agent"].position
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                d_new = min(abs(ax - gx) + abs(ay - gy) for gx, gy in unvisited)
+                d_old = min(abs(ox - gx) + abs(oy - gy) for gx, gy in unvisited)
+                reward += 0.05 * (d_old - d_new)
         return reward
 
     def check_success(self, state):
         """Check if all goals have been visited."""
         if "config" not in state:
             return False
-
-        config = state["config"]
-        goals_visited = state.get("goals_visited", [])
-
-        # All goals must be visited
-        return len(goals_visited) == len(config["goal_positions"])
+        n_goals = len(state["config"].get("goal_positions", []))
+        if n_goals == 0:
+            return False
+        # Use instance-level tracking (populated by on_agent_moved before this check)
+        visited = getattr(self, "_visited_goals_set", set())
+        return len(visited) >= n_goals
 
     def get_optimal_return(self, difficulty=None):
         """Optimal is visiting all goals with minimum steps."""

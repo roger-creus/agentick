@@ -1,5 +1,19 @@
-"""DelayedGratification - Choose delayed larger rewards."""
+"""DelayedGratification - Resist nearby decoy rewards; reach the larger distant goal.
 
+PROCEDURAL DIVERSITY (all per seed):
+  - Agent, goal, and decoys placed in randomized positions
+  - Decoy positions spread to tempt agent from multiple directions
+  - Maze walls added at higher difficulties to make detours necessary
+  - Decoy reward size varies slightly per difficulty
+
+DIFFICULTY AXES:
+  - More decoys (more temptations)
+  - Decoys closer to optimal path (harder to avoid)
+  - Maze walls making the path longer
+  - Shorter step budget relative to path length
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -9,135 +23,149 @@ from agentick.tasks.registry import register_task
 
 @register_task("DelayedGratification-v0", tags=["credit_assignment", "long_horizon"])
 class DelayedGratificationTask(TaskSpec):
-    """Test credit assignment by choosing delayed larger rewards over immediate ones.
-
-    The agent navigates a grid containing both nearby small rewards and
-    distant large rewards. The immediate rewards are tempting and easy to
-    reach, but the optimal strategy requires bypassing them in favor of a
-    longer path to a significantly larger payoff. This evaluates the
-    agent's ability to perform temporal credit assignment and resist
-    greedy short-term policies in favor of long-horizon optimization.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with clear reward differentiation, 100 max
-          steps.
-        - medium: 10x10 grid with more distractors along the path,
-          150 max steps.
-        - hard: 13x13 grid with many tempting intermediate rewards,
-          250 max steps.
-        - expert: 15x15 grid with elaborate decoy reward paths and a
-          well-hidden optimal reward, 350 max steps.
-
-    Capabilities Tested:
-        - credit_assignment: The agent must correctly attribute value to
-          actions whose rewards are delayed many steps into the future.
-        - long_horizon: The agent must commit to a longer path despite
-          the availability of immediately accessible smaller rewards.
-
-    Example:
-        >>> env = agentick.make("DelayedGratification-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Bypass nearby small rewards to reach the distant large reward
-    """
+    """Resist nearby decoy rewards; find the larger distant goal."""
 
     name = "DelayedGratification-v0"
-    description = "Choose paths with delayed larger rewards vs immediate small"
+    description = "Skip decoy rewards, reach distant goal"
     capability_tags = ["credit_assignment", "long_horizon"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=150),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=250),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=350),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_decoys": 1, "n_walls": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=100, params={"n_decoys": 2, "n_walls": 3}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=150, params={"n_decoys": 3, "n_walls": 6}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=200, params={"n_decoys": 4, "n_walls": 9}),
     }
 
     def generate(self, seed):
-        """Generate a delayed gratification task instance.
-
-        Creates a walled grid with nearby small rewards and a distant
-        large reward at the goal. The agent starts at (1, 1) and must
-        bypass immediate temptations to reach the optimal reward.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
+        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
+        n_decoys = self.difficulty_config.params.get("n_decoys", 1)
+        n_walls  = self.difficulty_config.params.get("n_walls", 0)
+
+        for attempt in range(20):
+            grid = Grid(size, size)
+            grid.terrain[0, :]  = CellType.WALL
+            grid.terrain[-1, :] = CellType.WALL
+            grid.terrain[:, 0]  = CellType.WALL
+            grid.terrain[:, -1] = CellType.WALL
+
+            # Randomize agent start and goal (opposite sides of grid)
+            sides = [
+                (1, int(rng.integers(1, size-1))),
+                (size-2, int(rng.integers(1, size-1))),
+                (int(rng.integers(1, size-1)), 1),
+                (int(rng.integers(1, size-1)), size-2),
+            ]
+            rng.shuffle(sides)
+            agent_pos = sides[0]
+            goal_pos  = sides[1]
+            if abs(agent_pos[0]-goal_pos[0])+abs(agent_pos[1]-goal_pos[1]) < size//2:
+                continue  # too close
+
+            # Add random wall obstacles to make path non-trivial
+            wall_cells = set()
+            interior = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                        if (x, y) != agent_pos and (x, y) != goal_pos]
+            rng.shuffle(interior)
+            for (wx, wy) in interior[:n_walls * 3]:
+                grid.terrain[wy, wx] = CellType.WALL
+                # Verify path still exists
+                reachable = grid.flood_fill(agent_pos)
+                if goal_pos not in reachable:
+                    grid.terrain[wy, wx] = CellType.EMPTY
+                else:
+                    wall_cells.add((wx, wy))
+                    if len(wall_cells) >= n_walls:
+                        break
+
+            # Place decoys CLOSE to agent or on the direct path (maximally tempting)
+            free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                    if grid.terrain[y, x] == CellType.EMPTY
+                    and (x, y) != agent_pos and (x, y) != goal_pos]
+            # Sort by closeness to agent (most tempting first)
+            free.sort(key=lambda p: abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]))
+            decoy_positions = []
+            used = {agent_pos, goal_pos}
+            for p in free:
+                if len(decoy_positions) >= n_decoys:
+                    break
+                if p not in used:
+                    decoy_positions.append(p)
+                    used.add(p)
+
+            if len(decoy_positions) < n_decoys:
+                continue
+
+            # Verify goal still reachable
+            reachable = grid.flood_fill(agent_pos)
+            if goal_pos not in reachable:
+                continue
+
+            grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+            for dx, dy in decoy_positions:
+                grid.objects[dy, dx] = ObjectType.KEY  # KEY = decoy visual
+
+            return grid, {
+                "agent_start":    agent_pos,
+                "goal_positions": [goal_pos],
+                "decoy_positions": decoy_positions,
+                "n_decoys":       n_decoys,
+                "max_steps":      self.get_max_steps(),
+            }
+
+        # Fallback
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+        agent_pos = (1, 1); goal_pos = (size-2, size-2)
+        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+        grid.objects[1, 3] = ObjectType.KEY
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
-            "max_steps": self.get_max_steps(),
+            "agent_start": agent_pos, "goal_positions": [goal_pos],
+            "decoy_positions": [(3, 1)], "n_decoys": 1, "max_steps": self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        self._decoy_taken = False
+        self._config = config
+
+    def on_agent_moved(self, pos, agent, grid):
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.KEY:
+            grid.objects[y, x] = ObjectType.NONE
+            self._decoy_taken = True
+
+    def compute_sparse_reward(self, old_state, action, new_state, info):
+        if self._decoy_taken:
+            return 0.2
+        return 1.0 if self.check_success(new_state) else 0.0
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to resist
-        immediate small rewards and reach the distant optimal reward
-        efficiently.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        if self._decoy_taken:
+            return -0.5
+        if self.check_success(new_state):
+            return 1.0
+        reward = -0.01
+        config = new_state.get("config", {})
+        goal = config.get("goal_positions", [None])[0]
+        if goal and "agent" in new_state:
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            reward += 0.05 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell containing
-        the large delayed reward, bypassing smaller immediate rewards.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
+        if self._decoy_taken:
+            return False
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
+    def check_done(self, state):
+        if self._decoy_taken:
+            return True
+        return self.check_success(state)
 
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward for reaching
-            the delayed large reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent is likely to collect nearby small rewards rather
-        than navigate to the distant optimal reward, yielding near-zero
-        expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.2

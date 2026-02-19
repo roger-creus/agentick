@@ -1,5 +1,14 @@
-"""SokobanPush - Push boxes onto targets"""
+"""SokobanPush - Push a box onto a target position.
 
+MECHANICS:
+  - Box is placed between agent and goal
+  - Agent must PUSH the box (walk into it; box slides one step if clear)
+  - Pushing box into a wall = stays put (irreversible deadlock warning)
+  - Success = box is on TARGET position (not agent on goal)
+  - Box is shown as ObjectType.BOX; target shown as ObjectType.TARGET
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -9,133 +18,174 @@ from agentick.tasks.registry import register_task
 
 @register_task("SokobanPush-v0", tags=["reasoning", "planning"])
 class SokobanPushTask(TaskSpec):
-    """Test reasoning and planning by pushing boxes onto target positions.
+    """Push boxes onto target positions — classic Sokoban mechanics.
 
-    The agent must push boxes across the grid to designated target
-    positions, following classic Sokoban mechanics. Boxes can only be
-    pushed (not pulled), and pushing a box into a wall or corner creates
-    an irreversible deadlock. The agent must plan the order and direction
-    of pushes carefully, often reasoning many moves ahead to avoid
-    creating unsolvable states. This is a well-known NP-hard planning
-    problem that tests deep lookahead and spatial reasoning.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with one or two boxes and simple layouts,
-          100 max steps.
-        - medium: 10x10 grid with several boxes and moderate obstacles,
-          200 max steps.
-        - hard: 13x13 grid with many boxes and tight corridors, 300 max
-          steps.
-        - expert: 15x15 grid with numerous boxes, complex wall layouts,
-          and minimal margin for error, 500 max steps.
-
-    Capabilities Tested:
-        - reasoning: The agent must analyze the spatial configuration to
-          determine valid push sequences and detect potential deadlocks.
-        - planning: The agent must plan multi-step push sequences that
-          avoid irreversible states while moving all boxes to targets.
-
-    Example:
-        >>> env = agentick.make("SokobanPush-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Push all boxes onto their target positions without deadlocking
+    A box is placed in the grid. The agent must push it onto the target
+    by walking into it. Boxes can only be pushed, not pulled. If a box
+    is pushed against a wall it stays put (potentially creating deadlock).
     """
 
     name = "SokobanPush-v0"
     description = "Push boxes onto targets"
     capability_tags = ["reasoning", "planning"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=70,  params={"n_boxes": 1, "n_targets": 1, "n_obstacles": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_boxes": 2, "n_targets": 2, "n_obstacles": 3}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"n_boxes": 3, "n_targets": 3, "n_obstacles": 5}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=600, params={"n_boxes": 4, "n_targets": 4, "n_obstacles": 8}),
     }
 
     def generate(self, seed):
-        """Generate a Sokoban push puzzle instance.
+        rng = np.random.default_rng(seed)
+        size        = self.difficulty_config.grid_size
+        n_boxes     = self.difficulty_config.params.get("n_boxes", 1)
+        n_targets   = self.difficulty_config.params.get("n_targets", n_boxes)
+        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
-        Creates a walled grid with pushable boxes and target positions.
-        The agent starts at (1, 1) and must push all boxes onto their
-        targets without creating deadlocks.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        agent_pos = (1, 1)
+        # Original range preserved for backward compatibility with scripted tests
+        free = [(x, y) for x in range(1, size - 1)
+                        for y in range(1, size - 1)
+                if (x, y) != agent_pos]
+        rng.shuffle(free)
+
+        box_positions = []
+        target_positions = []
+        used = {agent_pos}
+        n_pairs = max(n_boxes, n_targets)
+        for i in range(n_pairs):
+            bp = next((p for p in free if p not in used), None)
+            if bp is None:
+                break
+            used.add(bp)
+            tp = next((p for p in free if p not in used), None)
+            if tp is None:
+                break
+            used.add(tp)
+            box_positions.append(bp)
+            target_positions.append(tp)
+
+        for bx, by in box_positions:
+            grid.objects[by, bx] = ObjectType.BOX
+        for tx, ty in target_positions:
+            grid.objects[ty, tx] = ObjectType.TARGET
+
+        # Interior obstacles — flood-fill check (avoid isolating boxes or targets)
+        wall_positions = []
+        wall_candidates = [p for p in free if p not in used]
+        critical = [agent_pos] + box_positions + target_positions
+        for p in wall_candidates:
+            if len(wall_positions) >= n_obstacles:
+                break
+            wx, wy = p
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            if all(q in reachable for q in critical):
+                wall_positions.append(p)
+                used.add(p)
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": target_positions,
+            "box_positions": box_positions,
+            "target_positions": target_positions,
             "max_steps": self.get_max_steps(),
         }
 
+    # ── Box pushing hook ──────────────────────────────────────────────────────
+
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """If moving into a box, try to push it one step further."""
+        x, y = pos
+        obj = grid.objects[y, x]
+        if obj == ObjectType.BOX:
+            # Compute push direction (same as agent's direction of travel)
+            ax, ay = agent.position
+            dx = x - ax
+            dy = y - ay
+            nx, ny = x + dx, y + dy
+
+            # Can push if next cell is empty (terrain and objects)
+            if (0 <= nx < grid.width and 0 <= ny < grid.height
+                    and grid.terrain[ny, nx] != CellType.WALL
+                    and grid.objects[ny, nx] not in (ObjectType.BOX,)):
+                # Move box
+                grid.objects[y, x] = ObjectType.NONE
+                # If target was here, restore it
+                config = getattr(self, "_current_config", {})
+                if (x, y) in config.get("target_positions", []):
+                    grid.objects[y, x] = ObjectType.TARGET
+                # Place box at new position
+                grid.objects[ny, nx] = ObjectType.BOX
+                return True  # agent enters old box cell
+            return False  # push blocked (wall or another box)
+        return True
+
+    def on_env_reset(self, agent, grid, config):
+        """Cache config and compute initial box-to-target distance for reward shaping."""
+        self._current_config = config
+        # Pre-compute initial distance so box-progress reward fires from step 1
+        boxes = config.get("box_positions", [])
+        targets = config.get("target_positions", [])
+        if boxes and targets:
+            self._last_box_dist = sum(
+                min(abs(bx-tx)+abs(by-ty) for tx,ty in targets) for bx,by in boxes
+            )
+        else:
+            self._last_box_dist = None
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to plan push
-        sequences that avoid deadlocks and reach the goal efficiently.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        if "grid" not in new_state or "config" not in new_state:
+            return reward
+        grid = new_state["grid"]
+        config = new_state.get("config", {})
+        from agentick.core.types import ObjectType
+        boxes = [(x, y) for y in range(grid.height) for x in range(grid.width)
+                 if grid.objects[y, x] == ObjectType.BOX]
+        targets = config.get("target_positions", [])
+        if boxes and targets:
+            # Shaping 1: box closer to target
+            total_d = sum(min(abs(bx-tx)+abs(by-ty) for tx,ty in targets) for bx,by in boxes)
+            if self._last_box_dist is not None and total_d < self._last_box_dist:
+                reward += 0.2 * (self._last_box_dist - total_d)
+            self._last_box_dist = total_d
+            # Shaping 2: agent closer to nearest box (approach reward)
+            if "agent_position" in new_state:
+                ax, ay = new_state["agent_position"]
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                nb_new = min(abs(ax-bx)+abs(ay-by) for bx,by in boxes)
+                nb_old = min(abs(ox-bx)+abs(oy-by) for bx,by in boxes)
+                reward += 0.05 * (nb_old - nb_new)  # stronger: outweighs step penalty
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell, indicating
-        that all boxes have been pushed onto their target positions.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
+        """All boxes must be on target positions."""
+        if "grid" not in state or "config" not in state:
             return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        grid = state["grid"]
+        config = state.get("config", {})
+        targets = config.get("target_positions", [])
+
+        if not targets:
+            return False
+
+        # Success = every target cell has a BOX
+        return all(grid.objects[ty, tx] == ObjectType.BOX for tx, ty in targets)
 
     def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
         return 1.0
 
     def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent is highly likely to push boxes into deadlocked
-        positions, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
         return 0.0

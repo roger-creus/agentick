@@ -1,5 +1,14 @@
-"""TimingChallenge - Pass through gates that open/close on cycles"""
+"""TimingChallenge - Time your crossing through a gap in a moving barrier.
 
+MECHANICS:
+  - A horizontal wall divides the grid; there is one GAP cell
+  - A HAZARD blocker oscillates across the gap and neighboring cells
+  - Agent must cross when the blocker is NOT in the gap
+  - Stepping into the blocker's cell ends episode with penalty
+  - Success = reach GOAL on the other side
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -7,133 +16,164 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-@register_task("TimingChallenge-v0", tags=["low_level_control", "timing"])
+@register_task("TimingChallenge-v0", tags=["motor_control", "temporal_reasoning"])
 class TimingChallengeTask(TaskSpec):
-    """Test timing-based control by passing through cyclically opening gates.
-
-    The agent must traverse a grid containing gates that open and close on
-    fixed periodic cycles. To reach the goal, the agent must time its
-    movements to pass through gates during their open windows, sometimes
-    waiting in safe positions for the right moment. The challenge combines
-    spatial navigation with temporal reasoning about gate phase cycles and
-    the coordination of movement across multiple synchronized obstacles.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with slow gate cycles and generous open windows,
-          100 max steps.
-        - medium: 10x10 grid with moderate gate cycles, 200 max steps.
-        - hard: 13x13 grid with fast gate cycles and narrow open windows,
-          300 max steps.
-        - expert: 15x15 grid with multiple overlapping gate cycles
-          requiring precise synchronization, 500 max steps.
-
-    Capabilities Tested:
-        - low_level_control: The agent must execute well-timed movement
-          sequences coordinated with gate open/close cycles.
-        - timing: The agent must reason about periodic temporal patterns
-          and synchronize its actions with environmental rhythms.
-
-    Example:
-        >>> env = agentick.make("TimingChallenge-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Time movements to pass through gates during open windows
-    """
+    """Time your crossing through the gap to avoid the moving blocker."""
 
     name = "TimingChallenge-v0"
-    description = "Pass through gates that open/close on cycles"
-    capability_tags = ["low_level_control", "timing"]
+    description = "Time your crossing through the moving blocker"
+    capability_tags = ["motor_control", "temporal_reasoning"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        # patrol_len: blocker range | n_gaps: number of crossing gaps | n_blockers: per gap
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"patrol_len": 3, "n_gaps": 1, "n_blockers": 1, "gap_rand": False}),
+        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=120, params={"patrol_len": 4, "n_gaps": 1, "n_blockers": 2, "gap_rand": True}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=200, params={"patrol_len": 5, "n_gaps": 2, "n_blockers": 2, "gap_rand": True}),
+        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=300, params={"patrol_len": 6, "n_gaps": 2, "n_blockers": 3, "gap_rand": True}),
     }
 
     def generate(self, seed):
-        """Generate a timing challenge task instance.
-
-        Creates a walled grid with cyclically opening and closing gates
-        and a goal position. The agent starts at (1, 1) and must time
-        movements through gates during their open windows.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
+        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
+        p          = self.difficulty_config.params
+        patrol_len = p.get("patrol_len", 3)
+        n_gaps     = p.get("n_gaps", 1)
+        n_blockers = p.get("n_blockers", 1)
+        gap_rand   = p.get("gap_rand", False)
+
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+
+        # Barrier row (randomize position slightly)
+        mid_row = size // 2
+        if gap_rand:
+            mid_row = int(rng.integers(size//3, 2*size//3))
+        mid_row = max(2, min(size-3, mid_row))
+
+        for x in range(1, size-1):
+            grid.terrain[mid_row, x] = CellType.WALL
+
+        # Place gaps (1 or 2 crossings)
+        gap_cols = []
+        if n_gaps == 1:
+            gc = size // 2
+            if gap_rand:
+                gc = int(rng.integers(2, size-2))
+            gap_cols = [gc]
+        else:
+            gc1 = max(2, size // 3)
+            gc2 = min(size-3, 2 * size // 3)
+            if gap_rand:
+                gc1 = int(rng.integers(2, size//2))
+                gc2 = int(rng.integers(size//2, size-2))
+            gap_cols = [gc1, gc2]
+
+        for gc in gap_cols:
+            grid.terrain[mid_row, gc] = CellType.EMPTY
+
+        # Agent: below barrier near first gap; Goal: above barrier near last gap
+        agent_pos = (gap_cols[0], max(1, mid_row - 2))
+        goal_pos  = (gap_cols[-1], min(size-2, mid_row + 2))
+        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+
+        # Blocker(s): patrol around each gap
+        blocker_specs = []
+        for gc in gap_cols:
+            ps = max(1, gc - patrol_len // 2)
+            pe = min(size-2, ps + patrol_len - 1)
+            for _ in range(n_blockers):
+                start_x = int(rng.integers(ps, pe + 1))
+                blocker_specs.append({
+                    "x": start_x, "row": mid_row, "dir": 1,
+                    "p0": ps, "p1": pe, "gap": gc
+                })
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
-            "max_steps": self.get_max_steps(),
+            "agent_start":    agent_pos,
+            "goal_positions": [goal_pos],
+            "mid_row":        mid_row,
+            "gap_cols":       gap_cols,
+            "gap_col":        gap_cols[0],  # compat
+            "patrol_start":   blocker_specs[0]["p0"] if blocker_specs else 1,
+            "patrol_end":     blocker_specs[0]["p1"] if blocker_specs else 3,
+            "_blocker_specs": blocker_specs,
+            "max_steps":      self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        config["_collision"] = False
+        specs = config.get("_blocker_specs", [])
+        for i, s in enumerate(specs):
+            config[f"_bx_{i}"]  = s["x"]
+            config[f"_bdir_{i}"] = s["dir"]
+            if grid.terrain[s["row"], s["x"]] == CellType.EMPTY:
+                grid.objects[s["row"], s["x"]] = ObjectType.BLOCKER
+
+    def on_env_step(self, agent, grid, config, step_count):
+        specs = config.get("_blocker_specs", [])
+        ax, ay = agent.position
+        for i, s in enumerate(specs):
+            bx = config.get(f"_bx_{i}", s["x"])
+            d  = config.get(f"_bdir_{i}", 1)
+            by = s["row"]
+            p0, p1 = s["p0"], s["p1"]
+            # Erase old
+            if grid.objects[by, bx] == ObjectType.BLOCKER:
+                grid.objects[by, bx] = ObjectType.NONE
+            new_x = bx + d
+            if new_x > p1: d = -1; new_x = bx - 1
+            elif new_x < p0: d = 1; new_x = bx + 1
+            new_x = max(p0, min(p1, new_x))
+            config[f"_bx_{i}"]  = new_x
+            config[f"_bdir_{i}"] = d
+            grid.objects[by, new_x] = ObjectType.BLOCKER
+            if ay == by and ax == new_x:
+                config["_collision"] = True
+
+    def compute_sparse_reward(self, old_state, action, new_state, info):
+        if new_state.get("config", {}).get("_collision", False):
+            return -0.5
+        if self.check_success(new_state):
+            return 1.0
+        return 0.0
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
+        if new_state.get("config", {}).get("_collision", False):
+            return -0.5
+        reward = -0.01
+        # Shaping toward goal
+        config = new_state.get("config", {})
+        goal = config.get("goal_positions", [None])[0]
+        if goal and "agent_position" in new_state:
+            ax, ay = new_state["agent_position"]
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            old_d = abs(ox - goal[0]) + abs(oy - goal[1])
+            new_d = abs(ax - goal[0]) + abs(ay - goal[1])
+            reward += 0.05 * (old_d - new_d)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
-        Uses a constant step penalty to encourage the agent to
-        synchronize with gate cycles and reach the goal efficiently.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+    def check_done(self, state):
+        """Episode ends on collision OR reaching goal."""
+        config = state.get("config", {})
+        if config.get("_collision", False):
+            return True
+        return self.check_success(state)
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell after
-        passing through all timed gates during their open windows.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
+        """Success ONLY if agent reached goal (not collision)."""
+        config = state.get("config", {})
+        if config.get("_collision", False):
+            return False  # collision = done but NOT success
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
+    def validate_instance(self, grid, config):
+        return True
 
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot synchronize movements with gate open/close
-        cycles, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return -0.5

@@ -1,5 +1,13 @@
-"""PreciseNavigation - Navigate narrow corridors without hitting walls"""
+"""PreciseNavigation - Navigate to exact randomized targets in a narrow maze.
 
+MECHANICS:
+  - A narrow maze with tight corridors (width=1 cells)
+  - Multiple waypoints that must all be visited
+  - Agent must visit EVERY waypoint (TARGET) to reach the GOAL
+  - Tests fine motor control and spatial precision
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -7,134 +15,155 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-@register_task("PreciseNavigation-v0", tags=["low_level_control"])
+@register_task("PreciseNavigation-v0", tags=["motor_control", "planning"])
 class PreciseNavigationTask(TaskSpec):
-    """Test low-level control by navigating narrow corridors without collisions.
-
-    The agent must traverse a grid filled with narrow corridors and tight
-    passages to reach a goal position without hitting any walls. The
-    passageways leave minimal room for error, requiring the agent to
-    execute precise movement sequences. This tests fine-grained motor
-    control and the ability to plan exact step-by-step paths through
-    constrained spaces.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with wider corridors and fewer turns, 100 max
-          steps.
-        - medium: 10x10 grid with narrower corridors and moderate turns,
-          200 max steps.
-        - hard: 13x13 grid with single-width corridors and many turns,
-          300 max steps.
-        - expert: 15x15 grid with winding single-width corridors and
-          dead ends, 500 max steps.
-
-    Capabilities Tested:
-        - low_level_control: The agent must execute precise movement
-          commands to navigate through corridors that allow no deviation
-          from the optimal path.
-
-    Example:
-        >>> env = agentick.make("PreciseNavigation-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Navigate through narrow passages to reach the goal
-    """
+    """Navigate narrow corridors, visiting all waypoints before the goal."""
 
     name = "PreciseNavigation-v0"
-    description = "Navigate narrow corridors without hitting walls"
-    capability_tags = ["low_level_control"]
+    description = "Visit all waypoints in a narrow maze to reach goal"
+    capability_tags = ["motor_control", "planning"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=100, params={"n_waypoints": 2, "tight_windows": False, "n_hazards": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=12, max_steps=180, params={"n_waypoints": 3, "tight_windows": False, "n_hazards": 2}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=15, max_steps=300, params={"n_waypoints": 4, "tight_windows": True,  "n_hazards": 4}),
+        "expert": DifficultyConfig(name="expert",  grid_size=18, max_steps=500, params={"n_waypoints": 5, "tight_windows": True,  "n_hazards": 7}),
     }
 
     def generate(self, seed):
-        """Generate a precise navigation task instance.
+        rng = np.random.default_rng(seed)
+        size           = self.difficulty_config.grid_size
+        n_wp           = self.difficulty_config.params.get("n_waypoints", 2)
+        tight_windows  = self.difficulty_config.params.get("tight_windows", False)
+        n_hazards      = self.difficulty_config.params.get("n_hazards", 0)
 
-        Creates a walled grid with narrow corridors and tight passages
-        leading to a goal position. The agent starts at (1, 1) and must
-        navigate without collisions.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        # DFS maze generation — all cells start as WALLs
+        for y in range(size):
+            for x in range(size):
+                grid.terrain[y, x] = CellType.WALL
+
+        visited = set()
+        stack = [(1, 1)]
+        visited.add((1, 1))
+        grid.terrain[1, 1] = CellType.EMPTY
+
+        while stack:
+            cx, cy = stack[-1]
+            dirs = [(2, 0), (-2, 0), (0, 2), (0, -2)]
+            rng.shuffle(dirs)
+            moved = False
+            for dx, dy in dirs:
+                nx, ny = cx + dx, cy + dy
+                if (1 <= nx < size - 1 and 1 <= ny < size - 1 and (nx, ny) not in visited):
+                    grid.terrain[cy + dy // 2, cx + dx // 2] = CellType.EMPTY
+                    grid.terrain[ny, nx] = CellType.EMPTY
+                    visited.add((nx, ny))
+                    stack.append((nx, ny))
+                    moved = True
+                    break
+            if not moved:
+                stack.pop()
+
+        agent_pos = (1, 1)
+
+        empties = [(x, y) for y in range(1, size - 1) for x in range(1, size - 1)
+                   if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos]
+        rng.shuffle(empties)
+
+        waypoints = empties[:n_wp]
+        goal_pos = empties[n_wp] if len(empties) > n_wp else empties[-1]
+        used = {agent_pos, goal_pos} | set(waypoints)
+
+        for wx, wy in waypoints:
+            grid.objects[wy, wx] = ObjectType.TARGET
+        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+
+        # Hazards: HAZARD terrain on empty cells not on critical path
+        # tight_windows: more hazards placed along corridors to require precise moves
+        hazard_positions = []
+        hazard_candidates = [p for p in empties[n_wp + 1:] if p not in used]
+        if tight_windows:
+            # Place hazards adjacent to waypoints to require careful approach
+            rng.shuffle(hazard_candidates)
+        for p in hazard_candidates:
+            if len(hazard_positions) >= n_hazards:
+                break
+            hx, hy = p
+            grid.terrain[hy, hx] = CellType.HAZARD
+            reachable = grid.flood_fill(agent_pos)
+            critical = [goal_pos] + list(waypoints)
+            if all(q in reachable for q in critical):
+                hazard_positions.append(p)
+            else:
+                grid.terrain[hy, hx] = CellType.EMPTY  # Revert
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "waypoints": waypoints,
+            "tight_windows": tight_windows,
+            "hazard_positions": hazard_positions,
             "max_steps": self.get_max_steps(),
         }
 
+    # ── Hooks ────────────────────────────────────────────────────────────────
+
+    def on_env_reset(self, agent, grid, config):
+        """Init waypoint tracking; cache config for on_agent_moved."""
+        config["_waypoints_remaining"] = list(config.get("waypoints", []))
+        self._config = config
+        self._last_waypoints_rem = len(config.get("waypoints", []))
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Consume waypoint when stepped on — fires BEFORE reward/success."""
+        config = getattr(self, "_config", {})
+        remaining = config.get("_waypoints_remaining", [])
+        ax, ay = pos
+        if (ax, ay) in remaining:
+            remaining.remove((ax, ay))
+            grid.objects[ay, ax] = ObjectType.NONE
+            config["_waypoints_remaining"] = remaining
+
+    # ── Reward & success ─────────────────────────────────────────────────────
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to navigate
-        through narrow corridors to the goal with precise, efficient
-        movements.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        config = new_state.get("config", {})
+        new_rem = len(config.get("_waypoints_remaining", []))
+        if new_rem < self._last_waypoints_rem:
+            reward += 0.3 * (self._last_waypoints_rem - new_rem)
+        self._last_waypoints_rem = new_rem
+        # Shaping toward next waypoint or goal
+        target = None
+        remaining = config.get("_waypoints_remaining", [])
+        if remaining:
+            target = remaining[0]
+        else:
+            target = config.get("goal_positions", [None])[0]
+        if target and "agent_position" in new_state:
+            ax, ay = new_state["agent_position"]
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            old_d = abs(ox - target[0]) + abs(oy - target[1])
+            new_d = abs(ax - target[0]) + abs(ay - target[1])
+            reward += 0.05 * (old_d - new_d)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell after
-        traversing all narrow corridors without hitting walls.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
+        """Agent at goal AND all waypoints collected."""
+        config = state.get("config", {})
+        remaining = config.get("_waypoints_remaining", None)
+        if remaining is None:
+            remaining = config.get("waypoints", [])
+        if len(remaining) > 0:
+            return False
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot reliably navigate narrow corridors without
-        collisions, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0
