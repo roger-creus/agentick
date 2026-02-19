@@ -54,9 +54,10 @@ def test_permutation_test():
 
 def test_welch_t_test():
     """Test Welch's t-test."""
-    # Same distribution
-    group_a = np.random.normal(0, 1, 50)
-    group_b = np.random.normal(0, 1, 50)
+    # Same distribution (fixed seed for reproducibility)
+    rng = np.random.default_rng(42)
+    group_a = rng.normal(0, 1, 50)
+    group_b = rng.normal(0, 1, 50)
 
     result = welch_t_test(group_a, group_b)
 
@@ -66,7 +67,7 @@ def test_welch_t_test():
     assert not result.significant
 
     # Different distributions
-    group_c = np.random.normal(5, 1, 50)
+    group_c = rng.normal(5, 1, 50)
     result2 = welch_t_test(group_a, group_c)
 
     assert result2.p_value < 0.001  # Should be highly significant

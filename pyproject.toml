@@ -28,6 +28,8 @@ dependencies = [
     "rich>=13.0",
     "scipy>=1.17.0",
     "python-dotenv>=1.0",
+    "transformers>=4.57.6",
+    "accelerate>=1.12.0",
 ]
 
 [project.scripts]
@@ -84,15 +86,9 @@ notebooks = [
     "jupyter",
     "ipywidgets",
 ]
-# 3D isometric rendering
-render3d = [
-    "trimesh[easy]>=4.0",
-    "pyrender>=0.1.45",
-    "PyOpenGL>=3.1.0",
-]
 # Everything
 all = [
-    "agentick[rl,llm,tracking,viz,docs,leaderboard,finetune,notebooks,render3d]",
+    "agentick[rl,llm,tracking,viz,docs,leaderboard,finetune,notebooks]",
 ]
 
 [build-system]
@@ -101,9 +97,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agentick"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"agentick/rendering/models" = "agentick/rendering/models"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

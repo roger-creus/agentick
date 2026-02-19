@@ -49,16 +49,11 @@ class FogOfWarExplorationTask(TaskSpec):
     capability_tags = ["exploration", "memory", "navigation"]
 
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100, params={"visibility": 2}),
-        "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=200, params={"visibility": 2}
-        ),
-        "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=300, params={"visibility": 1}
-        ),
-        "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=400, params={"visibility": 1}
-        ),
+        # visibility: FOV radius | n_decoys: fake TARGET lures (not real goal) | n_guards: patrol
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"visibility": 2, "n_decoys": 0, "n_guards": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=200, params={"visibility": 2, "n_decoys": 2, "n_guards": 0}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"visibility": 1, "n_decoys": 3, "n_guards": 1}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=500, params={"visibility": 1, "n_decoys": 4, "n_guards": 2}),
     }
 
     def generate(self, seed):
@@ -79,75 +74,122 @@ class FogOfWarExplorationTask(TaskSpec):
                 goal_positions, and max_steps.
         """
         rng = np.random.default_rng(seed)
-        size = self.difficulty_config.grid_size
+        size     = self.difficulty_config.grid_size
+        p        = self.difficulty_config.params or {}
+        n_decoys = p.get("n_decoys", 0)
+        n_guards = p.get("n_guards", 0)
+
+        # Randomize agent start corner
+        corners = [(1,1),(size-2,1),(1,size-2),(size-2,size-2)]
+        rng.shuffle(corners)
 
         # Try multiple times to generate a valid instance
         max_attempts = 10
         for attempt in range(max_attempts):
             grid = Grid(size, size)
-            grid.terrain[0, :] = CellType.WALL
-            grid.terrain[-1, :] = CellType.WALL
-            grid.terrain[:, 0] = CellType.WALL
-            grid.terrain[:, -1] = CellType.WALL
+            grid.terrain[0, :] = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+            grid.terrain[:, 0] = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
 
             # Add some walls
             for _ in range(size):
                 x, y = rng.integers(1, size - 1), rng.integers(1, size - 1)
                 grid.terrain[y, x] = CellType.WALL
 
-            agent_pos = (1, 1)
+            agent_pos = corners[0]
 
             # Find reachable positions from agent
             reachable = grid.flood_fill(agent_pos)
-            if len(reachable) < 2:
-                continue  # Try again
+            if len(reachable) < n_decoys + n_guards + 2:
+                continue
 
-            # Place goal in a reachable position
-            reachable_list = list(reachable)
-            reachable_list.remove(agent_pos)
-            goal_pos = reachable_list[rng.choice(len(reachable_list))]
+            reachable_list = list(reachable - {agent_pos})
+            rng.shuffle(reachable_list)
+            goal_pos = reachable_list[0]
             goal_x, goal_y = goal_pos
             grid.objects[goal_y, goal_x] = ObjectType.GOAL
 
+            # Add decoy targets (look like goal in fog, but aren't)
+            decoy_positions = reachable_list[1:1+n_decoys]
+            for dx, dy in decoy_positions:
+                grid.objects[dy, dx] = ObjectType.TARGET
+
+            # Place guards away from agent
+            guard_candidates = reachable_list[1+n_decoys:]
+            guard_positions  = guard_candidates[:n_guards]
+            for gx, gy in guard_positions:
+                grid.objects[gy, gx] = ObjectType.NPC
+
             return grid, {
-                "agent_start": agent_pos,
-                "goal_positions": [(goal_x, goal_y)],
-                "max_steps": self.get_max_steps(),
+                "agent_start":     agent_pos,
+                "goal_positions":  [(goal_x, goal_y)],
+                "_guard_positions": guard_positions,
+                "_guard_dirs":     [int(rng.integers(0, 4)) for _ in guard_positions],
+                "_guard_seed":     int(rng.integers(0, 2**31)),
+                "max_steps":       self.get_max_steps(),
             }
 
         # Fallback: simple solvable instance
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-
-        agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
+        grid.terrain[0, :] = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+        agent_pos = (1, 1); goal_pos = (size - 2, size - 2)
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
-
         return grid, {
-            "agent_start": agent_pos,
-            "goal_positions": [goal_pos],
-            "max_steps": self.get_max_steps(),
+            "agent_start":     agent_pos,
+            "goal_positions":  [goal_pos],
+            "_guard_positions": [],
+            "_guard_dirs":     [],
+            "_guard_seed":     0,
+            "max_steps":       self.get_max_steps(),
         }
 
+    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+
+    def on_env_reset(self, agent, grid, config):
+        config["_guard_collision"] = False
+        config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
+        self._config = config
+
+    def on_env_step(self, agent, grid, config, step_count):
+        guards = config.get("_guard_positions", [])
+        dirs   = config.get("_guard_dirs", [])
+        rng    = config.get("_guard_rng")
+        ax, ay = agent.position
+        if not guards or rng is None: return
+        for gx, gy in guards:
+            if grid.objects[gy, gx] == ObjectType.NPC: grid.objects[gy, gx] = ObjectType.NONE
+        new_g, new_d = [], []
+        for i, (gx, gy) in enumerate(guards):
+            d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
+            if (grid.terrain[ny, nx] == CellType.EMPTY and grid.objects[ny, nx] != ObjectType.GOAL):
+                new_g.append((nx, ny))
+            else:
+                d = int(rng.integers(0, 4)); new_g.append((gx, gy))
+            new_d.append(d)
+            if (new_g[-1][0], new_g[-1][1]) == (ax, ay): config["_guard_collision"] = True
+        config["_guard_positions"] = new_g; config["_guard_dirs"] = new_d
+        for gx, gy in new_g:
+            if grid.terrain[gy, gx] == CellType.EMPTY: grid.objects[gy, gx] = ObjectType.NPC
+
+    def check_done(self, state):
+        if state.get("config", {}).get("_guard_collision", False): return True
+        return self.check_success(state)
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage efficient exploration
-        and goal-finding under fog-of-war visibility constraints.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        """Dense reward: step penalty + goal shaping + success bonus."""
+        reward = -0.01
+        if "agent" in new_state and "config" in new_state:
+            config = new_state["config"]
+            goal = config.get("goal_positions", [None])[0]
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            if goal and (ax != ox or ay != oy):  # only shape when agent actually moved
+                old_d = abs(ox - goal[0]) + abs(oy - goal[1])
+                new_d = abs(ax - goal[0]) + abs(ay - goal[1])
+                reward += 0.05 * (old_d - new_d)  # mild shaping (fog limits knowledge)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
         """Check if the task objective is complete.
@@ -161,10 +203,11 @@ class FogOfWarExplorationTask(TaskSpec):
         Returns:
             True if the agent is on the goal cell, False otherwise.
         """
+        if state.get("config", {}).get("_guard_collision", False): return False
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def get_optimal_return(self, difficulty=None):
         """Get the optimal (maximum possible) return for this task.

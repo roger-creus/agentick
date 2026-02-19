@@ -106,8 +106,6 @@ def make(
     reward_mode: str = "sparse",
     seed: int | None = None,
     fast_mode: bool = False,
-    render_3d: bool | None = None,
-    asset_dir: str | None = None,
     **kwargs: Any,
 ) -> AgentickEnv:
     """
@@ -120,9 +118,6 @@ def make(
         reward_mode: Reward mode (sparse, dense)
         seed: Random seed for task generation
         fast_mode: Enable fast mode for state_dict rendering (skip expensive conversions)
-        render_3d: ``True`` = use 3D isometric renderer (requires render3d extra),
-            ``False`` or ``None`` = use 2D sprite renderer.
-        asset_dir: Custom directory for GLB model assets.
         **kwargs: Additional task parameters
 
     Returns:
@@ -159,8 +154,6 @@ def make(
         render_mode=render_mode,
         reward_mode=reward_mode,
         fast_mode=fast_mode,
-        render_3d=render_3d,
-        asset_dir=asset_dir,
         **kwargs,
     )
 
@@ -262,6 +255,7 @@ class TaskEnv(AgentickEnv):
         """
         self.task = task
         self.task_config = config
+        self._task_name = task.name.replace("-v0", "")
 
         # Get max_steps from task
         max_steps = config.get("max_steps", task.get_max_steps())
@@ -275,6 +269,19 @@ class TaskEnv(AgentickEnv):
         # Set agent start position
         if "agent_start" in config:
             self.agent.position = config["agent_start"]
+
+    def step(self, action):
+        """Step with optional post-action task hook (e.g. moving obstacles)."""
+        obs, reward, terminated, truncated, info = super().step(action)
+        # Fix info["success"]: base class sets terminated=True for ANY check_done(),
+        # but tasks may terminate without success (e.g. decoy-taken in DelayedGratification).
+        # _last_success was set in _check_success() to reflect true goal achievement.
+        if terminated and hasattr(self, "_last_success"):
+            info["success"] = self._last_success
+        # Allow task to update world after agent acts (NPCs, obstacles, etc.)
+        if hasattr(self.task, "on_env_step"):
+            self.task.on_env_step(self.agent, self.grid, self.task_config, self.step_count)
+        return obs, reward, terminated, truncated, info
 
     def _reset_state(
         self,
@@ -300,6 +307,45 @@ class TaskEnv(AgentickEnv):
         if "agent_start" in config:
             self.agent.position = config["agent_start"]
 
+        # Allow task to initialize dynamic state
+        if hasattr(self.task, "on_env_reset"):
+            self.task.on_env_reset(self.agent, self.grid, self.task_config)
+
+    def _move_agent(self, action_type) -> None:
+        """Move agent, delegating task-specific entry rules to the task."""
+        from agentick.core.actions import get_move_delta
+        delta = get_move_delta(action_type)
+        if delta is None:
+            return
+
+        dx, dy = delta
+        new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
+
+        # Standard terrain check
+        if not self.grid.is_walkable(new_pos):
+            return
+
+        # Task-specific entry check (e.g., door requires key)
+        if hasattr(self.task, "can_agent_enter"):
+            if not self.task.can_agent_enter(new_pos, self.agent, self.grid):
+                return
+
+        self.agent.position = new_pos
+
+        # Post-move hook (e.g., auto-pickup key)
+        if hasattr(self.task, "on_agent_moved"):
+            self.task.on_agent_moved(new_pos, self.agent, self.grid)
+
+    def _get_state_for_reward(self) -> dict[str, Any]:
+        """Get state snapshot for reward computation (includes full task state)."""
+        state = super()._get_state_for_reward()
+        state.update({
+            "grid": self.grid,
+            "agent": self.agent,
+            "config": self.task_config,
+        })
+        return state
+
     def _compute_reward(
         self,
         old_state: dict[str, Any],
@@ -315,7 +361,7 @@ class TaskEnv(AgentickEnv):
             return super()._compute_reward(old_state, action, new_state)
 
     def _check_success(self) -> bool:
-        """Check success using task's success condition."""
+        """Check if episode should terminate (via check_done) and record true success."""
         state = self._get_state_for_reward()
         state.update(
             {
@@ -324,5 +370,8 @@ class TaskEnv(AgentickEnv):
                 "config": self.task_config,
             }
         )
-        return self.task.check_success(state)
+        done = self.task.check_done(state)
+        # Store the true success flag separately so we can fix info["success"] in step()
+        self._last_success = bool(self.task.check_success(state)) if done else False
+        return done
 

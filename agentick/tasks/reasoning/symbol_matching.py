@@ -1,5 +1,15 @@
-"""SymbolMatching - Match symbols/colors according to rules"""
+"""SymbolMatching - Match colored items to their corresponding goal zones.
 
+MECHANICS:
+  - N colored items (KEY, BOX, etc.) are placed on the grid
+  - N matching target zones (TARGET) at specific positions
+  - Agent must push/carry each item to its matching zone
+  - Simplified: each KEY must end up at a TARGET cell
+  - Agent steps on KEY to auto-carry (only one at a time), then steps on TARGET to place
+  - Success = all keys placed on their matching targets
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -7,134 +17,137 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-@register_task("SymbolMatching-v0", tags=["pattern_recognition", "reasoning"])
+@register_task("SymbolMatching-v0", tags=["reasoning", "pattern_recognition"])
 class SymbolMatchingTask(TaskSpec):
-    """Test pattern recognition by matching symbols according to hidden rules.
-
-    The agent encounters pairs of symbols or colors on the grid and must
-    match them according to rules that govern valid pairings. The matching
-    rules may involve color correspondence, symbol complementarity, or
-    positional relationships. The agent must observe which matches succeed
-    and fail, infer the underlying matching rules, and then apply those
-    rules to pair all remaining symbols correctly.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with few symbols and obvious matching rules,
-          100 max steps.
-        - medium: 10x10 grid with more symbols and moderately complex
-          rules, 200 max steps.
-        - hard: 13x13 grid with many symbols and multi-attribute
-          matching rules, 300 max steps.
-        - expert: 15x15 grid with numerous symbols and context-dependent
-          matching rules, 500 max steps.
-
-    Capabilities Tested:
-        - pattern_recognition: The agent must identify recurring patterns
-          in valid symbol pairings to infer the matching criteria.
-        - reasoning: The agent must apply inferred rules to novel symbol
-          combinations encountered during the episode.
-
-    Example:
-        >>> env = agentick.make("SymbolMatching-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Observe valid pairings, infer rules, and match all symbols
-    """
+    """Carry items to their matching goal zones."""
 
     name = "SymbolMatching-v0"
-    description = "Match symbols/colors according to rules"
-    capability_tags = ["pattern_recognition", "reasoning"]
+    description = "Match items to their goal zones"
+    capability_tags = ["reasoning", "pattern_recognition"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"n_pairs": 2, "n_fakes": 0, "n_obstacles": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_pairs": 3, "n_fakes": 1, "n_obstacles": 3}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=300, params={"n_pairs": 4, "n_fakes": 2, "n_obstacles": 5}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=500, params={"n_pairs": 5, "n_fakes": 3, "n_obstacles": 8}),
     }
 
     def generate(self, seed):
-        """Generate a symbol matching task instance.
+        rng = np.random.default_rng(seed)
+        size        = self.difficulty_config.grid_size
+        n           = self.difficulty_config.params.get("n_pairs", 2)
+        n_fakes     = self.difficulty_config.params.get("n_fakes", 0)
+        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
-        Creates a walled grid with symbol pairs that must be matched
-        according to hidden rules. The agent starts at (1, 1) and must
-        infer the matching rules to pair all symbols correctly.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        agent_pos = (1, 1)
+
+        free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                if (x, y) != agent_pos]
+        rng.shuffle(free)
+
+        item_positions   = free[:n]
+        target_positions = free[n:2*n]
+        used = {agent_pos} | set(item_positions) | set(target_positions)
+
+        for ix, iy in item_positions:
+            grid.objects[iy, ix] = ObjectType.KEY
+        for tx, ty in target_positions:
+            grid.objects[ty, tx] = ObjectType.TARGET
+
+        # Fakes: extra KEY objects (look like items but no matching target — mismatches)
+        fake_positions = []
+        for p in free[2*n:]:
+            if len(fake_positions) >= n_fakes:
+                break
+            if p not in used:
+                fx, fy = p
+                grid.objects[fy, fx] = ObjectType.KEY
+                fake_positions.append(p)
+                used.add(p)
+
+        # Obstacle walls — flood-fill check
+        wall_positions = []
+        wall_candidates = [p for p in free if p not in used]
+        critical = [agent_pos] + list(item_positions) + list(target_positions)
+        for p in wall_candidates:
+            if len(wall_positions) >= n_obstacles:
+                break
+            wx, wy = p
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            if all(q in reachable for q in critical):
+                wall_positions.append(p)
+                used.add(p)
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": target_positions,
+            "item_positions": item_positions,
+            "target_positions": target_positions,
+            "fake_positions": fake_positions,
+            "n_pairs": n,
             "max_steps": self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        config["_items_placed"] = 0
+        config["_carrying"] = False
+        self._items_placed = 0
+        self._carrying = False
+        self._last_placed_for_reward = 0  # must reset to avoid reward gap at episode start
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Pickup KEY / Place on TARGET — fires before reward and success checks."""
+        x, y = pos
+        obj = grid.objects[y, x]
+        if not self._carrying and obj == ObjectType.KEY:
+            grid.objects[y, x] = ObjectType.NONE
+            self._carrying = True
+        elif self._carrying and obj == ObjectType.TARGET:
+            grid.objects[y, x] = ObjectType.GOAL  # matched
+            self._carrying = False
+            self._items_placed += 1
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to infer
-        matching rules from observations and pair all symbols quickly.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        old_placed = getattr(self, "_last_placed_for_reward", 0)
+        new_placed = self._items_placed
+        if new_placed > old_placed:
+            reward += 0.5  # reward immediately when item is placed
+        self._last_placed_for_reward = new_placed
+        # Approach shaping: toward nearest KEY (if not carrying) or TARGET (if carrying)
+        if "agent" in new_state and "grid" in new_state:
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            g = new_state["grid"]
+            if not self._carrying:
+                # Guide toward nearest unplaced KEY
+                items = [(x, y) for y in range(g.height) for x in range(g.width)
+                         if g.objects[y, x] == ObjectType.KEY]
+            else:
+                # Guide toward nearest TARGET
+                items = [(x, y) for y in range(g.height) for x in range(g.width)
+                         if g.objects[y, x] == ObjectType.TARGET]
+            if items:
+                d_new = min(abs(ax - ix) + abs(ay - iy) for ix, iy in items)
+                d_old = min(abs(ox - ix) + abs(oy - iy) for ix, iy in items)
+                reward += 0.05 * (d_old - d_new)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
+        config = state.get("config", {})
+        n = config.get("n_pairs", 1)
+        return self._items_placed >= n
 
-        The task succeeds when the agent reaches the goal cell after
-        correctly matching all symbol pairs according to the hidden rules.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
-            return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
-
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot infer the hidden matching rules from
-        observations, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

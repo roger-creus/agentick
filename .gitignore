@@ -45,17 +45,21 @@ htmlcov/
 *.log
 *.mp4
 *.gif
-results/           # Generated experiment results (not committed)
+*.png
+results/
 checkpoints/
 wandb/
 leaderboard_site/
 site/
-# experiments/     # Removed: experiments/ contains config files and should be tracked
-trajectories/      # Generated trajectory data (not committed)
-data/              # Generated trajectory/dataset files (not committed)
-test_output/       # Test output artifacts
+trajectories/
+data/
+test_output/
 *.pkl
 *.h5
+benchmark_results/
+random_baseline_results/
+paper_figures/
+notebooks/
 
 # OS
 .DS_Store
@@ -70,5 +74,8 @@ PHASE*
 .env
 
 HOSTING.md
+MEMORY.md
 
 videos/
+paper/
+.project_docs

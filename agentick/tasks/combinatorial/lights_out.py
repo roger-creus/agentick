@@ -1,5 +1,14 @@
-"""LightsOut - Classic lights-out puzzle on grid"""
+"""LightsOut - Toggle lights to turn them all off.
 
+MECHANICS:
+  - N lights (SWITCH objects) placed on the grid
+  - Stepping ON a SWITCH toggles it (on→off, off→on)
+  - Adjacent lights also toggle (classic Lights Out puzzle)
+  - Success = ALL lights are off (no SWITCH objects remain on grid)
+  - Agent can move freely; toggles happen by stepping
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -9,129 +18,144 @@ from agentick.tasks.registry import register_task
 
 @register_task("LightsOut-v0", tags=["combinatorial_logic"])
 class LightsOutTask(TaskSpec):
-    """Test combinatorial logic through the classic lights-out puzzle.
-
-    The agent faces a grid of cells that are either lit or unlit. Toggling
-    a cell also toggles its orthogonal neighbors, creating cascading state
-    changes. The objective is to turn all lights off by selecting the
-    correct sequence of toggles. This requires the agent to reason about
-    indirect effects and plan toggle sequences that account for
-    interdependencies between cells.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with fewer lit cells, 100 max steps.
-        - medium: 10x10 grid with moderate initial lit pattern, 200 max
-          steps.
-        - hard: 13x13 grid with dense initial lit pattern, 300 max steps.
-        - expert: 15x15 grid with near-full initial lit pattern, 500 max
-          steps.
-
-    Capabilities Tested:
-        - combinatorial_logic: The agent must determine which combination
-          of cell toggles will clear the board, reasoning about how each
-          toggle propagates to neighboring cells.
-
-    Example:
-        >>> env = agentick.make("LightsOut-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Toggle cells strategically to turn all lights off
-    """
+    """Toggle all lights off — stepping on a light toggles it and its neighbors."""
 
     name = "LightsOut-v0"
-    description = "Classic lights-out puzzle on grid"
+    description = "Toggle all lights off"
     capability_tags = ["combinatorial_logic"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        # n_lights: lit switches to turn off | adjacent: toggling propagates to neighbors
+        # n_decoys: extra switches that look lit but reset if not in sequence | walls: obstacles
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_lights": 3, "adjacent": False, "n_decoys": 0, "n_walls": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=100, params={"n_lights": 5, "adjacent": True,  "n_decoys": 1, "n_walls": 2}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=160, params={"n_lights": 7, "adjacent": True,  "n_decoys": 2, "n_walls": 4}),
+        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=250, params={"n_lights": 9, "adjacent": True,  "n_decoys": 3, "n_walls": 6}),
     }
 
     def generate(self, seed):
-        """Generate a lights-out puzzle instance.
-
-        Creates a walled grid with lit/unlit cells and a goal position.
-        The agent starts at (1, 1) and must toggle cells to turn all
-        lights off before reaching the goal.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
+        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
+        n_lights  = self.difficulty_config.params.get("n_lights", 3)
+        n_decoys  = self.difficulty_config.params.get("n_decoys", 0)
+        n_walls   = self.difficulty_config.params.get("n_walls", 0)
+        adjacent  = self.difficulty_config.params.get("adjacent", False)
+
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        agent_pos = (1, 1)
+
+        free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                if (x, y) != agent_pos]
+        rng.shuffle(free)
+        light_positions = free[:min(n_lights, len(free))]
+        used = set(light_positions) | {agent_pos}
+
+        # Decoy SWITCHes: extra lights — agent must toggle all SWITCHes to win
+        decoy_positions = []
+        for p in free[n_lights:]:
+            if len(decoy_positions) >= n_decoys:
+                break
+            if p not in used:
+                decoy_positions.append(p)
+                used.add(p)
+
+        # Interior walls — flood-fill to keep all lights reachable
+        wall_positions = []
+        wall_candidates = [p for p in free if p not in used]
+        for p in wall_candidates:
+            if len(wall_positions) >= n_walls:
+                break
+            wx, wy = p
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            all_reach = all(lp in reachable for lp in light_positions + decoy_positions)
+            if all_reach:
+                wall_positions.append(p)
+                used.add(p)
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
+        for lx, ly in light_positions:
+            grid.objects[ly, lx] = ObjectType.SWITCH
+        for dx, dy in decoy_positions:
+            grid.objects[dy, dx] = ObjectType.SWITCH  # decoys look identical to lights
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": [],
+            "light_positions": light_positions,
+            "decoy_positions": decoy_positions,
+            "adjacent_toggle": adjacent,
             "max_steps": self.get_max_steps(),
         }
 
+    # ── Toggle mechanic ───────────────────────────────────────────────────────
+
+    def on_env_reset(self, agent, grid, config):
+        """Cache config and count initial lights for reward tracking."""
+        self._adjacent_toggle = config.get("adjacent_toggle", False)
+        self._lights_remaining = sum(
+            1 for y in range(grid.height) for x in range(grid.width)
+            if grid.objects[y, x] == ObjectType.SWITCH
+        )
+        self._lights_remaining_last = self._lights_remaining
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Toggle lights immediately on step — fires BEFORE reward computation."""
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.SWITCH:
+            grid.objects[y, x] = ObjectType.NONE
+            self._lights_remaining -= 1
+
+        # Adjacent toggle mode
+        if self._adjacent_toggle:
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = x + dx, y + dy
+                if 0 < nx < grid.width - 1 and 0 < ny < grid.height - 1:
+                    if grid.objects[ny, nx] == ObjectType.SWITCH:
+                        grid.objects[ny, nx] = ObjectType.NONE
+                        self._lights_remaining -= 1
+
+    # ── Reward & success ─────────────────────────────────────────────────────
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to determine
-        the correct toggle sequence and reach the goal quickly.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        # Lights toggled in on_agent_moved (before this runs) — use instance counter
+        old_rem = self._lights_remaining_last
+        new_rem = self._lights_remaining
+        if new_rem < old_rem:
+            reward += 0.3 * (old_rem - new_rem)  # reward per light turned off
+        self._lights_remaining_last = new_rem
+        # Approach shaping: toward nearest remaining SWITCH
+        if "agent_position" in new_state and "grid" in new_state:
+            ax, ay = new_state["agent_position"]
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            g = new_state["grid"]
+            lights = [(x, y) for y in range(g.height) for x in range(g.width)
+                      if g.objects[y, x] == ObjectType.SWITCH]
+            if lights:
+                d_new = min(abs(ax-lx)+abs(ay-ly) for lx,ly in lights)
+                d_old = min(abs(ox-lx)+abs(oy-ly) for lx,ly in lights)
+                reward += 0.05 * (d_old - d_new)
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell, indicating
-        that all lights have been turned off via correct toggle sequences.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
+        """All lights must be off (no SWITCH objects on grid)."""
+        if "grid" not in state:
             return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        grid = state["grid"]
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if grid.objects[y, x] == ObjectType.SWITCH:
+                    return False
+        return True
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent is unlikely to find the correct toggle combination
-        to clear all lights, yielding near-zero expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

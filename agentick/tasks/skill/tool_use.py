@@ -1,5 +1,14 @@
-"""ToolUse - Craft/find tools to overcome obstacles"""
+"""ToolUse - Pick up a tool to bypass an obstacle, then reach the goal.
 
+MECHANICS:
+  - A KEY (tool) is placed on one side of the grid
+  - A row of HAZARD obstacles blocks the direct path to the goal
+  - WITH the key in inventory, agent can pass through hazard (can_agent_enter)
+  - WITHOUT the key, hazard ends episode
+  - Success = reach GOAL with key in inventory
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -7,136 +16,148 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-@register_task("ToolUse-v0", tags=["skill_discovery", "tool_use"])
+@register_task("ToolUse-v0", tags=["compositional_logic", "planning"])
 class ToolUseTask(TaskSpec):
-    """Test skill discovery and tool use by crafting or finding tools.
-
-    The agent encounters obstacles on the grid that cannot be overcome
-    with basic movement alone. Instead, the agent must find or craft
-    tools (such as keys, bridges, or hammers) to bypass specific
-    obstacle types. Each tool has a specific function, and the agent
-    must discover which tool solves which obstacle through
-    experimentation. This evaluates the ability to recognize when a
-    tool is needed, locate or create it, and apply it correctly.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with one tool type and obvious obstacles,
-          100 max steps.
-        - medium: 10x10 grid with multiple tool types and varied
-          obstacles, 200 max steps.
-        - hard: 13x13 grid with craftable tools requiring ingredient
-          collection, 300 max steps.
-        - expert: 15x15 grid with complex tool chains where one tool
-          is needed to obtain another, 500 max steps.
-
-    Capabilities Tested:
-        - skill_discovery: The agent must discover through exploration
-          which tools exist and what functions they serve.
-        - tool_use: The agent must acquire the correct tool and apply
-          it to the appropriate obstacle to make progress.
-
-    Example:
-        >>> env = agentick.make("ToolUse-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Find or craft the right tools to overcome each obstacle
-    """
+    """Collect the tool to bypass obstacles and reach the goal."""
 
     name = "ToolUse-v0"
-    description = "Craft/find tools to overcome obstacles"
-    capability_tags = ["skill_discovery", "tool_use"]
+    description = "Pick up tool to bypass obstacles and reach goal"
+    capability_tags = ["compositional_logic", "planning"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=100),
-        "medium": DifficultyConfig(name="medium", grid_size=10, max_steps=200),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=300),
-        "expert": DifficultyConfig(name="expert", grid_size=15, max_steps=500),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_tools": 1, "n_obstacles": 0, "n_decoys": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=150, params={"n_tools": 2, "n_obstacles": 3, "n_decoys": 1}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=250, params={"n_tools": 2, "n_obstacles": 5, "n_decoys": 2}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=400, params={"n_tools": 3, "n_obstacles": 8, "n_decoys": 3}),
     }
 
     def generate(self, seed):
-        """Generate a tool use task instance.
+        rng = np.random.default_rng(seed)
+        size        = self.difficulty_config.grid_size
+        n_tools     = self.difficulty_config.params.get("n_tools", 1)
+        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
+        n_decoys    = self.difficulty_config.params.get("n_decoys", 0)
 
-        Creates a walled grid with obstacles that require specific tools
-        to overcome. The agent starts at (1, 1) and must find or craft
-        the correct tools to bypass obstacles and reach the goal.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
-        size = self.difficulty_config.grid_size
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+
+        # Horizontal hazard barrier across the middle
+        mid = size // 2
+        for x in range(1, size-1):
+            grid.terrain[mid, x] = CellType.HAZARD
+
+        agent_pos = (1, 1)
+        goal_pos  = (size-2, size-2)
+        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+
+        # Place tool(s) — KEY objects in top-left area (agent side, above barrier)
+        used = {agent_pos, goal_pos}
+        top_free = [(x, y) for x in range(1, size-1) for y in range(1, mid)
+                    if (x, y) not in used and grid.terrain[y, x] == CellType.EMPTY]
+        rng.shuffle(top_free)
+        tool_positions = []
+        for p in top_free[:n_tools]:
+            tx, ty = p
+            grid.objects[ty, tx] = ObjectType.KEY
+            tool_positions.append(p)
+            used.add(p)
+
+        # Decoys: TARGET objects below barrier (near goal, look like goals)
+        bottom_free = [(x, y) for x in range(1, size-1) for y in range(mid+1, size-1)
+                       if (x, y) not in used and grid.terrain[y, x] == CellType.EMPTY]
+        rng.shuffle(bottom_free)
+        decoy_positions = []
+        for p in bottom_free[:n_decoys]:
+            dx2, dy2 = p
+            grid.objects[dy2, dx2] = ObjectType.TARGET
+            decoy_positions.append(p)
+            used.add(p)
+
+        # Interior walls above barrier — flood-fill check
+        wall_positions = []
+        wall_candidates = [p for p in top_free[n_tools:] if p not in used]
+        for p in wall_candidates:
+            if len(wall_positions) >= n_obstacles:
+                break
+            wx, wy = p
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            if all(tp in reachable for tp in tool_positions):
+                wall_positions.append(p)
+                used.add(p)
+            else:
+                grid.terrain[wy, wx] = CellType.EMPTY
+
+        # Primary tool pos (first tool) for backward compat
+        tool_pos = tool_positions[0] if tool_positions else (2, 1)
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "tool_pos": tool_pos,
+            "tool_positions": tool_positions,
+            "decoy_positions": decoy_positions,
             "max_steps": self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        """Clear inventory between episodes so agent must re-pick tool each time."""
+        agent.inventory.clear()
+
+    def can_agent_enter(self, pos, agent, grid):
+        """Agent with KEY in inventory can cross hazards."""
+        x, y = pos
+        if grid.terrain[y, x] == CellType.HAZARD:
+            has_tool = any(e.entity_type == "tool" for e in agent.inventory)
+            return has_tool
+        return True
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Auto-pickup KEY as a tool."""
+        from agentick.core.entity import Entity
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.KEY:
+            grid.objects[y, x] = ObjectType.NONE
+            agent.inventory.append(
+                Entity(id=f"tool_{x}_{y}", entity_type="tool", position=pos)
+            )
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to discover
-        and apply the correct tools to obstacles efficiently.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        config = new_state.get("config", {})
+        agent = new_state.get("agent")
+        if agent:
+            has_tool = any(e.entity_type == "tool" for e in agent.inventory)
+            if not has_tool:
+                # Reward getting to tool
+                tool = config.get("tool_pos")
+                if tool:
+                    ax, ay = agent.position
+                    ox, oy = old_state.get('agent_position', new_state['agent'].position)
+                    reward += 0.05 * (abs(ox-tool[0])+abs(oy-tool[1]) -
+                                      abs(ax-tool[0])-abs(ay-tool[1]))
+            else:
+                goal = config.get("goal_positions", [None])[0]
+                if goal:
+                    ax, ay = agent.position
+                    ox, oy = old_state.get('agent_position', new_state['agent'].position)
+                    reward += 0.05 * (abs(ox-goal[0])+abs(oy-goal[1]) -
+                                      abs(ax-goal[0])-abs(ay-goal[1]))
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell after
-        using the correct tools to overcome all blocking obstacles.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
+    def validate_instance(self, grid, config):
+        return True  # dynamic hazard passability
 
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot discover which tools solve which obstacles
-        or acquire them in the right order, yielding near-zero expected
-        return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

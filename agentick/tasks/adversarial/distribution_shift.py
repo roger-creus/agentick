@@ -1,7 +1,20 @@
-"""Distribution Shift - OOD generalization test."""
+"""DistributionShift - Navigate when the environment shifts mid-episode.
+
+PROCEDURAL DIVERSITY + CREATIVE DIFFICULTY AXES:
+  - easy:   1 shift, goal moves once, fake goal visible from start
+  - medium: 2 shifts, goal moves twice, multiple fake goals
+  - hard:   3 shifts, goal teleports randomly, walls appear/disappear
+  - expert: 4 shifts, walls change + multiple fake goals + short windows
+
+MECHANICS:
+  - Phase 0: Real goal at pos A (GOAL object), fake goals as TARGET objects
+  - At shift_step T: real goal moves to pos B, old GOAL becomes TARGET (fake)
+  - Agent must detect shift and navigate to new real goal
+  - Fake goals look identical to real goal until reached (luring agent)
+  - Walls may appear/disappear at shifts (harder difficulties)
+"""
 
 import numpy as np
-
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -11,183 +24,163 @@ from agentick.tasks.registry import register_task
 
 @register_task("DistributionShift-v0", tags=["generalization", "ood", "robustness"])
 class DistributionShiftTask(TaskSpec):
-    """Test generalization under out-of-distribution environment conditions.
-
-    The agent is evaluated on grid instances that differ from the training
-    distribution along a controlled axis. Shift types include changes in
-    grid size, wall density, layout topology, or a mix of all three. The
-    generator applies the specified shift to produce environments that
-    challenge learned heuristics. This task directly measures an agent's
-    ability to generalize beyond its training distribution and maintain
-    performance under novel conditions.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with size-based shift only, 150 max steps.
-        - medium: 12x12 grid with density-based shift (extra interior
-          walls), 250 max steps.
-        - hard: 18x18 grid with layout-based shift (altered topology),
-          350 max steps.
-        - expert: 25x25 grid with mixed shift combining all shift types,
-          500 max steps.
-
-    Capabilities Tested:
-        - generalization: The agent must perform well on environments
-          that differ from those seen during training.
-        - robustness: The agent must maintain navigation competence when
-          wall configurations and grid properties change unexpectedly.
-        - ood: The agent must handle out-of-distribution instances
-          without catastrophic performance degradation.
-
-    Example:
-        >>> env = agentick.make("DistributionShift-v0", difficulty="hard")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Navigate to goal despite unfamiliar layout topology
-    """
+    """Goal shifts mid-episode; agent must detect and adapt."""
 
     name = "DistributionShift-v0"
-    description = "Test generalization to out-of-distribution instances"
-    capability_tags = ["generalization", "robustness", "ood"]
+    description = "Navigate when goal moves mid-episode"
+    capability_tags = ["generalization", "ood", "robustness"]
 
     difficulty_configs = {
-        "easy": DifficultyConfig(
-            name="easy", grid_size=7, max_steps=150, params={"shift_type": "size"}
-        ),
-        "medium": DifficultyConfig(
-            name="medium", grid_size=12, max_steps=250, params={"shift_type": "density"}
-        ),
-        "hard": DifficultyConfig(
-            name="hard", grid_size=18, max_steps=350, params={"shift_type": "layout"}
-        ),
-        "expert": DifficultyConfig(
-            name="expert", grid_size=25, max_steps=500, params={"shift_type": "mixed"}
-        ),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_shifts": 1, "n_fakes": 1, "walls_change": False}),
+        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=130, params={"n_shifts": 2, "n_fakes": 2, "walls_change": False}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=200, params={"n_shifts": 3, "n_fakes": 3, "walls_change": True}),
+        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=280, params={"n_shifts": 4, "n_fakes": 4, "walls_change": True}),
     }
 
     def generate(self, seed):
-        """Generate an out-of-distribution task instance.
-
-        Creates a walled grid with a distribution shift applied based on
-        the configured shift type. For density shifts, additional walls
-        are placed randomly. The generator retries up to 10 times to
-        ensure the goal is reachable from the agent start, falling back
-        to a simple open layout if all attempts fail.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, max_steps, and shift_type.
-        """
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        shift_type = self.difficulty_config.params.get("shift_type", "size")
+        p = self.difficulty_config.params
+        n_shifts      = p.get("n_shifts", 1)
+        n_fakes       = p.get("n_fakes", 1)
+        walls_change  = p.get("walls_change", False)
 
-        max_attempts = 10
-        for attempt in range(max_attempts):
-            grid = Grid(size, size)
-            grid.terrain[0, :] = CellType.WALL
-            grid.terrain[-1, :] = CellType.WALL
-            grid.terrain[:, 0] = CellType.WALL
-            grid.terrain[:, -1] = CellType.WALL
-
-            # Apply distribution shift
-            if shift_type == "density":
-                # Higher wall density
-                for _ in range(size):
-                    x, y = rng.integers(1, size - 1, 2)
-                    grid.terrain[y, x] = CellType.WALL
-
-            agent_pos = (1, 1)
-            goal_pos = (size - 2, size - 2)
-
-            # Verify solvable
-            reachable = grid.flood_fill(agent_pos)
-            if goal_pos in reachable:
-                grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
-                return grid, {
-                    "agent_start": agent_pos,
-                    "goal_positions": [goal_pos],
-                    "max_steps": self.get_max_steps(),
-                    "shift_type": shift_type,
-                }
-
-        # Fallback
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
+
         agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
-        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+        interior  = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                     if (x, y) != agent_pos]
+        rng.shuffle(interior)
+
+        # N+1 goal positions (one per phase + initial)
+        n_goal_positions = n_shifts + 1
+        goal_sequence    = interior[:n_goal_positions]
+        # Fake goals (placed at start, stay throughout as visual lures)
+        fake_goals       = interior[n_goal_positions: n_goal_positions + n_fakes]
+
+        # Interval between shifts
+        total_steps   = self.get_max_steps()
+        shift_interval = total_steps // (n_shifts + 1)
+        shift_steps   = [shift_interval * (i+1) for i in range(n_shifts)]
+
+        # Optional: wall patches to add/remove at each shift
+        wall_patches = []
+        if walls_change and n_shifts > 0:
+            remaining = interior[n_goal_positions + n_fakes:]
+            chunk = max(1, len(remaining) // n_shifts)
+            for i in range(n_shifts):
+                patch = remaining[i*chunk:(i+1)*chunk][:3]
+                wall_patches.append(list(patch))
+        else:
+            wall_patches = [[] for _ in range(n_shifts)]
+
+        # Place initial goal and fake goals
+        if goal_sequence:
+            gx, gy = goal_sequence[0]
+            grid.objects[gy, gx] = ObjectType.GOAL
+        for fx, fy in fake_goals:
+            grid.objects[fy, fx] = ObjectType.TARGET
 
         return grid, {
-            "agent_start": agent_pos,
-            "goal_positions": [goal_pos],
-            "max_steps": self.get_max_steps(),
-            "shift_type": shift_type,
+            "agent_start":    agent_pos,
+            "goal_positions": [goal_sequence[-1]] if goal_sequence else [interior[0]],
+            "goal_sequence":  goal_sequence,
+            "fake_goals":     fake_goals,
+            "shift_steps":    shift_steps,
+            "wall_patches":   wall_patches,
+            "n_shifts":       n_shifts,
+            "max_steps":      self.get_max_steps(),
+            # backward-compat keys for tests
+            "goal_a":         goal_sequence[0] if goal_sequence else None,
+            "goal_b":         goal_sequence[-1] if len(goal_sequence) > 1 else (goal_sequence[0] if goal_sequence else None),
+            "shift_step":     shift_steps[0] if shift_steps else total_steps // 2,
         }
 
+    def on_env_reset(self, agent, grid, config):
+        config["_phase"]    = 0   # which goal is currently real
+        config["_shifted"]  = 0   # how many shifts have happened
+        config["_fake_visit_penalty"] = False
+        self._last_phase = 0
+        self._config = config
+        # Redraw initial state
+        seq = config.get("goal_sequence", [])
+        if seq:
+            gx, gy = seq[0]
+            grid.objects[gy, gx] = ObjectType.GOAL
+        for fx, fy in config.get("fake_goals", []):
+            if grid.objects[fy, fx] != ObjectType.GOAL:
+                grid.objects[fy, fx] = ObjectType.TARGET
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Penalize reaching a fake goal (lure)."""
+        config = getattr(self, "_config", {})
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.TARGET:
+            # Agent reached a fake goal — small penalty, episode continues
+            config["_fake_visit_penalty"] = True
+            grid.objects[y, x] = ObjectType.NONE  # remove the fake (used up)
+
+    def on_env_step(self, agent, grid, config, step_count):
+        """Trigger goal shifts at scheduled steps."""
+        shift_steps = config.get("shift_steps", [])
+        shifted     = config.get("_shifted", 0)
+        seq         = config.get("goal_sequence", [])
+
+        if shifted < len(shift_steps) and step_count >= shift_steps[shifted]:
+            phase = shifted  # current phase (0-indexed goal)
+            # Remove old GOAL marker (it becomes a fake/lure)
+            if phase < len(seq):
+                ox, oy = seq[phase]
+                if grid.objects[oy, ox] == ObjectType.GOAL:
+                    grid.objects[oy, ox] = ObjectType.TARGET  # becomes fake
+
+            # Place new GOAL at next position
+            new_phase = phase + 1
+            if new_phase < len(seq):
+                nx, ny = seq[new_phase]
+                grid.objects[ny, nx] = ObjectType.GOAL
+
+            # Optional: toggle wall patch for this shift
+            patches = config.get("wall_patches", [])
+            if shifted < len(patches):
+                for wx, wy in patches[shifted]:
+                    if 0 < wx < grid.width-1 and 0 < wy < grid.height-1:
+                        if grid.terrain[wy, wx] == CellType.EMPTY:
+                            grid.terrain[wy, wx] = CellType.WALL
+                        else:
+                            grid.terrain[wy, wx] = CellType.EMPTY
+
+            config["_shifted"] = shifted + 1
+            config["_phase"]   = new_phase
+            config["_fake_visit_penalty"] = False  # reset per phase
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage efficient navigation
-        despite the distribution shift in the environment.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        config = new_state.get("config", {})
+        if config.get("_fake_visit_penalty", False):
+            reward -= 0.3  # penalty for going to a fake goal
+        if self.check_success(new_state):
+            reward += 1.0
+        elif "agent" in new_state:
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            seq     = config.get("goal_sequence", [])
+            phase   = config.get("_phase", 0)
+            if phase < len(seq):
+                tgt = seq[phase]
+                reward += 0.05 * ((abs(ox-tgt[0])+abs(oy-tgt[1])) - (abs(ax-tgt[0])+abs(ay-tgt[1])))
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell despite
-        the out-of-distribution environment conditions.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
+        """Success = agent at the CURRENT real GOAL object."""
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent has very low probability of reaching the goal
-        in an out-of-distribution environment, yielding near-zero
-        expected return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

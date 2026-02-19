@@ -109,7 +109,7 @@ def test_visual_regression(task_id: str, render_mode: str, request):
     update_references = request.config.getoption("--update-references", default=False)
 
     # Create environment — force 2D for visual regression (these reference renders are 2D)
-    env = make(task_id, difficulty="easy", render_mode=render_mode, render_3d=False)
+    env = make(task_id, difficulty="easy", render_mode=render_mode)
 
     # Reset and get initial render
     env.reset(seed=42)
@@ -176,7 +176,7 @@ def test_visual_regression(task_id: str, render_mode: str, request):
 
 def test_ascii_render_consistency():
     """Test that ASCII renders are consistent across resets with same seed."""
-    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="ascii", render_3d=False)
+    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="ascii")
 
     # Get two renders with same seed
     env.reset(seed=42)
@@ -192,7 +192,7 @@ def test_ascii_render_consistency():
 
 def test_rgb_render_consistency():
     """Test that RGB renders are consistent across resets with same seed."""
-    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="rgb_array", render_3d=False)
+    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="rgb_array")
 
     # Get two renders with same seed
     env.reset(seed=42)
@@ -208,7 +208,7 @@ def test_rgb_render_consistency():
 
 def test_language_render_consistency():
     """Test that language renders are consistent across resets with same seed."""
-    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="language", render_3d=False)
+    env = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="language")
 
     # Get two renders with same seed
     env.reset(seed=42)
@@ -224,7 +224,7 @@ def test_language_render_consistency():
 
 def test_render_changes_after_action():
     """Test that renders change appropriately after actions."""
-    env = make("GoToGoal-v0", difficulty="easy", render_mode="ascii", render_3d=False)
+    env = make("GoToGoal-v0", difficulty="easy", render_mode="ascii")
 
     env.reset(seed=42)
     render1 = env.render()
@@ -247,8 +247,8 @@ def test_render_changes_after_action():
 def test_multiple_render_modes_same_state():
     """Test that different render modes can render the same state."""
     # Create two envs with same seed (force 2D for consistent comparison)
-    env_ascii = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="ascii", seed=42, render_3d=False)
-    env_rgb = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="rgb_array", seed=42, render_3d=False)
+    env_ascii = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="ascii", seed=42)
+    env_rgb = make("KeyDoorPuzzle-v0", difficulty="easy", render_mode="rgb_array", seed=42)
 
     env_ascii.reset(seed=42)
     env_rgb.reset(seed=42)

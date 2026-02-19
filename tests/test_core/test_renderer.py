@@ -114,20 +114,18 @@ def test_pixel_renderer(simple_grid, agent, info_dict):
 
     assert isinstance(output, np.ndarray)
     assert output.dtype == np.uint8
-    assert output.shape == (5 * 32, 5 * 32, 3)  # Default tile size is 32
+    assert output.shape == (5 * 32 + 32, 5 * 32, 3)  # Default tile size 32 + 32px task header
     assert output.min() >= 0
     assert output.max() <= 255
 
 
 def test_pixel_renderer_custom_tile_size(simple_grid, agent, info_dict):
     """Test pixel rendering with custom tile size."""
-    from agentick.core.renderer import RenderConfig
-
-    config = RenderConfig(tile_size=16)
-    renderer = PixelRenderer(config=config)
+    renderer = PixelRenderer(tile_size=16)
     output = renderer.render(simple_grid, [], agent, info_dict)
 
-    assert output.shape == (5 * 16, 5 * 16, 3)
+    # tile_size rounded up to next multiple of 16 (FFMPEG compat), plus 32px task header
+    assert output.shape == (5 * 16 + 32, 5 * 16, 3)
 
 
 def test_state_dict_renderer(simple_grid, agent, info_dict):

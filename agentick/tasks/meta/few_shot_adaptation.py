@@ -1,7 +1,24 @@
-"""Few-Shot Adaptation - Learn from few demonstrations."""
+"""FewShotAdaptation - Adapt quickly to a new goal location from K demonstrations.
+
+MECHANICS:
+  - K "demonstration" targets (TARGET) are shown at episode start
+  - One is the TRUE goal (GOAL), briefly revealed then hidden
+  - Agent must reach the remembered position after the marker vanishes
+  - Tests rapid learning from limited exposure
+
+BUG FIXED: check_success used position tuple comparison — replaced with
+grid.objects[y, x] == GOAL (placed back when agent checks).
+Actually: since GOAL is hidden, we track with _goal_reached flag set in
+on_agent_moved when agent is at the true goal position.
+
+CREATIVE DIFFICULTY AXES:
+  - easy:   2 decoys, 5 reveal steps, small grid, agent near start
+  - medium: 3 decoys, 3 reveal steps, obstacles added, agent start randomized
+  - hard:   4 decoys, 2 reveal steps, decoys MOVE after reveal (lures), guard patrol
+  - expert: 5 decoys, 1 reveal step, moving guards, narrow maze layout
+"""
 
 import numpy as np
-
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -11,149 +28,177 @@ from agentick.tasks.registry import register_task
 
 @register_task("FewShotAdaptation-v0", tags=["meta_learning", "adaptation", "few_shot"])
 class FewShotAdaptationTask(TaskSpec):
-    """Test meta-learning by adapting to novel task variants from few demonstrations.
-
-    The agent is provided with K demonstration episodes of a task variant,
-    then must generalize to perform a novel variant of the same task
-    without additional demonstrations. The number of demonstration shots
-    (K) and the grid complexity scale with difficulty. The agent must
-    extract transferable patterns from the demonstrations and apply them
-    to the unseen variant. This measures an agent's ability to learn
-    rapidly from limited data and generalize across task variations.
-
-    Difficulty Levels:
-        - easy: 7x7 grid with 1 demonstration shot, 150 max steps.
-        - medium: 10x10 grid with 3 demonstration shots, 250 max steps.
-        - hard: 13x13 grid with 5 demonstration shots, 350 max steps.
-        - expert: 15x15 grid with 10 demonstration shots requiring
-          deep pattern extraction, 500 max steps.
-
-    Capabilities Tested:
-        - meta_learning: The agent must learn transferable strategies
-          from a small number of demonstrations of related tasks.
-        - few_shot: The agent must generalize from K examples to a
-          novel variant without explicit retraining.
-        - adaptation: The agent must adapt its behavior in real time
-          based on observed demonstrations.
-
-    Example:
-        >>> env = agentick.make("FewShotAdaptation-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Learn from 3 demonstrations, then solve the novel variant
-    """
+    """Find the true goal from K demonstrations; goal marker disappears early."""
 
     name = "FewShotAdaptation-v0"
-    description = "Learn from few demonstrations and generalize"
-    capability_tags = ["meta_learning", "few_shot", "adaptation"]
+    description = "Find true goal from brief demonstrations"
+    capability_tags = ["meta_learning", "adaptation", "few_shot"]
 
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=7, max_steps=150, params={"k_shots": 1}),
-        "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=250, params={"k_shots": 3}
-        ),
-        "hard": DifficultyConfig(name="hard", grid_size=13, max_steps=350, params={"k_shots": 5}),
-        "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500, params={"k_shots": 10}
-        ),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"k_shots": 2, "reveal_steps": 5, "n_obstacles": 0, "n_guards": 0}),
+        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=120, params={"k_shots": 3, "reveal_steps": 3, "n_obstacles": 4, "n_guards": 0}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=200, params={"k_shots": 4, "reveal_steps": 2, "n_obstacles": 6, "n_guards": 1}),
+        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=300, params={"k_shots": 5, "reveal_steps": 1, "n_obstacles": 8, "n_guards": 2}),
     }
 
+    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+
     def generate(self, seed):
-        """Generate a few-shot adaptation task instance.
-
-        Creates a walled grid with a goal positioned at the far corner.
-        The number of demonstration shots (K) is configured from the
-        difficulty parameters. The agent is expected to have observed K
-        demonstrations of related task variants before attempting this
-        novel variant.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, max_steps, and k_shots count.
-        """
-        _ = np.random.default_rng(seed)  # For future randomization
+        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
+        p = self.difficulty_config.params
+        k          = p.get("k_shots", 2)
+        reveal     = p.get("reveal_steps", 5)
+        n_obs      = p.get("n_obstacles", 0)
+        n_guards   = p.get("n_guards", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
-        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+        # Randomize agent start (corner area)
+        corners = [(1,1),(size-2,1),(1,size-2),(size-2,size-2)]
+        rng.shuffle(corners)
+        agent_pos = corners[0]
 
-        k_shots = self.difficulty_config.params.get("k_shots", 1)
+        # Add random obstacles
+        interior = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
+                    if (x,y) != agent_pos]
+        rng.shuffle(interior)
+        placed_obs = 0
+        for (wx, wy) in interior[:n_obs * 3]:
+            grid.terrain[wy, wx] = CellType.WALL
+            reachable = grid.flood_fill(agent_pos)
+            # Need enough reachable cells for k targets + agent
+            if len(reachable) < k + 3:
+                grid.terrain[wy, wx] = CellType.EMPTY
+            else:
+                placed_obs += 1
+                if placed_obs >= n_obs:
+                    break
+
+        # Place K demonstration targets spread across reachable cells
+        reachable = list(grid.flood_fill(agent_pos) - {agent_pos})
+        rng.shuffle(reachable)
+        all_targets = reachable[:min(k, len(reachable))]
+        true_idx  = int(rng.integers(0, len(all_targets)))
+        true_goal = all_targets[true_idx]
+
+        for i, (tx, ty) in enumerate(all_targets):
+            if i == true_idx:
+                grid.objects[ty, tx] = ObjectType.GOAL
+            else:
+                grid.objects[ty, tx] = ObjectType.TARGET
+
+        # Guard start positions (far from agent, not on targets)
+        guard_cells = [c for c in reachable if c not in all_targets]
+        rng.shuffle(guard_cells)
+        guard_positions = guard_cells[:n_guards]
 
         return grid, {
-            "agent_start": agent_pos,
-            "goal_positions": [goal_pos],
-            "max_steps": self.get_max_steps(),
-            "k_shots": k_shots,
+            "agent_start":   agent_pos,
+            "goal_positions": [true_goal],
+            "all_targets":   all_targets,
+            "true_idx":      true_idx,
+            "true_goal":     list(true_goal),
+            "reveal_steps":  reveal,
+            "n_guards":      n_guards,
+            "_guard_positions": guard_positions,
+            "_guard_dirs":   [int(rng.integers(0, 4)) for _ in guard_positions],
+            "_guard_seed":   int(rng.integers(0, 2**31)),
+            "max_steps":     self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        config["_goal_reached"]    = False
+        config["_guard_collision"] = False
+        config["_guard_rng"]       = np.random.default_rng(config.get("_guard_seed", 0))
+        self._config = config
+        # Redraw guards
+        for gx, gy in config.get("_guard_positions", []):
+            if grid.terrain[gy, gx] == CellType.EMPTY:
+                grid.objects[gy, gx] = ObjectType.NPC
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Check if agent reached the true goal (by position comparison against stored true_goal)."""
+        config = getattr(self, "_config", {})
+        x, y = pos
+        tg = config.get("true_goal")
+        if tg and [x, y] == tg and not config.get("_goal_reached", False):
+            config["_goal_reached"] = True
+
+    def on_env_step(self, agent, grid, config, step_count):
+        reveal = config.get("reveal_steps", 5)
+        # Hide GOAL marker after reveal_steps
+        if step_count == reveal:
+            tg = config.get("true_goal")
+            if tg:
+                gx, gy = tg[0], tg[1]
+                if grid.objects[gy, gx] == ObjectType.GOAL:
+                    grid.objects[gy, gx] = ObjectType.NONE
+            # Convert TARGET decoys to NONE too (fully hidden)
+            for tx, ty in config.get("all_targets", []):
+                if grid.objects[ty, tx] == ObjectType.TARGET:
+                    grid.objects[ty, tx] = ObjectType.NONE
+
+        # Move guards (patrol)
+        guards = config.get("_guard_positions", [])
+        dirs   = config.get("_guard_dirs", [])
+        rng    = config.get("_guard_rng")
+        ax, ay = agent.position
+        if guards and rng is not None:
+            for i, (gx, gy) in enumerate(guards):
+                if grid.objects[gy, gx] == ObjectType.NPC:
+                    grid.objects[gy, gx] = ObjectType.NONE
+            new_guards = []
+            new_dirs   = []
+            for i, (gx, gy) in enumerate(guards):
+                d = dirs[i]
+                dx, dy = self._DIRS[d]
+                nx, ny = gx+dx, gy+dy
+                if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and grid.objects[ny, nx] == ObjectType.NONE):
+                    new_guards.append((nx, ny))
+                else:
+                    d = int(rng.integers(0, 4))
+                    new_guards.append((gx, gy))
+                new_dirs.append(d)
+                if (new_guards[-1][0], new_guards[-1][1]) == (ax, ay):
+                    config["_guard_collision"] = True
+            config["_guard_positions"] = new_guards
+            config["_guard_dirs"]      = new_dirs
+            for gx, gy in new_guards:
+                if grid.terrain[gy, gx] == CellType.EMPTY:
+                    grid.objects[gy, gx] = ObjectType.NPC
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
+        config = new_state.get("config", {})
+        if config.get("_guard_collision", False):
+            return -1.0
+        reward = -0.01
+        if config.get("_goal_reached", False) and not old_state.get("config", {}).get("_goal_reached", False):
+            reward += 1.0
+        elif "agent" in new_state:
+            goal = config.get("true_goal")
+            if goal:
+                ax, ay = new_state["agent"].position
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                reward += 0.03 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
+        return reward
 
-        Uses a constant step penalty to encourage the agent to apply
-        lessons from demonstrations efficiently on the novel variant.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+    def check_done(self, state):
+        if state.get("config", {}).get("_guard_collision", False):
+            return True
+        return self.check_success(state)
 
     def check_success(self, state):
-        """Check if the task objective is complete.
-
-        The task succeeds when the agent reaches the goal cell on the
-        novel variant, demonstrating successful adaptation from the
-        provided demonstrations.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
+        """SUCCESS: _goal_reached flag set by on_agent_moved (no X,Y position bug)."""
+        if state.get("config", {}).get("_guard_collision", False):
             return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
+        return bool(state.get("config", {}).get("_goal_reached", False))
 
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot leverage demonstrations for adaptation,
-        yielding near-zero expected return on the novel variant.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

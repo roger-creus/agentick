@@ -18,7 +18,6 @@ import pygame
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.language import AdvancedLanguageRenderer, LanguageConfig
-from agentick.core.sprites import SpriteGenerator, create_hud_overlay
 from agentick.core.types import COLORS, CellType, Direction, ObjectType
 
 # Set pygame to headless by default
@@ -147,6 +146,18 @@ class ASCIIRenderer:
                 elif obj_val == ObjectType.BREADCRUMB:
                     char_grid[y, x] = "*"
                     color_grid[y, x] = "key"
+                elif obj_val == ObjectType.NPC:
+                    char_grid[y, x] = "N"
+                    color_grid[y, x] = "npc"
+                elif obj_val == ObjectType.ENEMY:
+                    char_grid[y, x] = "E"
+                    color_grid[y, x] = "enemy"
+                elif obj_val == ObjectType.SHEEP:
+                    char_grid[y, x] = "o"
+                    color_grid[y, x] = "goal"
+                elif obj_val == ObjectType.BLOCKER:
+                    char_grid[y, x] = "X"
+                    color_grid[y, x] = "hazard"
 
         # Agent layer
         ax, ay = agent.position
@@ -290,173 +301,6 @@ class EnhancedLanguageRenderer:
         return self.renderer.render(grid, entities, agent, info)
 
 
-class EnhancedPixelRenderer:
-    """Render grid as RGB pixel array with distinct sprites and HUD."""
-
-    def __init__(self, config: RenderConfig | None = None):
-        self.config = config or RenderConfig()
-        pygame.init()
-        self.tile_size = self.config.tile_size
-        self.sprite_gen = SpriteGenerator(self.tile_size)
-        self._cache = {}  # Cache for rendered frames
-        self._last_state_hash = None
-
-    def render(
-        self,
-        grid: Grid,
-        entities: list[Entity],
-        agent: Agent,
-        info: dict[str, Any],
-    ) -> np.ndarray:
-        """
-        Render grid as RGB array with sprites and HUD.
-
-        Returns:
-            Array of shape (H, W, 3) with uint8 values
-        """
-        # Compute state hash for caching
-        state_hash = self._compute_state_hash(grid, agent, entities)
-
-        # Check cache
-        if state_hash == self._last_state_hash and state_hash in self._cache:
-            return self._cache[state_hash].copy()
-
-        h = grid.height * self.tile_size
-        w = grid.width * self.tile_size
-
-        surface = pygame.Surface((w, h))
-        surface.fill(COLORS.get("empty", (240, 240, 240)))
-
-        # Draw terrain
-        for y in range(grid.height):
-            for x in range(grid.width):
-                cell_type = CellType(grid.terrain[y, x])
-
-                if cell_type == CellType.WALL:
-                    sprite = self.sprite_gen.get_wall_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif cell_type == CellType.HAZARD:
-                    sprite = self.sprite_gen.get_hazard_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif cell_type == CellType.WATER:
-                    self._draw_tile(surface, x, y, COLORS.get("water", (0, 100, 200)))
-                elif cell_type == CellType.ICE:
-                    self._draw_tile(surface, x, y, COLORS.get("ice", (200, 230, 255)))
-
-        # Draw objects
-        for y in range(grid.height):
-            for x in range(grid.width):
-                obj_type = ObjectType(grid.objects[y, x])
-
-                if obj_type == ObjectType.GOAL:
-                    sprite = self.sprite_gen.get_goal_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif obj_type == ObjectType.KEY:
-                    sprite = self.sprite_gen.get_key_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif obj_type == ObjectType.DOOR:
-                    sprite = self.sprite_gen.get_door_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif obj_type == ObjectType.BOX:
-                    sprite = self.sprite_gen.get_box_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif obj_type == ObjectType.SWITCH:
-                    sprite = self.sprite_gen.get_switch_sprite()
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-                elif obj_type == ObjectType.RESOURCE:
-                    sprite = self.sprite_gen.get_resource_sprite("gem")
-                    surface.blit(sprite, (x * self.tile_size, y * self.tile_size))
-
-        # Draw other entities
-        for entity in entities:
-            ex, ey = entity.position
-            if entity.entity_type == "enemy":
-                # Enemy sprite (red agent)
-                sprite = self.sprite_gen.get_agent_sprite(Direction.NORTH, color=(255, 0, 0))
-                surface.blit(sprite, (ex * self.tile_size, ey * self.tile_size))
-
-        # Draw agent with orientation
-        ax, ay = agent.position
-        agent_sprite = self.sprite_gen.get_agent_sprite(agent.orientation)
-        surface.blit(agent_sprite, (ax * self.tile_size, ay * self.tile_size))
-
-        # Add grid lines if enabled
-        if self.config.show_grid:
-            for y in range(grid.height + 1):
-                pygame.draw.line(
-                    surface,
-                    (200, 200, 200),
-                    (0, y * self.tile_size),
-                    (w, y * self.tile_size),
-                    1,
-                )
-            for x in range(grid.width + 1):
-                pygame.draw.line(
-                    surface,
-                    (200, 200, 200),
-                    (x * self.tile_size, 0),
-                    (x * self.tile_size, h),
-                    1,
-                )
-
-        # Add HUD overlay if enabled
-        if self.config.show_hud:
-            hud = create_hud_overlay(
-                w,
-                h,
-                step_count=info.get("step_count", 0),
-                max_steps=info.get("max_steps", 100),
-                reward=info.get("episode_reward", 0.0),
-                inventory=agent.inventory,
-                energy=agent.energy,
-                health=agent.health,
-            )
-            surface.blit(hud, (0, 0))
-
-        # Convert to numpy array
-        arr = pygame.surfarray.array3d(surface)
-        # Pygame uses (W, H, 3), transpose to (H, W, 3)
-        arr = np.transpose(arr, (1, 0, 2))
-        result = arr.astype(np.uint8)
-
-        # Cache the result
-        self._cache[state_hash] = result.copy()
-        self._last_state_hash = state_hash
-
-        # Keep cache bounded
-        if len(self._cache) > 10:
-            # Remove oldest entries
-            to_remove = list(self._cache.keys())[: len(self._cache) - 10]
-            for key in to_remove:
-                del self._cache[key]
-
-        return result
-
-    def _compute_state_hash(self, grid: Grid, agent: Agent, entities: list[Entity]) -> int:
-        """Compute hash of current state for caching."""
-        # Hash grid terrain and objects
-        terrain_hash = hash(grid.terrain.tobytes())
-        objects_hash = hash(grid.objects.tobytes())
-
-        # Hash agent state
-        agent_hash = hash((agent.position, agent.orientation.value))
-
-        # Hash entities
-        entity_hash = hash(tuple((e.position, e.entity_type) for e in entities))
-
-        return hash((terrain_hash, objects_hash, agent_hash, entity_hash))
-
-    def _draw_tile(self, surface: pygame.Surface, x: int, y: int, color: tuple):
-        """Draw a colored tile."""
-        rect = pygame.Rect(
-            x * self.tile_size,
-            y * self.tile_size,
-            self.tile_size,
-            self.tile_size,
-        )
-        pygame.draw.rect(surface, color, rect)
-
-
 class StateDictRenderer:
     """Render grid as structured state dictionary."""
 
@@ -531,6 +375,7 @@ def create_renderer(
     verbosity: str = "standard",
     perspective: str = "first_person",
     fast_mode: bool = False,
+    use_isometric: bool = False,
     **kwargs,
 ) -> Renderer:
     """
@@ -564,8 +409,12 @@ def create_renderer(
             perspective=perspective,
         )
     elif mode in ("rgb_array", "rgb_array_2d", "human"):
-        config = RenderConfig(tile_size=tile_size, show_hud=show_hud, **kwargs)
-        return EnhancedPixelRenderer(config)
+        # Check for rendering mode override
+        use_3d = kwargs.pop("use_3d", False)
+        
+        # Simple 2D grid renderer (clean, functional, publication-ready)
+        from agentick.core.simple_grid_renderer import SimpleGridRenderer
+        return SimpleGridRenderer(tile_size=tile_size)
     elif mode == "state_dict":
         return StateDictRenderer(fast_mode=fast_mode)
     else:
@@ -574,4 +423,4 @@ def create_renderer(
 
 # Backward compatibility aliases
 LanguageRenderer = EnhancedLanguageRenderer
-PixelRenderer = EnhancedPixelRenderer
+from agentick.core.simple_grid_renderer import SimpleGridRenderer as PixelRenderer

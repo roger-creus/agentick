@@ -1,5 +1,16 @@
-"""SequenceMemory - Remember and replay sequence."""
+"""SequenceMemory - Visit targets in the correct order.
 
+BUG FIXED: on_agent_moved used (ax,ay)==next_target position comparison.
+Now uses grid.objects[ay,ax] == GOAL check (robust to any coordinate ordering).
+
+CREATIVE DIFFICULTY AXES:
+  - easy:   3 targets, open map, all targets always visible (GOAL marks next)
+  - medium: 4 targets, random obstacles, distractors (wrong TARGET cells that reset)
+  - hard:   5 targets, targets SHUFFLE positions after each correct visit (memory test)
+  - expert: 6 targets, targets hidden (only current GOAL visible), patrols, shuffling
+"""
+
+import numpy as np
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
@@ -9,130 +20,162 @@ from agentick.tasks.registry import register_task
 
 @register_task("SequenceMemory-v0", tags=["memory", "pattern_recognition"])
 class SequenceMemoryTask(TaskSpec):
-    """Test memory and pattern recognition by replaying observed sequences.
-
-    The agent is shown a sequence of highlighted grid positions that flash
-    in order. After the demonstration phase, the agent must visit those
-    same positions in the exact same order from memory. The sequence
-    length and grid size scale with difficulty. This directly measures
-    working memory capacity and the ability to encode, retain, and
-    reproduce ordered spatial information.
-
-    Difficulty Levels:
-        - easy: 5x5 grid with short sequences, 50 max steps.
-        - medium: 7x7 grid with moderate-length sequences, 100 max steps.
-        - hard: 9x9 grid with long sequences, 150 max steps.
-        - expert: 11x11 grid with very long sequences requiring
-          substantial memory, 200 max steps.
-
-    Capabilities Tested:
-        - memory: The agent must memorize the full sequence of positions
-          during the demonstration and retain them for replay.
-        - pattern_recognition: The agent must identify and encode the
-          spatial pattern of the sequence to reproduce it accurately.
-
-    Example:
-        >>> env = agentick.make("SequenceMemory-v0", difficulty="medium")
-        >>> obs, info = env.reset(seed=42)
-        >>> # Watch the sequence, then visit positions in the same order
-    """
+    """Visit marked targets in the correct sequence order."""
 
     name = "SequenceMemory-v0"
-    description = "Remember and replay a shown sequence of moves"
+    description = "Visit targets in sequence order"
     capability_tags = ["memory", "pattern_recognition"]
+
     difficulty_configs = {
-        "easy": DifficultyConfig(name="easy", grid_size=5, max_steps=50),
-        "medium": DifficultyConfig(name="medium", grid_size=7, max_steps=100),
-        "hard": DifficultyConfig(name="hard", grid_size=9, max_steps=150),
-        "expert": DifficultyConfig(name="expert", grid_size=11, max_steps=200),
+        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_targets": 3, "n_distractors": 0, "n_obstacles": 0, "shuffle": False, "hide_future": False}),
+        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=160, params={"n_targets": 4, "n_distractors": 2, "n_obstacles": 4, "shuffle": False, "hide_future": False}),
+        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=280, params={"n_targets": 5, "n_distractors": 3, "n_obstacles": 6, "shuffle": True,  "hide_future": False}),
+        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=420, params={"n_targets": 6, "n_distractors": 4, "n_obstacles": 8, "shuffle": True,  "hide_future": True}),
     }
 
     def generate(self, seed):
-        """Generate a sequence memory task instance.
-
-        Creates a walled grid where a sequence of positions is
-        demonstrated. The agent starts at (1, 1) and must replay the
-        sequence from memory by visiting positions in order.
-
-        Args:
-            seed: Random seed for reproducible procedural generation.
-
-        Returns:
-            tuple: (grid, metadata) where grid is the initial Grid state
-                with walls and goal, and metadata contains agent_start,
-                goal_positions, and max_steps.
-        """
+        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
+        p = self.difficulty_config.params
+        n           = p.get("n_targets", 3)
+        n_dist      = p.get("n_distractors", 0)
+        n_obs       = p.get("n_obstacles", 0)
+        shuffle     = p.get("shuffle", False)
+        hide_future = p.get("hide_future", False)
+
         grid = Grid(size, size)
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
-        grid.objects[size - 2, size - 2] = ObjectType.GOAL
+        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+
+        # Randomize agent start corner
+        corners = [(1,1),(size-2,1),(1,size-2),(size-2,size-2)]
+        rng.shuffle(corners)
+        agent_pos = corners[0]
+
+        # Add obstacles
+        interior = [(x,y) for x in range(1,size-1) for y in range(1,size-1) if (x,y)!=agent_pos]
+        rng.shuffle(interior)
+        placed = 0
+        for wx, wy in interior[:n_obs*3]:
+            grid.terrain[wy, wx] = CellType.WALL
+            if len(grid.flood_fill(agent_pos)) < n + n_dist + 2:
+                grid.terrain[wy, wx] = CellType.EMPTY
+            else:
+                placed += 1
+                if placed >= n_obs: break
+
+        reachable = list(grid.flood_fill(agent_pos) - {agent_pos})
+        rng.shuffle(reachable)
+        targets     = reachable[:n]
+        distractors = reachable[n:n+n_dist]
+
+        # Mark first target as GOAL, rest as TARGET (or hide if hide_future)
+        for i, (tx, ty) in enumerate(targets):
+            if i == 0:
+                grid.objects[ty, tx] = ObjectType.GOAL
+            elif not hide_future:
+                grid.objects[ty, tx] = ObjectType.TARGET
+
+        for dx, dy in distractors:
+            grid.objects[dy, dx] = ObjectType.SWITCH  # distractor visual
+
         return grid, {
-            "agent_start": (1, 1),
-            "goal_positions": [(size - 2, size - 2)],
-            "max_steps": self.get_max_steps(),
+            "agent_start":   agent_pos,
+            "goal_positions": targets,
+            "sequence":      targets,
+            "distractors":   distractors,
+            "shuffle":       shuffle,
+            "hide_future":   hide_future,
+            "_rng_seed":     int(rng.integers(0, 2**31)),
+            "max_steps":     self.get_max_steps(),
         }
 
+    def on_env_reset(self, agent, grid, config):
+        config["_seq_progress"] = 0
+        config["_wrong_visit"]  = False
+        config["_shuffle_rng"]  = np.random.default_rng(config.get("_rng_seed", 0))
+        self._config = config
+        self._last_seq_progress = 0
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Use grid.objects check — robust to any x,y ordering."""
+        config = getattr(self, "_config", {})
+        x, y = pos
+        obj = grid.objects[y, x]
+        progress  = config.get("_seq_progress", 0)
+        sequence  = config.get("sequence", [])
+        hide_fut  = config.get("hide_future", False)
+        shuffle   = config.get("shuffle", False)
+
+        if progress >= len(sequence):
+            return
+
+        if obj == ObjectType.GOAL:
+            # Correct next target
+            grid.objects[y, x] = ObjectType.NONE
+            config["_seq_progress"] = progress + 1
+            new_progress = progress + 1
+
+            if shuffle and new_progress < len(sequence):
+                # Shuffle remaining target positions
+                rng = config.get("_shuffle_rng")
+                remaining = [(tx, ty) for tx, ty in sequence[new_progress:]
+                             if (tx, ty) != (x, y)]
+                if rng and remaining:
+                    idxs = list(range(len(remaining)))
+                    rng.shuffle(idxs)
+                    new_order = [remaining[i] for i in idxs]
+                    # Update sequence with shuffled remainder
+                    new_seq = list(sequence[:new_progress]) + new_order
+                    config["sequence"] = new_seq
+                    sequence = new_seq
+
+            # Show next target
+            if new_progress < len(sequence):
+                nx, ny = sequence[new_progress]
+                grid.objects[ny, nx] = ObjectType.GOAL
+                if hide_fut:
+                    # Hide all future ones
+                    for fx, fy in sequence[new_progress+1:]:
+                        if grid.objects[fy, fx] == ObjectType.TARGET:
+                            grid.objects[fy, fx] = ObjectType.NONE
+                else:
+                    for fx, fy in sequence[new_progress+1:]:
+                        if grid.objects[fy, fx] == ObjectType.NONE:
+                            grid.objects[fy, fx] = ObjectType.TARGET
+
+        elif obj == ObjectType.SWITCH:
+            # Distractor — penalty flag
+            config["_wrong_visit"] = True
+            grid.objects[y, x] = ObjectType.NONE  # consume distractor
+
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Compute dense reward for a state transition.
-
-        Uses a constant step penalty to encourage the agent to memorize
-        and reproduce the demonstrated sequence efficiently.
-
-        Args:
-            old_state: State dict before the action.
-            action: Action taken by the agent.
-            new_state: State dict after the action.
-            info: Additional info dict from the environment step.
-
-        Returns:
-            Constant penalty of -0.01 per step.
-        """
-        return -0.01
+        reward = -0.01
+        config = new_state.get("config", {})
+        if config.get("_wrong_visit", False) and not old_state.get("config", {}).get("_wrong_visit", False):
+            reward -= 0.3
+        new_progress = config.get("_seq_progress", 0)
+        if new_progress > self._last_seq_progress:
+            reward += 0.3 * (new_progress - self._last_seq_progress)
+        self._last_seq_progress = new_progress
+        if "agent" in new_state and "grid" in new_state:
+            g = new_state["grid"]
+            goals = [(x, y) for y in range(g.height) for x in range(g.width)
+                     if g.objects[y, x] == ObjectType.GOAL]
+            if goals:
+                ax, ay = new_state["agent"].position
+                ox, oy = old_state.get("agent_position", (ax, ay))
+                tgt = goals[0]
+                reward += 0.05 * ((abs(ox-tgt[0])+abs(oy-tgt[1])) - (abs(ax-tgt[0])+abs(ay-tgt[1])))
+        if self.check_success(new_state):
+            reward += 1.0
+        return reward
 
     def check_success(self, state):
-        """Check if the task objective is complete.
+        config = state.get("config", {})
+        progress = config.get("_seq_progress", 0)
+        sequence = config.get("sequence", [])
+        return len(sequence) > 0 and progress >= len(sequence)
 
-        The task succeeds when the agent reaches the goal cell after
-        visiting all sequence positions in the correct order from memory.
-
-        Args:
-            state: Current state dict containing 'grid' and 'agent' keys.
-
-        Returns:
-            True if the agent is on the goal cell, False otherwise.
-        """
-        if "grid" not in state or "agent" not in state:
-            return False
-        x, y = state["agent"].position
-        return state["grid"].objects[y, x] == ObjectType.GOAL
-
-    def get_optimal_return(self, difficulty=None):
-        """Get the optimal (maximum possible) return for this task.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Optimal return of 1.0 (sparse success reward).
-        """
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        """Get expected return for a random agent baseline.
-
-        A random agent cannot reliably reproduce the demonstrated
-        sequence in the correct order, yielding near-zero expected
-        return.
-
-        Args:
-            difficulty: Difficulty level string, or None to use the
-                current instance difficulty.
-
-        Returns:
-            Expected random agent return of 0.0.
-        """
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0
