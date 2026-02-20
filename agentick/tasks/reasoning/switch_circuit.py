@@ -1,12 +1,16 @@
-"""SwitchCircuit - Activate switches in dependency order to open the gate.
+"""SwitchCircuit - Activate switches with dependency order and physical consequences.
 
 MECHANICS:
-  - N switches on the grid with dependency relationships (circuit graph)
-  - Switch B only activates if its prerequisite switch A is already ON
+  - N switches on the grid with a dependency DAG (circuit graph)
+  - Switch B only activates if prerequisite switch A is already ON
+  - Each switch activation has a visible physical consequence:
+    - Opens a wall barrier (removes wall cells)
+    - Deactivates a hazard zone (hazard → empty)
+    - Creates a bridge over water (water → empty)
   - Stepping on a switch toggles it (on/off), but only if prerequisites are met
-  - Gate opens when all required switches are active simultaneously
-  - At higher difficulties: some switches are inverters (toggling deactivates another)
-  - Success = all required switches active + agent reaches goal
+  - Gate to goal chamber opens when all switches are active simultaneously
+  - Inverter switches (at hard+): toggling deactivates a dependent switch
+  - Success = all switches active + agent at goal in chamber
 """
 
 import numpy as np
@@ -20,10 +24,10 @@ from agentick.tasks.registry import register_task
 
 @register_task("SwitchCircuit-v0", tags=["combinatorial_logic", "reasoning"])
 class SwitchCircuitTask(TaskSpec):
-    """Activate switches respecting dependency order to unlock the gate."""
+    """Activate switches respecting dependencies; each causes physical grid changes."""
 
     name = "SwitchCircuit-v0"
-    description = "Activate switches in circuit dependency order"
+    description = "Activate circuit switches with physical consequences"
     capability_tags = ["combinatorial_logic", "reasoning"]
 
     difficulty_configs = {
@@ -46,35 +50,19 @@ class SwitchCircuitTask(TaskSpec):
     }
 
     def _build_circuit(self, n_switches, n_inverters, rng):
-        """Build a dependency DAG for switches.
-
-        Returns:
-            deps: dict mapping switch_idx -> list of prerequisite switch indices
-            inverters: set of switch indices that are inverters
-                       (toggling deactivates the next switch in chain)
-        """
+        """Build dependency DAG for switches."""
         deps = {i: [] for i in range(n_switches)}
-
-        # Build a chain: switch i depends on switch i-1
-        # This creates a linear dependency: must activate 0, then 1, then 2, etc.
         for i in range(1, n_switches):
             deps[i].append(i - 1)
-
-        # Add some cross-dependencies at higher counts for complexity
         if n_switches >= 4:
-            # Switch 3 also depends on switch 0 (skip dependency)
             if 0 not in deps[3]:
                 deps[3].append(0)
-
-        # Designate inverter switches (toggling these deactivates their dependent)
         inverter_set = set()
         if n_inverters > 0 and n_switches >= 3:
-            # Pick switches from the middle of the chain as inverters
             candidates = list(range(1, n_switches - 1))
             rng.shuffle(candidates)
             for idx in candidates[:n_inverters]:
                 inverter_set.add(idx)
-
         return deps, inverter_set
 
     def generate(self, seed):
@@ -89,28 +77,36 @@ class SwitchCircuitTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Randomize agent and goal positions
-        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
-        rng.shuffle(corners)
-        agent_pos = corners[0]
-        goal_pos = corners[1]
+        agent_pos = (1, 1)
 
-        # Gate adjacent to goal
-        gx, gy = goal_pos
-        dx = 1 if gx == 1 else -1
-        dy = 1 if gy == 1 else -1
-        gate_pos = (gx + dx, gy)
-        if gate_pos == agent_pos:
-            gate_pos = (gx, gy + dy)
+        # Build goal chamber in bottom-right corner
+        cx, cy = size - 3, size - 3
+        for wx in range(cx - 1, min(cx + 3, size)):
+            for wy in range(cy - 1, min(cy + 3, size)):
+                if 0 < wx < size - 1 and 0 < wy < size - 1:
+                    grid.terrain[wy, wx] = CellType.WALL
+        goal_pos = (cx, cy)
+        grid.terrain[cy, cx] = CellType.EMPTY
+        gate_pos = (cx - 1, cy)
+        if gate_pos[0] < 1:
+            gate_pos = (cx, cy - 1)
         grid.terrain[gate_pos[1], gate_pos[0]] = CellType.WALL
 
         # Build circuit
         deps, inverters = self._build_circuit(n, n_inv, rng)
 
+        # Chamber cells to exclude
+        chamber_cells = set()
+        for wx in range(cx - 1, min(cx + 3, size)):
+            for wy in range(cy - 1, min(cy + 3, size)):
+                chamber_cells.add((wx, wy))
+        chamber_cells.add(gate_pos)
+
         # Place switches
         free = [
             (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if (x, y) != agent_pos and (x, y) != goal_pos and (x, y) != gate_pos
+            if (x, y) != agent_pos and (x, y) not in chamber_cells
+            and grid.terrain[y, x] == CellType.EMPTY
         ]
         rng.shuffle(free)
         switch_positions = free[:n]
@@ -118,13 +114,54 @@ class SwitchCircuitTask(TaskSpec):
         for sx, sy in switch_positions:
             grid.objects[sy, sx] = ObjectType.SWITCH
 
-        # Serialize deps for config
+        # Create physical effects for each switch:
+        # Each switch, when activated, changes terrain near its position
+        switch_effects = []
+        effect_types = [CellType.WALL, CellType.HAZARD, CellType.WATER]
+
+        for i in range(n):
+            sx, sy = switch_positions[i]
+            effect_type = effect_types[i % len(effect_types)]
+            # Place obstacle cluster near (but not on) the switch
+            effect_cells = []
+            candidates = [
+                (sx + dx, sy + dy) for dx in range(-2, 3) for dy in range(-2, 3)
+                if abs(dx) + abs(dy) == 2  # distance 2 from switch
+            ]
+            for ex, ey in candidates:
+                if (1 <= ex < size - 1 and 1 <= ey < size - 1
+                        and (ex, ey) not in chamber_cells
+                        and (ex, ey) not in set(switch_positions)
+                        and (ex, ey) != agent_pos
+                        and grid.terrain[ey, ex] == CellType.EMPTY
+                        and grid.objects[ey, ex] == ObjectType.NONE):
+                    grid.terrain[ey, ex] = effect_type
+                    effect_cells.append((ex, ey))
+                    if len(effect_cells) >= 2:
+                        break
+
+            switch_effects.append({
+                "cells": [list(c) for c in effect_cells],
+                "original_type": int(effect_type),
+            })
+
+        # Verify agent can reach first switch
+        reachable = grid.flood_fill(agent_pos)
+        if switch_positions and switch_positions[0] not in reachable:
+            # Remove obstacles blocking path
+            for y in range(1, size - 1):
+                for x in range(1, size - 1):
+                    if (grid.terrain[y, x] in (CellType.HAZARD, CellType.WATER)
+                            and (x, y) not in chamber_cells):
+                        grid.terrain[y, x] = CellType.EMPTY
+
         deps_serialized = {i: sorted(deps[i]) for i in range(n)}
 
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
             "switch_positions": switch_positions,
+            "switch_effects": switch_effects,
             "gate_pos": gate_pos,
             "circuit_deps": deps_serialized,
             "inverter_switches": sorted(inverters),
@@ -146,6 +183,7 @@ class SwitchCircuitTask(TaskSpec):
         active = config.get("_switches_on", set())
         deps = config.get("circuit_deps", {})
         inverters = set(config.get("inverter_switches", []))
+        effects = config.get("switch_effects", [])
         ax, ay = pos
 
         if (ax, ay) in switches:
@@ -157,8 +195,13 @@ class SwitchCircuitTask(TaskSpec):
                 active.discard(key)
                 grid.objects[ay, ax] = ObjectType.SWITCH
 
-                # If this is an inverter, toggling OFF re-enables its dependent
-                # (no special action needed — dependent just needs prereqs met)
+                # Reverse physical effect: restore obstacle
+                if idx < len(effects):
+                    eff = effects[idx]
+                    orig_type = CellType(eff["original_type"])
+                    for cx, cy in eff["cells"]:
+                        if grid.terrain[cy, cx] == CellType.EMPTY:
+                            grid.terrain[cy, cx] = orig_type
             else:
                 # Check prerequisites
                 prereqs = deps.get(idx, deps.get(str(idx), []))
@@ -166,11 +209,16 @@ class SwitchCircuitTask(TaskSpec):
 
                 if prereqs_met:
                     active.add(key)
-                    grid.objects[ay, ax] = ObjectType.NONE  # activated
+                    grid.objects[ay, ax] = ObjectType.NONE  # activated visual
 
-                    # If this is an inverter, deactivate its dependent switch
+                    # Physical effect: clear obstacle
+                    if idx < len(effects):
+                        eff = effects[idx]
+                        for cx, cy in eff["cells"]:
+                            grid.terrain[cy, cx] = CellType.EMPTY
+
+                    # Inverter: deactivate dependent switch
                     if idx in inverters:
-                        # Find switches that depend on this one
                         for other_idx, other_deps in deps.items():
                             if isinstance(other_idx, str):
                                 other_idx = int(other_idx)
@@ -178,15 +226,21 @@ class SwitchCircuitTask(TaskSpec):
                                 active.discard(other_idx)
                                 ox, oy = switches[other_idx]
                                 grid.objects[oy, ox] = ObjectType.SWITCH
+                                # Restore that switch's effect
+                                if other_idx < len(effects):
+                                    oeff = effects[other_idx]
+                                    orig = CellType(oeff["original_type"])
+                                    for ecx, ecy in oeff["cells"]:
+                                        if grid.terrain[ecy, ecx] == CellType.EMPTY:
+                                            grid.terrain[ecy, ecx] = orig
 
             config["_switches_on"] = active
 
-            # Open gate if all switches active
+            # Open/close gate based on all switches active
             if len(active) >= len(switches):
                 gx, gy = config.get("gate_pos", (0, 0))
                 grid.terrain[gy, gx] = CellType.EMPTY
             else:
-                # Close gate if not all active
                 gx, gy = config.get("gate_pos", (0, 0))
                 if grid.terrain[gy, gx] == CellType.EMPTY:
                     grid.terrain[gy, gx] = CellType.WALL
@@ -203,14 +257,13 @@ class SwitchCircuitTask(TaskSpec):
         self._last_n_switches = new_n
 
         # Approach shaping
-        if "agent_position" in new_state and "grid" in new_state:
-            ax, ay = new_state["agent_position"]
+        if "agent" in new_state:
+            ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", (ax, ay))
             active = config.get("_switches_on", set())
             switches = config.get("switch_positions", [])
-
-            # Find next activatable switch (first with met prereqs that isn't on)
             deps = config.get("circuit_deps", {})
+
             target_switches = []
             for i, s in enumerate(switches):
                 if i not in active:
@@ -236,14 +289,16 @@ class SwitchCircuitTask(TaskSpec):
     def check_success(self, state):
         if "grid" not in state or "agent" not in state:
             return False
+        config = state.get("config", {})
+        active = config.get("_switches_on", set())
+        switches = config.get("switch_positions", [])
+        if len(active) < len(switches):
+            return False
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def validate_instance(self, grid, config):
         return True
 
-    def get_optimal_return(self, difficulty=None):
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

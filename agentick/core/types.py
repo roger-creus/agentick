@@ -34,6 +34,13 @@ class ObjectType(IntEnum):
     ENEMY = 11      # enemy / adversary (rendered as red circle)
     SHEEP = 12      # herding target (rendered as white circle)
     BLOCKER = 13    # moving obstacle / blocker (rendered as orange square)
+    # New object types for task differentiation
+    GEM = 14        # collectible gem/crystal (purple diamond)
+    LEVER = 15      # physical lever/button (different from switch)
+    POTION = 16     # consumable potion/flask (teal)
+    SCROLL = 17     # readable scroll/book (parchment)
+    COIN = 18       # collectible coin/token (gold circle)
+    ORB = 19        # magical orb (glowing pink)
 
 
 class AgentType(IntEnum):
@@ -110,6 +117,12 @@ COLORS = {
     "ice": (173, 216, 230),
     "breadcrumb": (255, 192, 203),
     "fog": (128, 128, 128),
+    "gem": (148, 0, 211),
+    "lever": (180, 140, 60),
+    "potion": (0, 180, 180),
+    "scroll": (210, 180, 140),
+    "coin": (255, 200, 0),
+    "orb": (255, 105, 180),
 }
 
 
@@ -130,6 +143,12 @@ ASCII_CHARS = {
     ObjectType.TOOL: "t",
     ObjectType.RESOURCE: "r",
     ObjectType.BREADCRUMB: "*",
+    ObjectType.GEM: "d",
+    ObjectType.LEVER: "L",
+    ObjectType.POTION: "P",
+    ObjectType.SCROLL: "?",
+    ObjectType.COIN: "c",
+    ObjectType.ORB: "O",
     AgentType.AGENT: "A",
     AgentType.NPC: "N",
     AgentType.ENEMY: "E",

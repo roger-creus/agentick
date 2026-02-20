@@ -1,16 +1,12 @@
-"""ChaseEvade - Agent must CATCH a moving target (NPC that evades).
+"""ChaseEvade - Agent must SURVIVE by evading pursuing enemies for N steps.
 
 MECHANICS:
-  - NPC target(s) actively evade the agent
-  - Agent must step onto the SAME CELL as an NPC to catch it (tag it)
-  - Success detection: check grid.objects[y,x]==ENEMY (robust, not position-tuple comparison)
-  - NPC also tags agent if it moves onto agent's cell
-
-DIFFICULTY AXES (multi-dimensional):
-  - easy:   1 target, small map, 60% evade, no obstacles
-  - medium: 2 targets, medium map, 75% evade, 2 obstacles
-  - hard:   3 targets, large map, 90% evade, 4 obstacles
-  - expert: 4 targets, largest map, 100% evade, 6 obstacles
+  - Enemy NPCs actively CHASE the agent (move toward it)
+  - Agent must survive (not get caught) for a survival period
+  - Enemy touches agent = episode ends in failure
+  - Surviving all steps = success
+  - Power-ups (RESOURCE) temporarily freeze enemies for K steps
+  - Differentiated from CompetitiveTag: pure evasion/survival, no tagging back
 """
 
 import numpy as np
@@ -24,58 +20,59 @@ from agentick.tasks.registry import register_task
 
 @register_task("ChaseEvade-v0", tags=["reactive_control", "prediction"])
 class ChaseEvadeTask(TaskSpec):
-    """Catch all evading NPC targets (tag by stepping on them)."""
+    """Survive by evading all pursuing enemies for the required number of steps."""
 
     name = "ChaseEvade-v0"
-    description = "Chase and catch all evading targets"
+    description = "Evade pursuing enemies and survive for N steps"
     capability_tags = ["reactive_control", "prediction"]
 
     difficulty_configs = {
         "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+            name="easy", grid_size=7, max_steps=40,
             params={
-                "n_targets": 1, "evade_prob": 0.60,
-                "n_obstacles": 0,
-                "target_speed": 1, "n_powerups": 0,
+                "n_enemies": 1, "chase_prob": 0.60,
+                "n_obstacles": 0, "enemy_speed": 1,
+                "n_powerups": 1, "survival_steps": 30,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=200,
+            name="medium", grid_size=10, max_steps=80,
             params={
-                "n_targets": 2, "evade_prob": 0.75,
-                "n_obstacles": 2,
-                "target_speed": 1, "n_powerups": 0,
+                "n_enemies": 2, "chase_prob": 0.75,
+                "n_obstacles": 3, "enemy_speed": 1,
+                "n_powerups": 1, "survival_steps": 60,
             },
         ),
         "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=350,
+            name="hard", grid_size=13, max_steps=140,
             params={
-                "n_targets": 3, "evade_prob": 0.90,
-                "n_obstacles": 4,
-                "target_speed": 2, "n_powerups": 1,
+                "n_enemies": 3, "chase_prob": 0.90,
+                "n_obstacles": 5, "enemy_speed": 1,
+                "n_powerups": 2, "survival_steps": 100,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500,
+            name="expert", grid_size=15, max_steps=220,
             params={
-                "n_targets": 4, "evade_prob": 1.00,
-                "n_obstacles": 6,
-                "target_speed": 3, "n_powerups": 2,
+                "n_enemies": 4, "chase_prob": 1.00,
+                "n_obstacles": 7, "enemy_speed": 2,
+                "n_powerups": 2, "survival_steps": 160,
             },
         ),
     }
 
-    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # (dx, dy): up/down/left/right
+    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n_targets    = p.get("n_targets", 1)
-        evade_prob   = p.get("evade_prob", 0.6)
+        n_enemies    = p.get("n_enemies", 1)
+        chase_prob   = p.get("chase_prob", 0.6)
         n_obstacles  = p.get("n_obstacles", 0)
-        target_speed = p.get("target_speed", 1)
+        enemy_speed  = p.get("enemy_speed", 1)
         n_powerups   = p.get("n_powerups", 0)
+        survival     = p.get("survival_steps", 30)
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -83,20 +80,21 @@ class ChaseEvadeTask(TaskSpec):
         grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (int(rng.integers(1, 3)), int(rng.integers(1, 3)))
+        # Agent starts center-ish
+        agent_pos = (size // 2, size // 2)
 
+        # Place obstacles
         interior = [
             (x, y) for x in range(1, size - 1)
             for y in range(1, size - 1)
             if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > 2
         ]
         rng.shuffle(interior)
-        obstacle_cells = set()
         for i in range(min(n_obstacles, len(interior) // 4)):
             ox, oy = interior[i]
             grid.terrain[oy, ox] = CellType.WALL
-            obstacle_cells.add((ox, oy))
 
+        # Place enemies far from agent (corners and edges)
         walkable = [
             (x, y) for x in range(1, size - 1)
             for y in range(1, size - 1)
@@ -104,7 +102,7 @@ class ChaseEvadeTask(TaskSpec):
             and (x, y) != agent_pos
             and abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > size // 2
         ]
-        if len(walkable) < n_targets:
+        if len(walkable) < n_enemies:
             walkable = [
                 (x, y) for x in range(1, size - 1)
                 for y in range(1, size - 1)
@@ -112,40 +110,41 @@ class ChaseEvadeTask(TaskSpec):
                 and (x, y) != agent_pos
             ]
         rng.shuffle(walkable)
-        target_positions = walkable[:n_targets]
+        enemy_positions = walkable[:n_enemies]
 
-        for tx, ty in target_positions:
-            grid.objects[ty, tx] = ObjectType.ENEMY
+        for ex, ey in enemy_positions:
+            grid.objects[ey, ex] = ObjectType.ENEMY
 
+        # Solvability: ensure connected
         reachable = grid.flood_fill(agent_pos)
-        for t in target_positions:
-            if t not in reachable:
+        for ep in enemy_positions:
+            if ep not in reachable:
                 for x in range(1, size - 1):
                     for y in range(1, size - 1):
                         if grid.terrain[y, x] == CellType.WALL:
                             grid.terrain[y, x] = CellType.EMPTY
                 break
 
-        used = {agent_pos} | set(target_positions) | obstacle_cells
+        # Place power-ups (freeze enemies temporarily)
+        used = {agent_pos} | set(enemy_positions)
         powerup_positions = []
-        if n_powerups > 0:
-            pw_candidates = [
-                (x, y) for x in range(1, size - 1)
-                for y in range(1, size - 1)
-                if grid.terrain[y, x] == CellType.EMPTY
-                and (x, y) not in used
-            ]
-            rng.shuffle(pw_candidates)
-            for pp in pw_candidates[:n_powerups]:
-                px, py = pp
-                grid.objects[py, px] = ObjectType.RESOURCE
-                powerup_positions.append(pp)
+        pw_candidates = [
+            (x, y) for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY and (x, y) not in used
+        ]
+        rng.shuffle(pw_candidates)
+        for pp in pw_candidates[:n_powerups]:
+            px, py = pp
+            grid.objects[py, px] = ObjectType.POTION
+            powerup_positions.append(pp)
 
         return grid, {
             "agent_start":       agent_pos,
-            "goal_positions":    list(target_positions),
-            "evade_prob":        evade_prob,
-            "target_speed":      target_speed,
+            "goal_positions":    [],
+            "chase_prob":        chase_prob,
+            "enemy_speed":       enemy_speed,
+            "survival_steps":    survival,
             "powerup_positions": powerup_positions,
             "_rng_seed":         int(rng.integers(0, 2**31)),
             "max_steps":         self.get_max_steps(),
@@ -154,52 +153,44 @@ class ChaseEvadeTask(TaskSpec):
     # ── Hooks ─────────────────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
-        config["_live_targets"] = list(
-            config.get("goal_positions", [])
-        )
-        config["_evade_rng"] = np.random.default_rng(
-            config.get("_rng_seed", 0)
-        )
-        config["_live_target"] = (
-            config["_live_targets"][0]
-            if config["_live_targets"] else None
-        )
-        config["_speed_boost"] = 0
-        self._last_n = len(config["_live_targets"])
+        config["_enemies"] = [
+            (x, y) for y in range(grid.height) for x in range(grid.width)
+            if grid.objects[y, x] == ObjectType.ENEMY
+        ]
+        config["_evade_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
+        config["_caught"] = False
+        config["_freeze_remaining"] = 0
+        config["_steps_survived"] = 0
         self._config = config
-        for tx, ty in config["_live_targets"]:
-            grid.objects[ty, tx] = ObjectType.ENEMY
 
     def on_agent_moved(self, pos, agent, grid):
         config = getattr(self, "_config", {})
         ax, ay = pos
+        # Check if agent stepped on enemy
         if grid.objects[ay, ax] == ObjectType.ENEMY:
+            config["_caught"] = True
+        # Collect power-up (freeze enemies)
+        if grid.objects[ay, ax] == ObjectType.POTION:
             grid.objects[ay, ax] = ObjectType.NONE
-            targets = config.get("_live_targets", [])
-            config["_live_targets"] = [
-                (tx, ty) for tx, ty in targets
-                if (tx, ty) != (ax, ay)
-            ]
-        if grid.objects[ay, ax] == ObjectType.RESOURCE:
-            grid.objects[ay, ax] = ObjectType.NONE
-            config["_speed_boost"] = config.get(
-                "_speed_boost", 0
-            ) + 5
+            config["_freeze_remaining"] = config.get("_freeze_remaining", 0) + 5
 
-    def _move_target_once(self, tx, ty, ax, ay, grid, rng, evade):
-        if rng.random() < evade:
-            best, best_d = (tx, ty), abs(tx - ax) + abs(ty - ay)
+    def _move_enemy_once(self, ex, ey, ax, ay, grid, rng, chase_prob):
+        """Move one enemy one step, chasing agent with probability chase_prob."""
+        if rng.random() < chase_prob:
+            # Chase: move toward agent
+            best, best_d = (ex, ey), abs(ex - ax) + abs(ey - ay)
             for dx, dy in self._DIRS:
-                nx, ny = tx + dx, ty + dy
+                nx, ny = ex + dx, ey + dy
                 if (0 < nx < grid.width - 1
                         and 0 < ny < grid.height - 1
                         and grid.terrain[ny, nx] == CellType.EMPTY
                         and grid.objects[ny, nx] != ObjectType.ENEMY):
                     d = abs(nx - ax) + abs(ny - ay)
-                    if d > best_d:
+                    if d < best_d:
                         best_d, best = d, (nx, ny)
             return best
-        moves = [(tx + dx, ty + dy) for dx, dy in self._DIRS]
+        # Random move
+        moves = [(ex + dx, ey + dy) for dx, dy in self._DIRS]
         valid = [
             (x, y) for x, y in moves
             if (0 < x < grid.width - 1
@@ -209,79 +200,87 @@ class ChaseEvadeTask(TaskSpec):
         ]
         if valid:
             return valid[int(rng.integers(len(valid)))]
-        return (tx, ty)
+        return (ex, ey)
 
     def on_env_step(self, agent, grid, config, step_count):
-        targets = config.get("_live_targets", [])
-        rng     = config.get("_evade_rng")
-        evade   = config.get("evade_prob", 0.7)
-        speed   = config.get("target_speed", 1)
-        ax, ay  = agent.position
+        enemies = config.get("_enemies", [])
+        rng = config.get("_evade_rng")
+        chase = config.get("chase_prob", 0.7)
+        speed = config.get("enemy_speed", 1)
+        ax, ay = agent.position
 
-        for tx, ty in targets:
-            if grid.objects[ty, tx] == ObjectType.ENEMY:
-                grid.objects[ty, tx] = ObjectType.NONE
+        config["_steps_survived"] = step_count
 
-        new_targets = []
-        for tx, ty in targets:
-            cx, cy = tx, ty
+        # Handle freeze
+        freeze = config.get("_freeze_remaining", 0)
+        if freeze > 0:
+            config["_freeze_remaining"] = freeze - 1
+            return  # enemies don't move when frozen
+
+        # Erase old enemy positions
+        for ex, ey in enemies:
+            if grid.objects[ey, ex] == ObjectType.ENEMY:
+                grid.objects[ey, ex] = ObjectType.NONE
+
+        # Move enemies
+        new_enemies = []
+        for ex, ey in enemies:
+            cx, cy = ex, ey
             for _ in range(speed):
-                cx, cy = self._move_target_once(
-                    cx, cy, ax, ay, grid, rng, evade
-                )
-            new_targets.append((cx, cy))
+                cx, cy = self._move_enemy_once(cx, cy, ax, ay, grid, rng, chase)
+            new_enemies.append((cx, cy))
 
-        final_targets = []
-        for tx, ty in new_targets:
-            if (tx, ty) == (ax, ay):
-                pass
+        # Place enemies and check for catching agent
+        final = []
+        for ex, ey in new_enemies:
+            if (ex, ey) == (ax, ay):
+                config["_caught"] = True
             else:
-                grid.objects[ty, tx] = ObjectType.ENEMY
-                final_targets.append((tx, ty))
+                grid.objects[ey, ex] = ObjectType.ENEMY
+                final.append((ex, ey))
 
-        config["_live_targets"] = final_targets
-
-        boost = config.get("_speed_boost", 0)
-        if boost > 0:
-            config["_speed_boost"] = boost - 1
+        config["_enemies"] = final
 
     # ── Reward & success ─────────────────────────────────────────────────────
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        reward = -0.01
         config = new_state.get("config", {})
-        targets = config.get("_live_targets", [])
-        new_n   = len(targets)
-
-        # Per-tag reward
-        if new_n < self._last_n:
-            reward += 0.5 * (self._last_n - new_n)
-        self._last_n = new_n
-
-        # Approach toward nearest remaining target
-        if targets and "agent" in new_state:
+        if config.get("_caught", False):
+            return -1.0
+        reward = 0.01  # small positive for surviving each step
+        # Bonus for staying far from enemies
+        if "agent" in new_state:
             ax, ay = new_state["agent"].position
-            ox, oy = old_state.get("agent_position", (ax, ay))
-            d_new = min(abs(ax-tx)+abs(ay-ty) for tx, ty in targets)
-            d_old = min(abs(ox-tx)+abs(oy-ty) for tx, ty in targets)
-            reward += 0.05 * (d_old - d_new)
-
+            enemies = config.get("_enemies", [])
+            if enemies:
+                min_dist = min(abs(ax - ex) + abs(ay - ey) for ex, ey in enemies)
+                reward += 0.01 * min(min_dist, 5)  # capped bonus for distance
         if self.check_success(new_state):
             reward += 1.0
         return reward
 
+    def compute_sparse_reward(self, old_state, action, new_state, info):
+        config = new_state.get("config", {})
+        if config.get("_caught", False):
+            return -1.0
+        if self.check_success(new_state):
+            return 1.0
+        return 0.0
+
     def check_success(self, state):
-        """All targets caught = success. Also succeeds if agent is on an ENEMY cell right now."""
+        """Survived all required steps without being caught."""
         config = state.get("config", {})
-        targets = config.get("_live_targets", None)
-        if targets is not None and len(targets) == 0:
+        if config.get("_caught", False):
+            return False
+        survived = config.get("_steps_survived", 0)
+        required = config.get("survival_steps", 30)
+        return survived >= required
+
+    def check_done(self, state):
+        config = state.get("config", {})
+        if config.get("_caught", False):
             return True
-        # Grid-object check: agent co-located with an ENEMY
-        if "agent" in state and "grid" in state:
-            x, y = state["agent"].position
-            if state["grid"].objects[y, x] == ObjectType.ENEMY:
-                return True
-        return False
+        return self.check_success(state)
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

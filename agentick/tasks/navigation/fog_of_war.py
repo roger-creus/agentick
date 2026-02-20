@@ -149,6 +149,27 @@ class FogOfWarExplorationTask(TaskSpec):
         config["_guard_collision"] = False
         config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
         self._config = config
+        self._visibility = config.get("visibility",
+                                      self.difficulty_config.params.get("visibility", 2))
+        # Initialize fog: all cells start as fogged
+        grid.metadata[:, :] = -1  # META_FOG
+        # Reveal cells around agent start
+        self._reveal_around(agent.position, grid)
+
+    def _reveal_around(self, pos, grid):
+        """Reveal cells within visibility radius of position."""
+        ax, ay = pos
+        vis = getattr(self, "_visibility", 2)
+        for dy in range(-vis, vis + 1):
+            for dx in range(-vis, vis + 1):
+                nx, ny = ax + dx, ay + dy
+                if 0 <= nx < grid.width and 0 <= ny < grid.height:
+                    if abs(dx) + abs(dy) <= vis:  # Manhattan distance
+                        grid.metadata[ny, nx] = 0  # revealed (clear fog)
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Reveal cells around the agent's new position."""
+        self._reveal_around(pos, grid)
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])

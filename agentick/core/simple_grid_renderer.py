@@ -23,6 +23,12 @@ OBJECT_LABELS = {
     ObjectType.TARGET:    ("T", "#AAFFAA"),
     ObjectType.TOOL:      ("T", "#FFA500"),
     ObjectType.BREADCRUMB:("·", "#777777"),
+    ObjectType.GEM:       ("d", "#9400D3"),
+    ObjectType.LEVER:     ("L", "#B48C3C"),
+    ObjectType.POTION:    ("P", "#00B4B4"),
+    ObjectType.SCROLL:    ("?", "#D2B48C"),
+    ObjectType.COIN:      ("c", "#FFC800"),
+    ObjectType.ORB:       ("O", "#FF69B4"),
     ObjectType.NONE:      (None, None),
 }
 
@@ -42,6 +48,12 @@ TERRAIN_COLORS = {
     CellType.ICE:    "#B0E0E6",
     CellType.HOLE:   "#111111",
 }
+
+# Special metadata values used by tasks for visual rendering
+META_FOG = -1           # FogOfWar: cell hidden under fog (render as dark)
+META_LIT = 1            # LightsOut: cell is lit (render as bright yellow)
+META_LIGHT_POS = 2      # LightsOut: unlit light position (render as dark gray)
+META_CAGE = 3           # InstructionFollowing: cage border cell
 
 ENTITY_COLORS = {
     "player": "#0044FF",
@@ -104,8 +116,26 @@ class SimpleGridRenderer:
         for y in range(H):
             for x in range(W):
                 px, py = x * ts, y * ts + header
+                meta = int(grid.metadata[y, x])
+
+                # Fog of war: hidden cells render as dark
+                if meta == META_FOG:
+                    draw.rectangle([px, py, px + ts - 1, py + ts - 1],
+                                   fill="#0A0A15", outline="#111122", width=1)
+                    continue
+
                 cell = CellType(grid.terrain[y, x]) if grid.terrain[y, x] in CellType._value2member_map_ else CellType.EMPTY
-                bg = TERRAIN_COLORS.get(cell, TERRAIN_COLORS[CellType.EMPTY])
+
+                # LightsOut special rendering via metadata
+                if meta == META_LIT:
+                    bg = "#FFD700"  # bright yellow for lit cells
+                elif meta == META_LIGHT_POS:
+                    bg = "#2A2A3A"  # dark gray for unlit light positions
+                elif meta == META_CAGE:
+                    bg = "#4A2A10"  # brown cage border
+                else:
+                    bg = TERRAIN_COLORS.get(cell, TERRAIN_COLORS[CellType.EMPTY])
+
                 draw.rectangle([px, py, px + ts - 1, py + ts - 1],
                                fill=bg, outline="#555555", width=1)
 

@@ -174,6 +174,7 @@ class HerdingTask(TaskSpec):
     # ── Dynamic sheep movement ────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
+        self._config = config
         config["_live_sheep"] = list(
             config.get("sheep_positions", [])
         )
@@ -306,12 +307,17 @@ class HerdingTask(TaskSpec):
         self._draw_sheep(grid, new_sheep, draw=True)
 
     def _draw_sheep(self, grid, sheep, draw: bool):
+        pen = set(map(tuple, getattr(self, "_config", {}).get("pen_cells", [])))
         for sx, sy in sheep:
             if 0 <= sx < grid.width and 0 <= sy < grid.height:
                 if draw:
                     grid.objects[sy, sx] = ObjectType.SHEEP
                 elif grid.objects[sy, sx] == ObjectType.SHEEP:
-                    grid.objects[sy, sx] = ObjectType.NONE
+                    # Restore TARGET if this was a pen cell
+                    if (sx, sy) in pen:
+                        grid.objects[sy, sx] = ObjectType.TARGET
+                    else:
+                        grid.objects[sy, sx] = ObjectType.NONE
 
     # ── Reward & success ─────────────────────────────────────────────────────
 

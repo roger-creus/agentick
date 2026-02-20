@@ -311,16 +311,8 @@ class TaskEnv(AgentickEnv):
         if hasattr(self.task, "on_env_reset"):
             self.task.on_env_reset(self.agent, self.grid, self.task_config)
 
-    def _move_agent(self, action_type) -> None:
-        """Move agent, delegating task-specific entry rules to the task."""
-        from agentick.core.actions import get_move_delta
-        delta = get_move_delta(action_type)
-        if delta is None:
-            return
-
-        dx, dy = delta
-        new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
-
+    def _try_move_to(self, new_pos) -> None:
+        """Attempt to move agent to new_pos with task-specific checks."""
         # Standard terrain check
         if not self.grid.is_walkable(new_pos):
             return
@@ -335,6 +327,29 @@ class TaskEnv(AgentickEnv):
         # Post-move hook (e.g., auto-pickup key)
         if hasattr(self.task, "on_agent_moved"):
             self.task.on_agent_moved(new_pos, self.agent, self.grid)
+
+    def _move_agent(self, action_type) -> None:
+        """Move agent, delegating task-specific entry rules to the task."""
+        from agentick.core.actions import get_move_delta
+
+        # Allow tasks to remap actions (e.g. DistributionShift swaps directions)
+        remap = self.task_config.get("_action_remap")
+        if remap and action_type in remap:
+            action_type = remap[action_type]
+
+        delta = get_move_delta(action_type)
+        if delta is None:
+            return
+
+        dx, dy = delta
+        new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
+        self._try_move_to(new_pos)
+
+    def _move_forward(self) -> None:
+        """Move agent forward, with task-specific entry checks."""
+        dx, dy = self.agent.orientation.to_delta()
+        new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
+        self._try_move_to(new_pos)
 
     def _get_state_for_reward(self) -> dict[str, Any]:
         """Get state snapshot for reward computation (includes full task state)."""

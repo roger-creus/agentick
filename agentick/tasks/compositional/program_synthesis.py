@@ -1,14 +1,14 @@
-"""Program Synthesis - Route an item from source to destination via waypoints.
+"""ProgramSynthesis - Discover and replicate a hidden pattern/function.
 
 MECHANICS:
-  - A KEY (item) is at the source position
-  - A GOAL (destination) is placed elsewhere on the grid
-  - N waypoints (SWITCHes) must be visited in any order to "unlock"
-  - Agent picks up the KEY by stepping on it (auto-carry)
-  - After visiting all waypoints, agent delivers KEY to GOAL
-  - Success = all waypoints visited AND agent at GOAL carrying the KEY
-  - At hard+: n_conditionals adds DOOR/RESOURCE conditional waypoints
-  - At expert: loop_count requires repeating the waypoint circuit
+  - Grid has "example" zones: input positions (SCROLL) and output positions (GEM)
+  - The pattern maps inputs to outputs via a spatial transformation
+    (e.g., "move 2 right", "mirror across center", "rotate 90 degrees")
+  - A "test" zone has input positions (SCROLL) but missing outputs
+  - Agent must place ORB objects at the correct output positions (predicted by the pattern)
+  - ORB items are scattered on the grid; agent carries one at a time
+  - Success = all test outputs correctly placed
+  - Tests pattern recognition, abstraction, and generalization
 """
 
 import numpy as np
@@ -22,71 +22,51 @@ from agentick.tasks.registry import register_task
 
 @register_task("ProgramSynthesis-v0", tags=["reasoning", "planning", "abstraction"])
 class ProgramSynthesisTask(TaskSpec):
-    """Collect an item, visit all waypoints, then deliver it to the goal.
-
-    The agent must pick up the KEY, visit all SWITCH waypoints (in any
-    order), and finally deliver the KEY to the GOAL. This models
-    sequential multi-step planning: the agent must "program" the correct
-    route through all waypoints to complete the task.
-    """
+    """Discover hidden spatial pattern from examples and replicate it."""
 
     name = "ProgramSynthesis-v0"
-    description = "Collect item, visit waypoints, deliver to destination"
+    description = "Discover hidden pattern from examples and replicate it"
     capability_tags = ["abstract_reasoning", "planning", "programming"]
 
     difficulty_configs = {
-        # n_waypoints: sequential sub-goals
-        # n_obstacles: wall clusters | order_strict: fail on wrong order
-        # n_conditionals: waypoints that only unlock after a switch
-        # loop_count: number of times the waypoint circuit must repeat
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
-            params={
-                "n_waypoints": 2, "n_obstacles": 0,
-                "order_strict": False,
-                "n_conditionals": 0, "loop_count": 1,
-            },
+        "easy": DifficultyConfig(
+            name="easy", grid_size=9, max_steps=120,
+            params={"n_examples": 2, "n_tests": 1, "pattern": "translate"},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=200,
-            params={
-                "n_waypoints": 3, "n_obstacles": 3,
-                "order_strict": False,
-                "n_conditionals": 0, "loop_count": 1,
-            },
+            name="medium", grid_size=11, max_steps=200,
+            params={"n_examples": 2, "n_tests": 2, "pattern": "translate"},
         ),
-        "hard":   DifficultyConfig(
+        "hard": DifficultyConfig(
             name="hard", grid_size=13, max_steps=350,
-            params={
-                "n_waypoints": 4, "n_obstacles": 5,
-                "order_strict": True,
-                "n_conditionals": 1, "loop_count": 1,
-            },
+            params={"n_examples": 3, "n_tests": 2, "pattern": "mirror"},
         ),
         "expert": DifficultyConfig(
             name="expert", grid_size=15, max_steps=550,
-            params={
-                "n_waypoints": 5, "n_obstacles": 8,
-                "order_strict": True,
-                "n_conditionals": 2, "loop_count": 2,
-            },
+            params={"n_examples": 3, "n_tests": 3, "pattern": "rotate"},
         ),
     }
 
+    def _apply_pattern(self, pos, pattern_type, dx, dy, center_x, center_y):
+        """Apply a spatial transformation pattern to a position."""
+        x, y = pos
+        if pattern_type == "translate":
+            return (x + dx, y + dy)
+        elif pattern_type == "mirror":
+            # Mirror across center_x vertical line
+            return (2 * center_x - x, y)
+        elif pattern_type == "rotate":
+            # Rotate 90 degrees clockwise around center
+            rx, ry = x - center_x, y - center_y
+            return (center_x + ry, center_y - rx)
+        return pos
+
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size        = self.difficulty_config.grid_size
-        n_wp        = self.difficulty_config.params.get("n_waypoints", 2)
-        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
-        order_strict = self.difficulty_config.params.get(
-            "order_strict", False,
-        )
-        n_conditionals = self.difficulty_config.params.get(
-            "n_conditionals", 0,
-        )
-        loop_count = self.difficulty_config.params.get(
-            "loop_count", 1,
-        )
+        size = self.difficulty_config.grid_size
+        n_examples = self.difficulty_config.params.get("n_examples", 2)
+        n_tests = self.difficulty_config.params.get("n_tests", 1)
+        pattern_type = self.difficulty_config.params.get("pattern", "translate")
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -95,173 +75,166 @@ class ProgramSynthesisTask(TaskSpec):
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
+        center_x = size // 2
+        center_y = size // 2
 
-        free = [(x, y) for x in range(1, size - 1)
-                for y in range(1, size - 1)
-                if (x, y) != agent_pos]
-        rng.shuffle(free)
+        # Pattern parameters
+        if pattern_type == "translate":
+            dx = int(rng.integers(1, 4))
+            dy = int(rng.integers(-2, 3))
+        else:
+            dx, dy = 0, 0
 
-        source_pos = free[0]
-        dest_pos   = free[1]
-        waypoints  = free[2:2 + n_wp]
-        used = {agent_pos, source_pos, dest_pos} | set(waypoints)
+        # Generate example and test input positions
+        # Use left half for inputs, ensure outputs fit in grid
+        input_positions = []
+        used = {agent_pos}
 
-        grid.objects[source_pos[1], source_pos[0]] = ObjectType.KEY
-        grid.objects[dest_pos[1],   dest_pos[0]]   = ObjectType.GOAL
-        for wx, wy in waypoints:
-            grid.objects[wy, wx] = ObjectType.SWITCH
-
-        # Interior obstacles (walls) — flood-fill to preserve solvability
-        wall_positions = []
-        wall_candidates = [
-            p for p in free[2 + n_wp:] if p not in used
-        ]
-        for p in wall_candidates:
-            if len(wall_positions) >= n_obstacles:
+        for attempt in range(50):
+            candidate_inputs = []
+            valid = True
+            for _ in range(n_examples + n_tests):
+                ix = int(rng.integers(2, size // 2))
+                iy = int(rng.integers(2, size - 2))
+                inp = (ix, iy)
+                out = self._apply_pattern(inp, pattern_type, dx, dy, center_x, center_y)
+                ox, oy = out
+                if (1 <= ox < size - 1 and 1 <= oy < size - 1
+                        and inp not in used and out not in used
+                        and inp != out):
+                    candidate_inputs.append((inp, out))
+                    used.add(inp)
+                    used.add(out)
+                else:
+                    valid = False
+                    break
+            if valid and len(candidate_inputs) >= n_examples + n_tests:
+                input_positions = candidate_inputs
                 break
-            wx, wy = p
-            grid.terrain[wy, wx] = CellType.WALL
-            reachable = grid.flood_fill(agent_pos)
-            needed = [source_pos, dest_pos] + list(waypoints)
-            if all(q in reachable for q in needed):
-                wall_positions.append(p)
-                used.add(p)
-            else:
-                grid.terrain[wy, wx] = CellType.EMPTY
+            used = {agent_pos}
 
-        # Conditional waypoints: DOOR objects that the agent must
-        # visit *after* stepping on a paired RESOURCE (acts as an
-        # unlock switch). Only at hard/expert.
-        cond_positions = []
-        cond_keys = []
-        if n_conditionals > 0:
-            cond_pool = [
-                p for p in free[2 + n_wp:]
-                if p not in used
-            ]
-            rng.shuffle(cond_pool)
-            for i in range(min(n_conditionals, len(cond_pool) // 2)):
-                cp = cond_pool[i * 2]
-                ck = cond_pool[i * 2 + 1]
-                # Place DOOR as the conditional waypoint
-                grid.objects[cp[1], cp[0]] = ObjectType.DOOR
-                # Place RESOURCE as the unlock switch
-                grid.objects[ck[1], ck[0]] = ObjectType.RESOURCE
-                cond_positions.append(cp)
-                cond_keys.append(ck)
-                used.add(cp)
-                used.add(ck)
+        if not input_positions:
+            # Fallback: simple right-shift by 3
+            pattern_type = "translate"
+            dx, dy = 3, 0
+            input_positions = []
+            used = {agent_pos}
+            for i in range(n_examples + n_tests):
+                inp = (2, 2 + i * 2)
+                out = (5, 2 + i * 2)
+                if (1 <= out[0] < size - 1 and 1 <= out[1] < size - 1):
+                    input_positions.append((inp, out))
+                    used.add(inp)
+                    used.add(out)
+
+        # Split into examples and tests
+        examples = input_positions[:n_examples]
+        tests = input_positions[n_examples:n_examples + n_tests]
+
+        # Place examples: SCROLL for input, GEM for output (visible answer)
+        example_info = []
+        for inp, out in examples:
+            ix, iy = inp
+            ox, oy = out
+            grid.objects[iy, ix] = ObjectType.SCROLL
+            grid.objects[oy, ox] = ObjectType.GEM
+            example_info.append({"input": list(inp), "output": list(out)})
+
+        # Place tests: SCROLL for input, TARGET for expected output position
+        test_info = []
+        test_targets = []
+        for inp, out in tests:
+            ix, iy = inp
+            ox, oy = out
+            grid.objects[iy, ix] = ObjectType.SCROLL
+            grid.objects[oy, ox] = ObjectType.TARGET  # where ORB should go
+            test_info.append({"input": list(inp), "output": list(out)})
+            test_targets.append(out)
+
+        # Place ORB items for the agent to pick up and deliver
+        orb_positions = []
+        free = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and grid.objects[y, x] == ObjectType.NONE
+            and (x, y) != agent_pos
+        ]
+        rng.shuffle(free)
+        for i in range(n_tests):
+            if i < len(free):
+                ox, oy = free[i]
+                grid.objects[oy, ox] = ObjectType.ORB
+                orb_positions.append(free[i])
 
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": [dest_pos],
-            "source": source_pos,
-            "destination": dest_pos,
-            "waypoints": waypoints,
-            "order_strict": order_strict,
-            "n_conditionals": n_conditionals,
-            "loop_count": loop_count,
-            "_cond_positions": cond_positions,
-            "_cond_keys": cond_keys,
+            "goal_positions": test_targets,
+            "examples": example_info,
+            "tests": test_info,
+            "test_targets": test_targets,
+            "orb_positions": orb_positions,
+            "pattern_type": pattern_type,
+            "pattern_dx": dx,
+            "pattern_dy": dy,
+            "n_tests": len(tests),
             "max_steps": self.get_max_steps(),
         }
 
-    # ── Hooks ─────────────────────────────────────────────────────────────────
-
     def on_env_reset(self, agent, grid, config):
-        self._carrying_key = False
-        self._waypoints_visited = set()
-        self._n_waypoints = len(config.get("waypoints", []))
-        self._last_wp_count = 0
-        self._rewarded_key = False
-        self._order_strict = config.get("order_strict", False)
-        self._waypoints_ordered = list(config.get("waypoints", []))
-        self._wrong_order = False
-        # Conditional waypoint state
-        self._cond_unlocked = set()
-        self._cond_visited = set()
-        self._n_conditionals = len(
-            config.get("_cond_positions", []),
-        )
-        # Loop state: how many full waypoint circuits completed
-        self._loop_count = config.get("loop_count", 1)
-        self._loops_done = 0
+        self._carrying_orb = False
+        self._targets_filled = 0
+        self._last_filled = 0
+        self._config = config
 
     def on_agent_moved(self, pos, agent, grid):
-        """Pick up KEY; collect SWITCH waypoints and conditionals."""
         x, y = pos
         obj = grid.objects[y, x]
-        if obj == ObjectType.KEY and not self._carrying_key:
-            grid.objects[y, x] = ObjectType.NONE
-            self._carrying_key = True
-        elif obj == ObjectType.SWITCH:
-            grid.objects[y, x] = ObjectType.NONE
-            if self._order_strict:
-                expected = next(
-                    (w for w in self._waypoints_ordered
-                     if w not in self._waypoints_visited),
-                    None,
-                )
-                if expected is not None and pos != expected:
-                    self._wrong_order = True
-            self._waypoints_visited.add(pos)
-            # Check if a full loop of waypoints is done
-            if (len(self._waypoints_visited)
-                    >= self._n_waypoints):
-                self._loops_done += 1
-                if self._loops_done < self._loop_count:
-                    # Reset waypoints for next loop iteration
-                    self._waypoints_visited.clear()
-        elif obj == ObjectType.RESOURCE:
-            # Unlock the paired conditional waypoint
-            grid.objects[y, x] = ObjectType.NONE
-            self._cond_unlocked.add(pos)
-        elif obj == ObjectType.DOOR:
-            # Visit a conditional waypoint (only counts if
-            # its paired RESOURCE was already collected)
-            if pos in [
-                tuple(c) for c in
-                getattr(self, "_cond_unlocked", set())
-            ] or len(self._cond_unlocked) > 0:
-                grid.objects[y, x] = ObjectType.NONE
-                self._cond_visited.add(pos)
 
-    # ── Reward & success ──────────────────────────────────────────────────────
+        if not self._carrying_orb and obj == ObjectType.ORB:
+            # Pick up orb
+            grid.objects[y, x] = ObjectType.NONE
+            self._carrying_orb = True
+        elif self._carrying_orb and obj == ObjectType.TARGET:
+            # Place orb on target
+            grid.objects[y, x] = ObjectType.GOAL  # correct placement visual
+            self._carrying_orb = False
+            self._targets_filled += 1
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
-        # +0.3 for each new waypoint visited
-        old_n = getattr(self, "_last_wp_count", 0)
-        new_n = len(self._waypoints_visited)
-        if new_n > old_n:
-            reward += 0.3
-        self._last_wp_count = new_n
-        # +0.3 for picking up KEY
-        if self._carrying_key and not getattr(self, "_rewarded_key", False):
-            reward += 0.3
-            self._rewarded_key = True
+        if self._targets_filled > self._last_filled:
+            reward += 0.5
+        self._last_filled = self._targets_filled
+
+        # Approach shaping
+        if "agent" in new_state and "grid" in new_state:
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            g = new_state["grid"]
+            if not self._carrying_orb:
+                orbs = [
+                    (x, y) for y in range(g.height) for x in range(g.width)
+                    if g.objects[y, x] == ObjectType.ORB
+                ]
+                targets = orbs
+            else:
+                targets = [
+                    (x, y) for y in range(g.height) for x in range(g.width)
+                    if g.objects[y, x] == ObjectType.TARGET
+                ]
+            if targets:
+                d_new = min(abs(ax - tx) + abs(ay - ty) for tx, ty in targets)
+                d_old = min(abs(ox - tx) + abs(oy - ty) for tx, ty in targets)
+                reward += 0.05 * (d_old - d_new)
+
         if self.check_success(new_state):
             reward += 1.0
         return reward
 
     def check_success(self, state):
-        """All waypoints visited, conditionals met, loops done, at GOAL with KEY."""
-        if not self._carrying_key:
-            return False
-        if getattr(self, "_wrong_order", False):
-            return False
-        # Must have completed enough loops of the waypoint circuit
-        if self._loops_done < self._loop_count:
-            # Still need to finish current loop
-            if len(self._waypoints_visited) < self._n_waypoints:
-                return False
-        # All conditional waypoints must be visited
-        if len(self._cond_visited) < self._n_conditionals:
-            return False
-        if "agent" not in state or "grid" not in state:
-            return False
-        x, y = state["agent"].position
-        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
+        config = state.get("config", {})
+        n_tests = config.get("n_tests", 1)
+        return self._targets_filled >= n_tests
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

@@ -1,10 +1,12 @@
-"""PreciseNavigation - Navigate to exact randomized targets in a narrow maze.
+"""PreciseNavigation - Navigate narrow corridors where missteps are fatal.
 
 MECHANICS:
-  - A narrow maze with tight corridors (width=1 cells)
-  - Multiple waypoints that must all be visited
-  - Agent must visit EVERY waypoint (TARGET) to reach the GOAL
-  - Tests fine motor control and spatial precision
+  - Narrow 1-cell-wide corridors carved in a grid
+  - HAZARD cells border the corridors (stepping off path = death)
+  - Multiple waypoints (GEM) to collect along the path
+  - After all gems collected, reach the GOAL
+  - At hard+: moving waypoints and time pressure
+  - Tests motor control precision, not path planning
 """
 
 import numpy as np
@@ -18,43 +20,35 @@ from agentick.tasks.registry import register_task
 
 @register_task("PreciseNavigation-v0", tags=["motor_control", "planning"])
 class PreciseNavigationTask(TaskSpec):
-    """Navigate narrow corridors, visiting all waypoints before the goal."""
+    """Navigate narrow hazard-bordered corridors, collecting gems to reach goal."""
 
     name = "PreciseNavigation-v0"
-    description = "Visit all waypoints in a narrow maze to reach goal"
+    description = "Navigate narrow corridors with fatal hazard borders"
     capability_tags = ["motor_control", "planning"]
 
     difficulty_configs = {
         "easy":   DifficultyConfig(
             name="easy", grid_size=9, max_steps=100,
             params={
-                "n_waypoints": 2, "tight_windows": False,
-                "n_hazards": 0,
-                "time_windows": 0, "n_moving_waypoints": 0,
+                "n_waypoints": 2, "n_moving_waypoints": 0,
             },
         ),
         "medium": DifficultyConfig(
             name="medium", grid_size=12, max_steps=180,
             params={
-                "n_waypoints": 3, "tight_windows": False,
-                "n_hazards": 2,
-                "time_windows": 0, "n_moving_waypoints": 0,
+                "n_waypoints": 3, "n_moving_waypoints": 0,
             },
         ),
         "hard":   DifficultyConfig(
             name="hard", grid_size=15, max_steps=300,
             params={
-                "n_waypoints": 4, "tight_windows": True,
-                "n_hazards": 4,
-                "time_windows": 30, "n_moving_waypoints": 1,
+                "n_waypoints": 4, "n_moving_waypoints": 1,
             },
         ),
         "expert": DifficultyConfig(
             name="expert", grid_size=18, max_steps=500,
             params={
-                "n_waypoints": 5, "tight_windows": True,
-                "n_hazards": 7,
-                "time_windows": 20, "n_moving_waypoints": 2,
+                "n_waypoints": 5, "n_moving_waypoints": 2,
             },
         ),
     }
@@ -63,29 +57,24 @@ class PreciseNavigationTask(TaskSpec):
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size              = self.difficulty_config.grid_size
-        n_wp              = self.difficulty_config.params.get(
-            "n_waypoints", 2
-        )
-        tight_windows     = self.difficulty_config.params.get(
-            "tight_windows", False
-        )
-        n_hazards         = self.difficulty_config.params.get(
-            "n_hazards", 0
-        )
-        time_windows      = self.difficulty_config.params.get(
-            "time_windows", 0
-        )
-        n_moving_wp       = self.difficulty_config.params.get(
-            "n_moving_waypoints", 0
-        )
+        size   = self.difficulty_config.grid_size
+        n_wp   = self.difficulty_config.params.get("n_waypoints", 2)
+        n_mwp  = self.difficulty_config.params.get("n_moving_waypoints", 0)
 
         grid = Grid(size, size)
 
+        # Fill entire grid with HAZARD (fatal missteps)
         for y in range(size):
             for x in range(size):
-                grid.terrain[y, x] = CellType.WALL
+                grid.terrain[y, x] = CellType.HAZARD
+        # Border is walls
+        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, -1] = CellType.WALL
 
+        # Carve narrow corridors using randomized DFS maze
+        # (cells at odd coordinates form a maze grid)
         visited = set()
         stack = [(1, 1)]
         visited.add((1, 1))
@@ -101,9 +90,8 @@ class PreciseNavigationTask(TaskSpec):
                 if (1 <= nx < size - 1
                         and 1 <= ny < size - 1
                         and (nx, ny) not in visited):
-                    grid.terrain[
-                        cy + dy // 2, cx + dx // 2
-                    ] = CellType.EMPTY
+                    # Carve path cell and connecting cell
+                    grid.terrain[cy + dy // 2, cx + dx // 2] = CellType.EMPTY
                     grid.terrain[ny, nx] = CellType.EMPTY
                     visited.add((nx, ny))
                     stack.append((nx, ny))
@@ -114,6 +102,7 @@ class PreciseNavigationTask(TaskSpec):
 
         agent_pos = (1, 1)
 
+        # Collect all empty cells for placing objects
         empties = [
             (x, y) for y in range(1, size - 1)
             for x in range(1, size - 1)
@@ -122,45 +111,22 @@ class PreciseNavigationTask(TaskSpec):
         ]
         rng.shuffle(empties)
 
+        # Place waypoints (GEM objects) and goal
         waypoints = empties[:n_wp]
-        goal_pos = (
-            empties[n_wp] if len(empties) > n_wp else empties[-1]
-        )
-        used = {agent_pos, goal_pos} | set(waypoints)
+        goal_pos = empties[n_wp] if len(empties) > n_wp else empties[-1]
 
         for wx, wy in waypoints:
-            grid.objects[wy, wx] = ObjectType.TARGET
+            grid.objects[wy, wx] = ObjectType.GEM
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        hazard_positions = []
-        hazard_candidates = [
-            p for p in empties[n_wp + 1:] if p not in used
-        ]
-        if tight_windows:
-            rng.shuffle(hazard_candidates)
-        for p in hazard_candidates:
-            if len(hazard_positions) >= n_hazards:
-                break
-            hx, hy = p
-            grid.terrain[hy, hx] = CellType.HAZARD
-            reachable = grid.flood_fill(agent_pos)
-            critical = [goal_pos] + list(waypoints)
-            if all(q in reachable for q in critical):
-                hazard_positions.append(p)
-            else:
-                grid.terrain[hy, hx] = CellType.EMPTY
-
-        # Tag which waypoints are "moving" (last n_moving_wp)
-        n_mw = min(n_moving_wp, len(waypoints))
+        # Tag which waypoints are "moving" (last n_mwp)
+        n_mw = min(n_mwp, len(waypoints))
         moving_wp_indices = list(range(len(waypoints) - n_mw, len(waypoints)))
 
         return grid, {
             "agent_start":       agent_pos,
             "goal_positions":    [goal_pos],
             "waypoints":         waypoints,
-            "tight_windows":     tight_windows,
-            "hazard_positions":  hazard_positions,
-            "time_windows":      time_windows,
             "moving_wp_indices": moving_wp_indices,
             "_rng_seed":         int(rng.integers(0, 2**31)),
             "max_steps":         self.get_max_steps(),
@@ -169,80 +135,45 @@ class PreciseNavigationTask(TaskSpec):
     # ── Hooks ────────────────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
-        config["_waypoints_remaining"] = list(
-            config.get("waypoints", [])
-        )
-        config["_wp_rng"] = np.random.default_rng(
-            config.get("_rng_seed", 0)
-        )
-        config["_wp_spawn_step"] = {}
-        for i, wp in enumerate(config.get("waypoints", [])):
-            config["_wp_spawn_step"][i] = 0
+        config["_waypoints_remaining"] = list(config.get("waypoints", []))
+        config["_dead"] = False
+        config["_wp_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
         self._config = config
-        self._last_waypoints_rem = len(
-            config.get("waypoints", [])
-        )
+        self._last_waypoints_rem = len(config.get("waypoints", []))
+
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """Allow entry to hazard (will kill) but block walls."""
+        x, y = pos
+        if grid.terrain[y, x] == CellType.WALL:
+            return False
+        return True
 
     def on_agent_moved(self, pos, agent, grid):
         config = getattr(self, "_config", {})
+        x, y = pos
+
+        # Fatal misstep: stepping on hazard kills agent
+        if grid.terrain[y, x] == CellType.HAZARD:
+            config["_dead"] = True
+            return
+
+        # Collect waypoint gem
         remaining = config.get("_waypoints_remaining", [])
-        ax, ay = pos
-        if (ax, ay) in remaining:
-            remaining.remove((ax, ay))
-            grid.objects[ay, ax] = ObjectType.NONE
+        if (x, y) in remaining:
+            remaining.remove((x, y))
+            grid.objects[y, x] = ObjectType.NONE
             config["_waypoints_remaining"] = remaining
 
     def on_env_step(self, agent, grid, config, step_count):
+        """Move mobile waypoints periodically."""
         remaining = config.get("_waypoints_remaining", [])
-        time_win = config.get("time_windows", 0)
         moving_indices = config.get("moving_wp_indices", [])
         all_wp = config.get("waypoints", [])
         rng = config.get("_wp_rng")
-        if rng is None:
+        if rng is None or not moving_indices:
             return
 
-        # Time windows: remove waypoints that have been alive too long
-        if time_win > 0:
-            spawn_steps = config.get("_wp_spawn_step", {})
-            expired = []
-            for wp in list(remaining):
-                try:
-                    idx = all_wp.index(wp)
-                except ValueError:
-                    continue
-                age = step_count - spawn_steps.get(idx, 0)
-                if age > time_win:
-                    expired.append(wp)
-            for wp in expired:
-                wx, wy = wp
-                if grid.objects[wy, wx] == ObjectType.TARGET:
-                    grid.objects[wy, wx] = ObjectType.NONE
-                remaining.remove(wp)
-                try:
-                    idx = all_wp.index(wp)
-                except ValueError:
-                    continue
-                empties = [
-                    (x, y)
-                    for x in range(1, grid.width - 1)
-                    for y in range(1, grid.height - 1)
-                    if (grid.terrain[y, x] == CellType.EMPTY
-                        and grid.objects[y, x] == ObjectType.NONE
-                        and (x, y) not in remaining
-                        and (x, y) != agent.position)
-                ]
-                if empties:
-                    new_pos = empties[
-                        int(rng.integers(len(empties)))
-                    ]
-                    nx, ny = new_pos
-                    grid.objects[ny, nx] = ObjectType.TARGET
-                    remaining.append(new_pos)
-                    all_wp[idx] = new_pos
-                    spawn_steps[idx] = step_count
-
-        # Moving waypoints: shift position every 4 steps
-        if moving_indices and step_count % 4 == 0:
+        if step_count % 4 == 0:
             for idx in moving_indices:
                 if idx >= len(all_wp):
                     continue
@@ -250,37 +181,34 @@ class PreciseNavigationTask(TaskSpec):
                 if wp not in remaining:
                     continue
                 wx, wy = wp
-                moves = [
-                    (wx + dx, wy + dy)
-                    for dx, dy in self._DIRS
-                ]
+                moves = [(wx + dx, wy + dy) for dx, dy in self._DIRS]
                 valid = [
-                    (x, y) for x, y in moves
-                    if (1 <= x < grid.width - 1
-                        and 1 <= y < grid.height - 1
-                        and grid.terrain[y, x] == CellType.EMPTY
-                        and grid.objects[y, x] == ObjectType.NONE
-                        and (x, y) not in remaining)
+                    (nx, ny) for nx, ny in moves
+                    if (1 <= nx < grid.width - 1
+                        and 1 <= ny < grid.height - 1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and grid.objects[ny, nx] == ObjectType.NONE
+                        and (nx, ny) not in remaining)
                 ]
                 if valid:
-                    new_pos = valid[
-                        int(rng.integers(len(valid)))
-                    ]
-                    if grid.objects[wy, wx] == ObjectType.TARGET:
+                    new_pos = valid[int(rng.integers(len(valid)))]
+                    if grid.objects[wy, wx] == ObjectType.GEM:
                         grid.objects[wy, wx] = ObjectType.NONE
                     nx, ny = new_pos
-                    grid.objects[ny, nx] = ObjectType.TARGET
+                    grid.objects[ny, nx] = ObjectType.GEM
                     ri = remaining.index(wp)
                     remaining[ri] = new_pos
                     all_wp[idx] = new_pos
 
-        config["_waypoints_remaining"] = remaining
+            config["_waypoints_remaining"] = remaining
 
     # ── Reward & success ─────────────────────────────────────────────────────
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        reward = -0.01
         config = new_state.get("config", {})
+        if config.get("_dead", False):
+            return -1.0
+        reward = -0.01
         new_rem = len(config.get("_waypoints_remaining", []))
         if new_rem < self._last_waypoints_rem:
             reward += 0.3 * (self._last_waypoints_rem - new_rem)
@@ -292,8 +220,8 @@ class PreciseNavigationTask(TaskSpec):
             target = remaining[0]
         else:
             target = config.get("goal_positions", [None])[0]
-        if target and "agent_position" in new_state:
-            ax, ay = new_state["agent_position"]
+        if target and "agent" in new_state:
+            ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", (ax, ay))
             old_d = abs(ox - target[0]) + abs(oy - target[1])
             new_d = abs(ax - target[0]) + abs(ay - target[1])
@@ -302,9 +230,19 @@ class PreciseNavigationTask(TaskSpec):
             reward += 1.0
         return reward
 
+    def compute_sparse_reward(self, old_state, action, new_state, info):
+        config = new_state.get("config", {})
+        if config.get("_dead", False):
+            return -1.0
+        if self.check_success(new_state):
+            return 1.0
+        return 0.0
+
     def check_success(self, state):
-        """Agent at goal AND all waypoints collected."""
+        """Agent at goal AND all waypoints collected AND not dead."""
         config = state.get("config", {})
+        if config.get("_dead", False):
+            return False
         remaining = config.get("_waypoints_remaining", None)
         if remaining is None:
             remaining = config.get("waypoints", [])
@@ -314,6 +252,12 @@ class PreciseNavigationTask(TaskSpec):
             return False
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
+
+    def check_done(self, state):
+        config = state.get("config", {})
+        if config.get("_dead", False):
+            return True
+        return self.check_success(state)
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

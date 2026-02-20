@@ -91,15 +91,27 @@ class DelayedGratificationTask(TaskSpec):
                     if len(wall_cells) >= n_walls:
                         break
 
-            # Place decoys CLOSE to agent or on the direct path (maximally tempting)
+            # Place decoys CLOSE to agent but NOT adjacent to spawn (min distance 3)
+            # This ensures the agent has 2-3 clear cells to move before facing choices
             free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
                     if grid.terrain[y, x] == CellType.EMPTY
                     and (x, y) != agent_pos and (x, y) != goal_pos]
             # Sort by closeness to agent (most tempting first)
-            free.sort(key=lambda p: abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]))
+            # but enforce minimum distance of 3 from spawn
+            min_decoy_dist = 3
+            free_far = [p for p in free
+                        if abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]) >= min_decoy_dist]
+            free_far.sort(key=lambda p: abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]))
+            # Fallback to all free if not enough far positions
+            if len(free_far) < n_decoys:
+                free.sort(key=lambda p: abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]))
+                free_far = [p for p in free
+                            if abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]) >= 2]
+                if len(free_far) < n_decoys:
+                    free_far = free
             decoy_positions = []
             used = {agent_pos, goal_pos}
-            for p in free:
+            for p in free_far:
                 if len(decoy_positions) >= n_decoys:
                     break
                 if p not in used:
