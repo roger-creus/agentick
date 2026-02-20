@@ -12,11 +12,11 @@ from pydantic import BaseModel, Field, field_validator
 class TrainingConfig(BaseModel):
     """Configuration for PPO/RL training runs."""
 
-    total_timesteps: int = Field(default=300_000, description="Total training timesteps per task")
+    total_timesteps: int = Field(default=500_000, description="Total training timesteps per task")
     n_envs: int = Field(default=8, description="Number of parallel training environments")
-    eval_frequency: int = Field(default=10_000, description="Evaluate every N timesteps")
+    eval_frequency: int = Field(default=50_000, description="Evaluate every N timesteps")
     n_eval_episodes: int = Field(default=10, description="Episodes per evaluation")
-    checkpoint_frequency: int = Field(default=50_000, description="Save checkpoint every N steps")
+    checkpoint_frequency: int = Field(default=100_000, description="Save checkpoint every N steps")
     save_best_model: bool = Field(default=True, description="Keep best model by eval reward")
     device: str = Field(default="auto", description="Torch device (auto, cpu, cuda)")
 
