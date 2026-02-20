@@ -35,6 +35,12 @@ def main(argv: list[str] | None = None) -> None:
         default=1,
         help="Number of tasks to run in parallel (default: 1).",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Override output directory (all results go here).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -46,7 +52,7 @@ def main(argv: list[str] | None = None) -> None:
     config = load_config(config_path)
 
     runner = ExperimentRunner(config)
-    runner.run(resume_from=args.resume, n_parallel=args.n_parallel)
+    runner.run(resume_from=args.resume, n_parallel=args.n_parallel, output_dir=args.output_dir)
 
 
 if __name__ == "__main__":

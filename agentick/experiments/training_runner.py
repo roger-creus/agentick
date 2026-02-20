@@ -98,7 +98,7 @@ class TrainingBenchmarkRunner:
         self.start_time: float | None = None
         self.end_time: float | None = None
 
-    def run(self, resume_from: str | Path | None = None) -> Path:
+    def run(self, resume_from: str | Path | None = None, output_dir: str | Path | None = None) -> Path:
         """Run training benchmark over all tasks x difficulties.
 
         Args:
@@ -112,6 +112,10 @@ class TrainingBenchmarkRunner:
         # Create or resume output directory
         if resume_from:
             output_dir = Path(resume_from)
+            checkpoint = self._load_checkpoint(output_dir)
+        elif output_dir:
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
             checkpoint = self._load_checkpoint(output_dir)
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

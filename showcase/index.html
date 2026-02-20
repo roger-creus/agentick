@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentick - Task Showcase</title>
+<style>
+  /* ── Reset & base ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242836;
+    --border: #2e3344;
+    --text: #e4e6ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108,99,255,.25);
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --radius: 12px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* ── Layout ───────────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Header ───────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+  header h1 span { color: var(--accent); }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: .85rem;
+    color: var(--text-dim);
+  }
+  .counter {
+    background: var(--surface2);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+
+  /* ── Carousel container ───────────────────────────────── */
+  .carousel-wrap {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Navigation arrows */
+  .nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.3rem;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, box-shadow .15s;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  }
+  .nav-arrow:hover { background: var(--accent); box-shadow: 0 0 16px var(--accent-glow); }
+  .nav-arrow.left  { left: 16px; }
+  .nav-arrow.right { right: 16px; }
+
+  /* ── Slide ─────────────────────────────────────────────── */
+  .slide {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 24px 80px;
+    overflow: hidden;
+  }
+
+  /* Left: video */
+  .slide-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 28px;
+  }
+  .slide-video video {
+    max-width: 100%;
+    max-height: calc(100vh - 160px);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    background: #000;
+  }
+  .slide-video .no-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 400px;
+    height: 300px;
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: .95rem;
+  }
+
+  /* Right: info */
+  .slide-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 28px;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  .slide-info h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -.02em;
+  }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .badge {
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .badge-category { background: var(--accent); color: #fff; }
+  .badge-tag { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+  .badge-diff { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: .7rem; }
+
+  .desc-brief {
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--text);
+    margin-bottom: 18px;
+    font-weight: 400;
+  }
+  .desc-meta {
+    font-size: .85rem;
+    line-height: 1.6;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+  }
+
+  .play-btn {
+    align-self: flex-start;
+    padding: 12px 32px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, box-shadow .15s;
+  }
+  .play-btn:hover { box-shadow: 0 0 20px var(--accent-glow); }
+
+  /* ── Human play mode ──────────────────────────────────── */
+  #playMode {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 28px;
+    overflow-y: auto;
+  }
+  #playMode.active { display: flex; }
+  #showcaseMode.hidden { display: none !important; }
+
+  .play-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    width: 100%;
+    max-width: 720px;
+  }
+  .play-header h2 { font-size: 1.3rem; flex: 1; }
+  .play-header select, .play-header button {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: .85rem;
+    cursor: pointer;
+  }
+  .play-header button { border: none; background: var(--surface2); }
+  .play-header button:hover { background: var(--accent); }
+
+  .play-stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+    font-size: .85rem;
+    color: var(--text-dim);
+  }
+  .play-stats .val { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .play-render {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .play-render img {
+    max-width: 480px;
+    max-height: 480px;
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    image-rendering: pixelated;
+    background: #000;
+  }
+  .play-render .msg-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.6);
+    border-radius: var(--radius);
+    font-size: 1.3rem;
+    font-weight: 700;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .play-render .msg-overlay.show { opacity: 1; }
+
+  /* D-pad */
+  .dpad {
+    display: grid;
+    grid-template-areas:
+      ". up ."
+      "left noop right"
+      ". down .";
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .dpad button {
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dpad button:hover, .dpad button:active { background: var(--accent); }
+  .dpad .up    { grid-area: up; }
+  .dpad .down  { grid-area: down; }
+  .dpad .left  { grid-area: left; }
+  .dpad .right { grid-area: right; }
+  .dpad .noop  { grid-area: noop; font-size: .7rem; }
+
+  .extra-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .extra-actions button {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: .82rem;
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .extra-actions button:hover { background: var(--accent); }
+
+  .play-footer {
+    display: flex;
+    gap: 12px;
+  }
+  .play-footer button {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: .9rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .btn-reset { background: var(--surface2); color: var(--text); }
+  .btn-reset:hover { background: var(--yellow); color: #000; }
+  .btn-back { background: var(--surface2); color: var(--text); }
+  .btn-back:hover { background: var(--red); color: #fff; }
+
+  /* ── Loading spinner ──────────────────────────────────── */
+  .spinner {
+    display: none;
+    width: 28px; height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    margin: 8px auto;
+  }
+  .spinner.show { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ───────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .slide { grid-template-columns: 1fr; padding: 16px 20px; }
+    .slide-video { padding: 0 0 16px 0; }
+    .slide-info { border-left: none; border-top: 1px solid var(--border); padding: 16px 0 0 0; }
+    .nav-arrow.left { left: 4px; }
+    .nav-arrow.right { right: 4px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header>
+    <h1><span>Agentick</span> Task Showcase</h1>
+    <div class="header-meta">
+      <span id="categoryLabel"></span>
+      <span class="counter" id="counter">- / -</span>
+    </div>
+  </header>
+
+  <!-- ── Showcase mode (carousel) ────────────────────────── -->
+  <div id="showcaseMode" class="carousel-wrap">
+    <button class="nav-arrow left" onclick="navigate(-1)" aria-label="Previous">&#8592;</button>
+    <div class="slide" id="slideContainer">
+      <div class="slide-video" id="slideVideo"></div>
+      <div class="slide-info" id="slideInfo"></div>
+    </div>
+    <button class="nav-arrow right" onclick="navigate(1)" aria-label="Next">&#8594;</button>
+  </div>
+
+  <!-- ── Human-play mode ──────────────────────────────────── -->
+  <div id="playMode" tabindex="-1">
+    <div class="play-header">
+      <h2 id="playTitle">Task</h2>
+      <select id="playDifficulty">
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        <option value="expert">Expert</option>
+      </select>
+      <button tabindex="-1" onclick="startPlay()" title="Start / Restart">Start</button>
+    </div>
+
+    <div class="play-stats">
+      <span>Steps: <span class="val" id="playSteps">0</span></span>
+      <span>Reward: <span class="val" id="playReward">0.00</span></span>
+    </div>
+
+    <div class="play-render">
+      <img id="playImage" src="" alt="Game render">
+      <div class="msg-overlay" id="playOverlay"></div>
+    </div>
+
+    <div class="spinner" id="playSpinner"></div>
+
+    <div class="dpad">
+      <button class="up"    tabindex="-1" onclick="sendAction('move_up')">&#9650;</button>
+      <button class="left"  tabindex="-1" onclick="sendAction('move_left')">&#9664;</button>
+      <button class="noop"  tabindex="-1" onclick="sendAction('noop')">WAIT</button>
+      <button class="right" tabindex="-1" onclick="sendAction('move_right')">&#9654;</button>
+      <button class="down"  tabindex="-1" onclick="sendAction('move_down')">&#9660;</button>
+    </div>
+
+    <div class="extra-actions">
+      <button tabindex="-1" onclick="sendAction('pickup')">Pickup (E)</button>
+      <button tabindex="-1" onclick="sendAction('drop')">Drop (Q)</button>
+      <button tabindex="-1" onclick="sendAction('use')">Use (F)</button>
+      <button tabindex="-1" onclick="sendAction('interact')">Interact (G)</button>
+    </div>
+
+    <div class="play-footer">
+      <button class="btn-reset" tabindex="-1" onclick="resetPlay()">Reset (R)</button>
+      <button class="btn-back"  tabindex="-1" onclick="exitPlay()">Back (Esc)</button>
+    </div>
+    <div style="margin-top:10px;font-size:.75rem;color:var(--text-dim);text-align:center;">
+      WASD / Arrows: move &nbsp; E: pickup &nbsp; Q: drop &nbsp; F: use &nbsp; G: interact &nbsp; Space: wait &nbsp; R: reset &nbsp; Esc: back
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ================================================================
+   State
+   ================================================================ */
+let tasks = [];
+let currentIdx = 0;
+let playSession = null;   // non-null when a game is active
+let playSteps = 0;
+let playReward = 0;
+let busy = false;         // prevent double-clicks
+
+/* ================================================================
+   Boot: load task descriptions
+   ================================================================ */
+(async function boot() {
+  try {
+    // Try the API endpoint first (Flask backend running)
+    let resp = await fetch('/api/task_descriptions');
+    if (resp.ok) {
+      tasks = await resp.json();
+    } else {
+      throw new Error('API unavailable');
+    }
+  } catch {
+    // Fallback: load static JSON (e.g., opened as a file)
+    try {
+      let resp = await fetch('../task_descriptions.json');
+      if (resp.ok) tasks = await resp.json();
+    } catch { /* ignore */ }
+  }
+  if (tasks.length === 0) {
+    document.getElementById('slideInfo').innerHTML =
+      '<p style="color:var(--text-dim)">No task data found. Start the Flask backend or place <code>task_descriptions.json</code> next to this file.</p>';
+    return;
+  }
+  renderSlide();
+})();
+
+/* ================================================================
+   Carousel navigation
+   ================================================================ */
+function navigate(dir) {
+  currentIdx = (currentIdx + dir + tasks.length) % tasks.length;
+  renderSlide();
+}
+
+// Use capture phase so we intercept keys BEFORE buttons/selects consume them
+document.addEventListener('keydown', e => {
+  const inPlay = document.getElementById('playMode').classList.contains('active');
+  if (inPlay) {
+    handlePlayKey(e);
+    return;
+  }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); navigate(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1);  }
+}, true);
+
+/* ================================================================
+   Render a slide
+   ================================================================ */
+function renderSlide() {
+  const t = tasks[currentIdx];
+  document.getElementById('counter').textContent = `${currentIdx + 1} / ${tasks.length}`;
+  document.getElementById('categoryLabel').textContent = t.category;
+
+  // Video
+  const videoEl = document.getElementById('slideVideo');
+  if (t.video) {
+    videoEl.innerHTML = `<video src="/videos/${t.video}" autoplay loop muted playsinline></video>`;
+  } else {
+    videoEl.innerHTML = '<div class="no-video">No video available</div>';
+  }
+
+  // Info panel
+  const tags = (t.capability_tags || []).map(tag =>
+    `<span class="badge badge-tag">${tag}</span>`).join('');
+  const diffs = (t.difficulties || []).map(d =>
+    `<span class="badge badge-diff">${d}</span>`).join('');
+
+  // Use the docstring as the main description; fall back to short description
+  const mainDesc = t.detailed_description || t.description || '';
+
+  document.getElementById('slideInfo').innerHTML = `
+    <h2>${t.name}</h2>
+    <div class="badge-row">
+      <span class="badge badge-category">${t.category}</span>
+      ${tags}
+    </div>
+    <div class="desc-brief">${mainDesc}</div>
+    <div class="badge-row" style="margin-bottom:20px">${diffs}</div>
+    <button class="play-btn" onclick="enterPlay()">Play This Task</button>
+  `;
+}
+
+/* ================================================================
+   Human Play Mode
+   ================================================================ */
+function enterPlay() {
+  const t = tasks[currentIdx];
+  document.getElementById('showcaseMode').classList.add('hidden');
+  const playEl = document.getElementById('playMode');
+  playEl.classList.add('active');
+  document.getElementById('playTitle').textContent = t.name;
+  document.getElementById('playImage').src = '';
+  document.getElementById('playOverlay').classList.remove('show');
+  playSteps = 0;
+  playReward = 0;
+  updatePlayStats();
+  // Focus the play container so keyboard events work immediately
+  playEl.focus();
+  startPlay();
+}
+
+function exitPlay() {
+  if (playSession) {
+    fetch('/api/quit', { method: 'POST', headers: {'Content-Type': 'application/json'} })
+      .catch(() => {});
+  }
+  playSession = null;
+  document.getElementById('playMode').classList.remove('active');
+  document.getElementById('showcaseMode').classList.remove('hidden');
+}
+
+async function startPlay() {
+  const t = tasks[currentIdx];
+  const difficulty = document.getElementById('playDifficulty').value;
+  showSpinner(true);
+  hideOverlay();
+
+  try {
+    const resp = await fetch('/api/start_task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: t.name, difficulty })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      playSession = data.session_id;
+      playSteps = 0;
+      playReward = 0;
+      updatePlayStats();
+      document.getElementById('playImage').src = data.render;
+    } else {
+      showOverlayMsg('Failed to start: ' + (data.error || ''));
+    }
+  } catch (err) {
+    showOverlayMsg('Server error. Is the Flask backend running?');
+  }
+  showSpinner(false);
+}
+
+async function sendAction(action) {
+  if (!playSession || busy) return;
+  busy = true;
+  // Keep focus on the play container so subsequent key presses work
+  document.getElementById('playMode').focus();
+
+  try {
+    const resp = await fetch('/api/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    const data = await resp.json();
+    document.getElementById('playImage').src = data.render;
+    playSteps++;
+    playReward += (data.reward || 0);
+    updatePlayStats();
+
+    if (data.terminated || data.truncated) {
+      const msg = data.terminated
+        ? (data.success ? 'Success!' : 'Episode ended')
+        : 'Truncated (max steps)';
+      showOverlayMsg(msg);
+      playSession = null;
+    }
+  } catch (err) {
+    showOverlayMsg('Connection lost');
+    playSession = null;
+  }
+  busy = false;
+}
+
+async function resetPlay() {
+  if (!playSession) { startPlay(); return; }
+  showSpinner(true);
+  try {
+    const resp = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await resp.json();
+    document.getElementById('playImage').src = data.render;
+    playSteps = 0;
+    playReward = 0;
+    updatePlayStats();
+    hideOverlay();
+  } catch {
+    showOverlayMsg('Reset failed');
+  }
+  showSpinner(false);
+}
+
+function handlePlayKey(e) {
+  // Don't intercept keys when typing in the difficulty selector
+  if (e.target.tagName === 'SELECT') return;
+
+  const map = {
+    'w': 'move_up', 'a': 'move_left', 's': 'move_down', 'd': 'move_right',
+    'e': 'pickup', 'q': 'drop', 'f': 'use', 'g': 'interact',
+    ' ': 'noop',
+    'ArrowUp': 'move_up', 'ArrowLeft': 'move_left',
+    'ArrowDown': 'move_down', 'ArrowRight': 'move_right'
+  };
+  const action = map[e.key] || map[e.key.toLowerCase()];
+  if (action) {
+    e.preventDefault();
+    e.stopPropagation();   // stop event from reaching focused buttons
+    sendAction(action);
+    return;
+  }
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); resetPlay(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); exitPlay(); return; }
+}
+
+/* helpers */
+function updatePlayStats() {
+  document.getElementById('playSteps').textContent = playSteps;
+  document.getElementById('playReward').textContent = playReward.toFixed(2);
+}
+function showSpinner(on) {
+  document.getElementById('playSpinner').classList.toggle('show', on);
+}
+function showOverlayMsg(msg) {
+  const el = document.getElementById('playOverlay');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideOverlay() {
+  document.getElementById('playOverlay').classList.remove('show');
+}
+</script>
+</body>
+</html>
