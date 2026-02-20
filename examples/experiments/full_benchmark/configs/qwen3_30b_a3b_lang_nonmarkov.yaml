@@ -1,0 +1,40 @@
+name: qwen3_30b_a3b_lang_nonmarkov
+description: Qwen3-30B-A3B-Instruct-2507 LLM, non-markovian zero-shot, language observations
+agent:
+  type: llm
+  hyperparameters:
+    backend: huggingface_llm
+    model: Qwen/Qwen3-30B-A3B-Instruct-2507
+    harness: non_markovian_zero_shot
+    observation_modes:
+    - language
+    device: auto
+    dtype: bfloat16
+    max_new_tokens: 50
+    temperature: 0.0
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
+training: null
+n_episodes: 5
+n_seeds: 5
+render_modes:
+- language
+record_trajectories: true
+record_videos: true
+output_dir: results/llm_benchmarks
+tags:
+- llm
+- qwen3-30b-a3b
+- benchmark
+- lang
+- nonmarkov
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- mean_latency
+- total_tokens
