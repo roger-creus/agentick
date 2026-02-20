@@ -71,6 +71,12 @@ def main() -> None:
         default=None,
         help="Override device (cpu, cuda, auto)",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Override output directory (all results go here)",
+    )
     args = parser.parse_args()
 
     # Check dependencies
@@ -99,7 +105,7 @@ def main() -> None:
 
     # Run
     runner = TrainingBenchmarkRunner(config)
-    runner.run(resume_from=args.resume)
+    runner.run(resume_from=args.resume, output_dir=args.output_dir)
 
 
 if __name__ == "__main__":

@@ -91,9 +91,10 @@ See [examples/README.md](examples/README.md) for full list.
 | Skill Discovery | ToolUse, RecipeAssembly, EmergentStrategy | 5 |
 | Control | PreciseNavigation, TimingChallenge, ChaseEvade | 4 |
 | Combinatorial | LightsOut, GraphColoring, PackingPuzzle | 4 |
-| Adversarial | DeceptiveReward, DistributionShift | 3 |
+| Adversarial | DeceptiveReward, DistributionShift, NoisyObservation | 3 |
 | Meta-Learning | FewShotAdaptation, TaskInterference | 2 |
 | Multi-Agent | CooperativeTransport, CompetitiveTag | 2 |
+| Compositional | InstructionFollowing, ProgramSynthesis, RecursiveRooms | 3 |
 
 **Total: 38 tasks**, each with 4 difficulty levels (easy, medium, hard, expert).
 

@@ -234,7 +234,7 @@ class ExperimentRunner:
 
             self.agent = create_agent(config.agent)
 
-    def run(self, resume_from: str | Path | None = None, n_parallel: int = 1) -> ExperimentResults:
+    def run(self, resume_from: str | Path | None = None, n_parallel: int = 1, output_dir: str | Path | None = None) -> ExperimentResults:
         """
         Run the experiment with crash-safe checkpoint support.
 
@@ -260,8 +260,11 @@ class ExperimentRunner:
         self.start_time = time.time()
 
         # Create output directory
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = Path(self.config.output_dir) / f"{self.config.name}_{timestamp}"
+        if output_dir:
+            output_dir = Path(output_dir)
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = Path(self.config.output_dir) / f"{self.config.name}_{timestamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Collect metadata

@@ -254,23 +254,20 @@ def get_task_description(task_name: str) -> str:
     """
     Get natural language description of task objective.
 
+    Dynamically looks up the task in the registry so that all 38 tasks are
+    covered (not just a hardcoded subset).
+
     Args:
         task_name: Name of the task
 
     Returns:
         Task description
     """
-    # Task descriptions
-    descriptions = {
-        "GoToGoal-v0": "Navigate to the goal position (marked as G) on the grid.",
-        "MazeNavigation-v0": "Navigate through a maze to reach the goal.",
-        "KeyDoorPuzzle-v0": "Find the key, then use it to unlock the door, then reach the goal.",
-        "SokobanPush-v0": "Push boxes onto target positions.",
-        "ToolUse-v0": "Use tools to complete the task.",
-        "ChaseEvade-v0": "Chase the target or evade the chaser.",
-    }
+    from agentick.tasks.descriptions import (
+        get_task_description as _get_task_description,
+    )
 
-    return descriptions.get(task_name, "Complete the task objective.")
+    return _get_task_description(task_name)
 
 
 def create_system_prompt(task_name: str) -> str:
