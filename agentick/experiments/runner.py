@@ -613,13 +613,26 @@ class ExperimentRunner:
             episodes_dir = output_dir / "per_task" / task_name / "episodes"
             episodes_dir.mkdir(parents=True, exist_ok=True)
 
-            # Determine render mode: agent needs take priority
+            # Determine render mode: agent needs take priority.
+            # For multimodal agents, prefer rgb_array as the primary env render mode
+            # since text modes can be obtained via render_in_mode().
             if self.agent is not None:
-                render_mode = self.agent.observation_modes[0]
+                if "rgb_array" in self.agent.observation_modes:
+                    render_mode = "rgb_array"
+                else:
+                    render_mode = self.agent.observation_modes[0]
             elif self.config.render_modes:
                 render_mode = self.config.render_modes[0]
             else:
                 render_mode = None
+
+            # Video directory (record first episode per seed only to save space)
+            video_dir = None
+            if self.config.record_videos:
+                video_dir = (
+                    output_dir / "videos" / task_name / difficulty
+                )
+                video_dir.mkdir(parents=True, exist_ok=True)
 
             # Run episodes
             for seed_idx, seed in enumerate(seeds):
@@ -633,8 +646,13 @@ class ExperimentRunner:
                         render_mode=render_mode,
                     )
 
+                    # Only record video for first episode per seed
+                    ep_video_dir = video_dir if (video_dir and ep_idx == 0) else None
+
                     # Run episode
-                    episode_data = self._run_episode(env, seed, seed_idx, ep_idx, episodes_dir)
+                    episode_data = self._run_episode(
+                        env, seed, seed_idx, ep_idx, episodes_dir, ep_video_dir,
+                    )
                     difficulty_results["episodes"].append(episode_data)
 
                     env.close()
@@ -653,6 +671,34 @@ class ExperimentRunner:
 
         return task_results
 
+    def _save_video(
+        self,
+        frames: list[np.ndarray],
+        video_dir: Path,
+        seed_idx: int,
+        ep_idx: int,
+    ) -> None:
+        """Save episode frames as video (mp4 if ffmpeg available, else gif)."""
+        from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
+
+        name = f"seed_{seed_idx}_ep_{ep_idx}"
+        try:
+            if _has_ffmpeg():
+                _save_mp4(frames, video_dir / f"{name}.mp4", fps=10)
+            else:
+                _save_gif(frames, video_dir / f"{name}.gif", fps=10)
+        except Exception as e:
+            print(f"  Warning: Failed to save video {name}: {e}")
+
+    def _inject_secondary_obs(self, env: Any, info: dict[str, Any]) -> None:
+        """Inject secondary renderings into info for multimodal agents."""
+        if self.agent is None or len(self.agent.observation_modes) <= 1:
+            return
+        render_mode = env.render_mode
+        for mode in self.agent.observation_modes:
+            if mode != render_mode and mode in ("language", "ascii", "language_structured"):
+                info[f"obs_{mode}"] = env.render_in_mode(mode)
+
     def _run_episode(
         self,
         env: Any,
@@ -660,13 +706,22 @@ class ExperimentRunner:
         seed_idx: int,
         ep_idx: int,
         episodes_dir: Path,
+        video_dir: Path | None = None,
     ) -> dict[str, Any]:
         """Run a single episode."""
         obs, info = env.reset(seed=seed)
+        self._inject_secondary_obs(env, info)
 
         # Reset agent state at episode start
         if self.agent is not None:
             self.agent.reset()
+
+        # Collect frames for video recording
+        frames: list[np.ndarray] = []
+        if video_dir is not None:
+            frame = env.render_in_mode("rgb_array")
+            if isinstance(frame, np.ndarray):
+                frames.append(frame)
 
         trajectory = {
             "seed": seed,
@@ -692,6 +747,13 @@ class ExperimentRunner:
 
             # Step environment
             obs, reward, terminated, truncated, info = env.step(action)
+            self._inject_secondary_obs(env, info)
+
+            # Collect video frame
+            if video_dir is not None:
+                frame = env.render_in_mode("rgb_array")
+                if isinstance(frame, np.ndarray):
+                    frames.append(frame)
 
             total_reward += reward
             step_count += 1
@@ -715,6 +777,10 @@ class ExperimentRunner:
             episode_file = episodes_dir / f"seed_{seed_idx}_ep_{ep_idx}.json"
             with open(episode_file, "w") as f:
                 json.dump(trajectory, f, indent=2)
+
+        # Save video
+        if video_dir is not None and frames:
+            self._save_video(frames, video_dir, seed_idx, ep_idx)
 
         # Build episode result
         episode_result: dict[str, Any] = {

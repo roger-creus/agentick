@@ -255,6 +255,16 @@ class AgentickEnv(gym.Env):
         info = self._get_info()
         return self.renderer.render(self.grid, self.entities, self.agent, info)
 
+    def render_in_mode(self, mode: str) -> Any:
+        """Render current state in the given mode (regardless of configured render_mode).
+
+        This enables multimodal agents: the env renders one mode as the primary
+        observation, and this method produces additional renderings in other modes.
+        """
+        renderer = create_renderer(mode)
+        info = self._get_info()
+        return renderer.render(self.grid, self.entities, self.agent, info)
+
     def close(self) -> None:
         """Clean up resources."""
         pass

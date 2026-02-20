@@ -9,13 +9,13 @@ from agentick.agents.backends.base import BackendResponse, ModelBackend
 
 
 class HuggingFaceVLMBackend(ModelBackend):
-    """Backend for local HuggingFace vision-language models (e.g. Qwen2.5-VL)."""
+    """Backend for local HuggingFace vision-language models (e.g. Qwen3-VL)."""
 
     supports_vision = True
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct",
+        model_id: str = "Qwen/Qwen3-VL-4B-Instruct",
         device: str = "auto",
         dtype: str = "bfloat16",
         max_new_tokens: int = 50,
@@ -37,7 +37,12 @@ class HuggingFaceVLMBackend(ModelBackend):
             return
 
         try:
-            from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+            from transformers import AutoProcessor
+
+            try:
+                from transformers import AutoModelForImageTextToText as VLMModelClass
+            except ImportError:
+                from transformers import AutoModelForVision2Seq as VLMModelClass
         except ImportError:
             raise ImportError("transformers package not installed. Run: uv sync --extra llm")
 
@@ -54,13 +59,17 @@ class HuggingFaceVLMBackend(ModelBackend):
         if self.device == "auto":
             model_kwargs["device_map"] = "auto"
 
-        self._model = Qwen2VLForConditionalGeneration.from_pretrained(self.model_id, **model_kwargs)
+        self._model = VLMModelClass.from_pretrained(
+            self.model_id, trust_remote_code=True, **model_kwargs
+        )
 
         if self.device != "auto":
             self._model = self._model.to(self.device)
 
         self._model.eval()
-        self._processor = AutoProcessor.from_pretrained(self.model_id)
+        self._processor = AutoProcessor.from_pretrained(
+            self.model_id, trust_remote_code=True
+        )
 
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:
         """Generate a response using the local VLM."""
@@ -81,9 +90,13 @@ class HuggingFaceVLMBackend(ModelBackend):
         images = self._extract_images(messages)
 
         if images:
-            inputs = self._processor(text=[text_prompt], images=images, return_tensors="pt")
+            inputs = self._processor(
+                text=[text_prompt], images=images, return_tensors="pt", truncation=True
+            )
         else:
-            inputs = self._processor(text=[text_prompt], return_tensors="pt")
+            inputs = self._processor(
+                text=[text_prompt], return_tensors="pt", truncation=True
+            )
 
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
         input_len = inputs.get("input_ids", torch.tensor([])).shape[-1]

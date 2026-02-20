@@ -15,7 +15,7 @@ class HuggingFaceLLMBackend(ModelBackend):
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen3-4B-Instruct",
+        model_id: str = "Qwen/Qwen3-4B-Instruct-2507",
         device: str = "auto",
         dtype: str = "bfloat16",
         quantization: str | None = None,
@@ -89,7 +89,7 @@ class HuggingFaceLLMBackend(ModelBackend):
 
         import torch
 
-        inputs = self._tokenizer(prompt, return_tensors="pt")
+        inputs = self._tokenizer(prompt, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self._model.device)
         input_len = input_ids.shape[1]
 
