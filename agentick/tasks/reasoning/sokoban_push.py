@@ -51,22 +51,33 @@ class SokobanPushTask(TaskSpec):
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
-        # Original range preserved for backward compatibility with scripted tests
-        free = [(x, y) for x in range(1, size - 1)
-                        for y in range(1, size - 1)
-                if (x, y) != agent_pos]
-        rng.shuffle(free)
+        # Free cells excluding borders (boxes against outer walls = deadlock)
+        # Boxes need at least 2 cells clearance from walls in push directions
+        interior_free = [(x, y) for x in range(2, size - 2)
+                                for y in range(2, size - 2)
+                         if (x, y) != agent_pos]
+        all_free = [(x, y) for x in range(1, size - 1)
+                            for y in range(1, size - 1)
+                    if (x, y) != agent_pos]
+        rng.shuffle(interior_free)
+        rng.shuffle(all_free)
 
         box_positions = []
         target_positions = []
         used = {agent_pos}
         n_pairs = max(n_boxes, n_targets)
         for i in range(n_pairs):
-            bp = next((p for p in free if p not in used), None)
+            # Boxes must be in interior (not adjacent to outer walls)
+            bp = next((p for p in interior_free if p not in used), None)
+            if bp is None:
+                # Fallback: use any free cell but avoid corners
+                bp = next((p for p in all_free if p not in used
+                          and not (p[0] in (1, size-2) and p[1] in (1, size-2))), None)
             if bp is None:
                 break
             used.add(bp)
-            tp = next((p for p in free if p not in used), None)
+            # Targets can be anywhere (including near walls)
+            tp = next((p for p in all_free if p not in used), None)
             if tp is None:
                 break
             used.add(tp)
@@ -80,7 +91,7 @@ class SokobanPushTask(TaskSpec):
 
         # Interior obstacles — flood-fill check (avoid isolating boxes or targets)
         wall_positions = []
-        wall_candidates = [p for p in free if p not in used]
+        wall_candidates = [p for p in all_free if p not in used]
         critical = [agent_pos] + box_positions + target_positions
         for p in wall_candidates:
             if len(wall_positions) >= n_obstacles:
@@ -97,7 +108,7 @@ class SokobanPushTask(TaskSpec):
         # Place hazard terrain (agent loses if stepped on, boxes can't be pushed onto)
         n_hazards = self.difficulty_config.params.get("n_hazards", 0)
         if n_hazards > 0:
-            hazard_candidates = [p for p in free if p not in used
+            hazard_candidates = [p for p in all_free if p not in used
                                 and grid.terrain[p[1], p[0]] == CellType.EMPTY]
             placed_h = 0
             for hx, hy in hazard_candidates:

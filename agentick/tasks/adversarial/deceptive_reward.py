@@ -309,7 +309,7 @@ class DeceptiveRewardTask(TaskSpec):
         if goal and "agent" in new_state:
             ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", (ax, ay))
-            reward += 0.03 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
+            reward += 0.05 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
         if self.check_success(new_state):
             reward += 1.0
         return reward

@@ -64,6 +64,14 @@ ANSI_COLORS = {
     "empty": "\033[37m",  # White
     "water": "\033[96m",  # Cyan
     "ice": "\033[97m",  # Bright white
+    "npc": "\033[96m",  # Cyan
+    "enemy": "\033[91m",  # Red
+    "gem": "\033[35m",  # Purple
+    "lever": "\033[33m",  # Yellow/brown
+    "potion": "\033[96m",  # Cyan
+    "scroll": "\033[33m",  # Yellow
+    "coin": "\033[93m",  # Bright yellow
+    "orb": "\033[95m",  # Magenta
 }
 
 
@@ -158,6 +166,24 @@ class ASCIIRenderer:
                 elif obj_val == ObjectType.BLOCKER:
                     char_grid[y, x] = "X"
                     color_grid[y, x] = "hazard"
+                elif obj_val == ObjectType.GEM:
+                    char_grid[y, x] = "d"
+                    color_grid[y, x] = "gem"
+                elif obj_val == ObjectType.LEVER:
+                    char_grid[y, x] = "L"
+                    color_grid[y, x] = "lever"
+                elif obj_val == ObjectType.POTION:
+                    char_grid[y, x] = "P"
+                    color_grid[y, x] = "potion"
+                elif obj_val == ObjectType.SCROLL:
+                    char_grid[y, x] = "?"
+                    color_grid[y, x] = "scroll"
+                elif obj_val == ObjectType.COIN:
+                    char_grid[y, x] = "c"
+                    color_grid[y, x] = "coin"
+                elif obj_val == ObjectType.ORB:
+                    char_grid[y, x] = "O"
+                    color_grid[y, x] = "orb"
 
         # Agent layer
         ax, ay = agent.position

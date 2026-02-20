@@ -169,6 +169,18 @@ class InstructionFollowingTask(TaskSpec):
             grid.objects[gy, gx] = ObjectType.NPC
             used.add((gx, gy))
 
+        # Build instruction cage: place a GOAL indicator in the outer wall border
+        # (row 0, which is always WALL) so agent can see the target without
+        # affecting the playable grid. The cage is purely visual.
+        cage_cx = size // 2  # center of top wall
+        grid.objects[0, cage_cx] = ObjectType.GOAL  # visual indicator in wall
+        grid.metadata[0, cage_cx] = 3  # META_CAGE
+        # Mark neighbor wall cells as cage border
+        for dx2 in [-1, 0, 1]:
+            nx2 = cage_cx + dx2
+            if 0 <= nx2 < size:
+                grid.metadata[0, nx2] = 3
+
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [true_goal],
@@ -185,6 +197,7 @@ class InstructionFollowingTask(TaskSpec):
                 for _ in guard_positions
             ],
             "_guard_seed": int(rng.integers(0, 2**31)),
+            "_cage_pos": (cage_cx, 0),
             "max_steps": self.get_max_steps(),
         }
 
@@ -311,6 +324,15 @@ class InstructionFollowingTask(TaskSpec):
             return True
         config = state.get("config", {})
         return config.get("_wrong_zone", False) or config.get("_guard_collision", False)
+
+    def validate_instance(self, grid, config):
+        """Cage is inaccessible by design; validate path to real goal only."""
+        agent_start = config.get("agent_start")
+        goal = config.get("goal_positions", [None])[0]
+        if agent_start is None or goal is None:
+            return True
+        reachable = grid.flood_fill(agent_start)
+        return goal in reachable
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

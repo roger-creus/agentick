@@ -227,8 +227,9 @@ def test_sparse_vs_dense_rewards():
     env_sparse = make("TestTask-v0", difficulty="easy", reward_mode="sparse", seed=42)
     env_dense = make("TestTask-v0", difficulty="easy", reward_mode="dense", seed=42)
 
-    env_sparse.reset()
-    env_dense.reset()
+    # Use seed=0 which is known to not place agent on goal for this 5x5 TestTask
+    env_sparse.reset(seed=0)
+    env_dense.reset(seed=0)
 
     # Take same action
     _, reward_sparse, *_ = env_sparse.step(0)

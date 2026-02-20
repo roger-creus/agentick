@@ -1,11 +1,15 @@
-"""ToolUse - Pick up a tool to bypass an obstacle, then reach the goal.
+"""ToolUse - Pick up specific tools to bypass different obstacle types.
 
 MECHANICS:
-  - A KEY (tool) is placed on one side of the grid
-  - A row of HAZARD obstacles blocks the direct path to the goal
-  - WITH the key in inventory, agent can pass through hazard (can_agent_enter)
-  - WITHOUT the key, hazard ends episode
-  - Success = reach GOAL with key in inventory
+  - Multiple tool types with different effects:
+    - TOOL (hammer): breaks through WALL obstacles (one use)
+    - KEY (bridge): crosses WATER cells safely
+    - GEM (torch): illuminates and passes through HAZARD (lava) safely
+  - Each obstacle type requires the matching tool
+  - Without correct tool: HAZARD kills, WATER blocks, WALL blocks
+  - Tool durability: each tool has limited uses before breaking
+  - Must plan which tools to collect and in what order
+  - Success = reach GOAL using appropriate tools
 """
 
 import numpy as np
@@ -16,56 +20,69 @@ from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
+# Tool type → obstacle it can bypass
+_TOOL_OBSTACLES = {
+    "hammer": CellType.WALL,    # TOOL object → breaks walls
+    "bridge": CellType.WATER,   # KEY object → crosses water
+    "torch":  CellType.HAZARD,  # GEM object → passes lava
+}
+
+_TOOL_OBJECT = {
+    "hammer": ObjectType.TOOL,
+    "bridge": ObjectType.KEY,
+    "torch":  ObjectType.GEM,
+}
+
 
 @register_task("ToolUse-v0", tags=["compositional_logic", "planning"])
 class ToolUseTask(TaskSpec):
-    """Collect the tool to bypass obstacles and reach the goal."""
+    """Collect specific tools to bypass different obstacle types and reach the goal."""
 
     name = "ToolUse-v0"
-    description = "Pick up tool to bypass obstacles and reach goal"
+    description = "Use different tools to bypass different obstacles"
     capability_tags = ["compositional_logic", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
+        "easy": DifficultyConfig(
             name="easy", grid_size=7, max_steps=80,
             params={
-                "n_tools": 1, "n_obstacles": 0, "n_decoys": 0,
-                "n_barriers": 1, "tool_durability": 0,
+                "tools": ["torch"],
+                "tool_durability": 3,
+                "n_decoys": 0,
             },
         ),
         "medium": DifficultyConfig(
             name="medium", grid_size=10, max_steps=150,
             params={
-                "n_tools": 2, "n_obstacles": 3, "n_decoys": 1,
-                "n_barriers": 1, "tool_durability": 0,
+                "tools": ["torch", "bridge"],
+                "tool_durability": 2,
+                "n_decoys": 1,
             },
         ),
-        "hard":   DifficultyConfig(
+        "hard": DifficultyConfig(
             name="hard", grid_size=13, max_steps=250,
             params={
-                "n_tools": 2, "n_obstacles": 5, "n_decoys": 2,
-                "n_barriers": 2, "tool_durability": 3,
+                "tools": ["torch", "bridge", "hammer"],
+                "tool_durability": 2,
+                "n_decoys": 2,
             },
         ),
         "expert": DifficultyConfig(
             name="expert", grid_size=15, max_steps=400,
             params={
-                "n_tools": 3, "n_obstacles": 8, "n_decoys": 3,
-                "n_barriers": 3, "tool_durability": 2,
+                "tools": ["torch", "bridge", "hammer"],
+                "tool_durability": 1,
+                "n_decoys": 3,
             },
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size           = self.difficulty_config.grid_size
-        n_tools        = self.difficulty_config.params.get("n_tools", 1)
-        n_obstacles    = self.difficulty_config.params.get("n_obstacles", 0)
-        n_decoys       = self.difficulty_config.params.get("n_decoys", 0)
-        n_barriers     = self.difficulty_config.params.get("n_barriers", 1)
-        tool_durability = self.difficulty_config.params.get(
-            "tool_durability", 0
-        )
+        size = self.difficulty_config.grid_size
+        tools = self.difficulty_config.params.get("tools", ["torch"])
+        durability = self.difficulty_config.params.get("tool_durability", 2)
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
 
         grid = Grid(size, size)
         grid.terrain[0, :]  = CellType.WALL
@@ -73,101 +90,127 @@ class ToolUseTask(TaskSpec):
         grid.terrain[:, 0]  = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Place multiple horizontal hazard barriers evenly spaced
-        interior = size - 2
-        barrier_rows = []
-        for i in range(n_barriers):
-            row = 1 + (i + 1) * interior // (n_barriers + 1)
-            row = max(2, min(size - 3, row))
-            barrier_rows.append(row)
-            for x in range(1, size - 1):
-                grid.terrain[row, x] = CellType.HAZARD
-
         agent_pos = (1, 1)
-        goal_pos  = (size - 2, size - 2)
+        goal_pos = (size - 2, size - 2)
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
-
-        first_barrier = barrier_rows[0]
-        top_free = [
-            (x, y) for x in range(1, size - 1)
-            for y in range(1, first_barrier)
-            if (x, y) not in {agent_pos, goal_pos}
-            and grid.terrain[y, x] == CellType.EMPTY
-        ]
-        rng.shuffle(top_free)
         used = {agent_pos, goal_pos}
 
-        tool_positions = []
-        for p in top_free[:n_tools]:
-            tx, ty = p
-            grid.objects[ty, tx] = ObjectType.KEY
-            tool_positions.append(p)
-            used.add(p)
+        # Place obstacle barriers for each tool type
+        barrier_info = {}
+        n_barriers = len(tools)
+        for i, tool_name in enumerate(tools):
+            obstacle_type = _TOOL_OBSTACLES[tool_name]
+            # Place a horizontal row of obstacles
+            row = 2 + (i + 1) * (size - 4) // (n_barriers + 1)
+            row = max(2, min(size - 3, row))
+            barrier_cells = []
+            for x in range(1, size - 1):
+                if grid.terrain[row, x] == CellType.EMPTY:
+                    grid.terrain[row, x] = obstacle_type
+                    barrier_cells.append((x, row))
+            barrier_info[tool_name] = {"row": row, "cells": barrier_cells}
 
-        last_barrier = barrier_rows[-1]
-        bottom_free = [
-            (x, y) for x in range(1, size - 1)
-            for y in range(last_barrier + 1, size - 1)
-            if (x, y) not in used
-            and grid.terrain[y, x] == CellType.EMPTY
-        ]
-        rng.shuffle(bottom_free)
+        # Place tools above their corresponding barriers
+        tool_positions = {}
+        for i, tool_name in enumerate(tools):
+            obj_type = _TOOL_OBJECT[tool_name]
+            barrier_row = barrier_info[tool_name]["row"]
+            # Tool goes between agent area and its barrier
+            tool_candidates = [
+                (x, y) for x in range(1, size - 1)
+                for y in range(1, barrier_row)
+                if grid.terrain[y, x] == CellType.EMPTY
+                and (x, y) not in used
+            ]
+            if not tool_candidates:
+                tool_candidates = [
+                    (x, y) for x in range(1, size - 1)
+                    for y in range(1, size - 1)
+                    if grid.terrain[y, x] == CellType.EMPTY
+                    and (x, y) not in used
+                ]
+            if tool_candidates:
+                pos = tool_candidates[int(rng.integers(len(tool_candidates)))]
+                tx, ty = pos
+                grid.objects[ty, tx] = obj_type
+                tool_positions[tool_name] = pos
+                used.add(pos)
+
+        # Decoys: wrong tool types (can't help with any barrier)
         decoy_positions = []
-        for p in bottom_free[:n_decoys]:
-            dx2, dy2 = p
-            grid.objects[dy2, dx2] = ObjectType.TARGET
-            decoy_positions.append(p)
-            used.add(p)
-
-        wall_positions = []
-        wall_candidates = [
-            p for p in top_free[n_tools:] if p not in used
+        decoy_types = [ObjectType.SCROLL, ObjectType.ORB, ObjectType.LEVER]
+        free = [
+            (x, y) for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and (x, y) not in used
         ]
-        for p in wall_candidates:
-            if len(wall_positions) >= n_obstacles:
-                break
-            wx, wy = p
-            grid.terrain[wy, wx] = CellType.WALL
-            reachable = grid.flood_fill(agent_pos)
-            if all(tp in reachable for tp in tool_positions):
-                wall_positions.append(p)
-                used.add(p)
-            else:
-                grid.terrain[wy, wx] = CellType.EMPTY
-
-        tool_pos = tool_positions[0] if tool_positions else (2, 1)
+        rng.shuffle(free)
+        for i in range(min(n_decoys, len(free))):
+            dx, dy = free[i]
+            dt = decoy_types[i % len(decoy_types)]
+            grid.objects[dy, dx] = dt
+            decoy_positions.append(free[i])
+            used.add(free[i])
 
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
-            "tool_pos": tool_pos,
-            "tool_positions": tool_positions,
+            "tools": tools,
+            "tool_positions": {k: list(v) for k, v in tool_positions.items()},
+            "barrier_info": {
+                k: {"row": v["row"], "cells": [list(c) for c in v["cells"]]}
+                for k, v in barrier_info.items()
+            },
+            "tool_durability": durability,
             "decoy_positions": decoy_positions,
-            "barrier_rows": barrier_rows,
-            "tool_durability": tool_durability,
             "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
         agent.inventory.clear()
-        config["_tool_uses"] = {}
+        config["_tool_uses"] = {}  # tool_id -> uses count
+        config["_lava_death"] = False
         self._config = config
 
     def can_agent_enter(self, pos, agent, grid):
         x, y = pos
-        if grid.terrain[y, x] == CellType.HAZARD:
+        terrain = grid.terrain[y, x]
+        config = getattr(self, "_config", {})
+        durability = config.get("tool_durability", 2)
+
+        if terrain == CellType.HAZARD:
+            # Need torch (GEM in inventory)
             tool = next(
-                (e for e in agent.inventory if e.entity_type == "tool"),
-                None,
+                (e for e in agent.inventory if e.entity_type == "torch"), None
             )
             if tool is None:
                 return False
-            config = getattr(self, "_config", {})
-            durability = config.get("tool_durability", 0)
-            if durability > 0:
-                uses = config.get("_tool_uses", {})
-                if uses.get(tool.id, 0) >= durability:
-                    return False
+            uses = config.get("_tool_uses", {})
+            if durability > 0 and uses.get(tool.id, 0) >= durability:
+                return False
+            return True
+        elif terrain == CellType.WATER:
+            # Need bridge (KEY in inventory)
+            tool = next(
+                (e for e in agent.inventory if e.entity_type == "bridge"), None
+            )
+            if tool is None:
+                return False
+            uses = config.get("_tool_uses", {})
+            if durability > 0 and uses.get(tool.id, 0) >= durability:
+                return False
+            return True
+        elif terrain == CellType.WALL:
+            # Need hammer (TOOL in inventory) — breaks through
+            tool = next(
+                (e for e in agent.inventory if e.entity_type == "hammer"), None
+            )
+            if tool is None:
+                return False
+            uses = config.get("_tool_uses", {})
+            if durability > 0 and uses.get(tool.id, 0) >= durability:
+                return False
             return True
         return True
 
@@ -175,62 +218,105 @@ class ToolUseTask(TaskSpec):
         from agentick.core.entity import Entity
         config = getattr(self, "_config", {})
         x, y = pos
-        if grid.objects[y, x] == ObjectType.KEY:
+        terrain = grid.terrain[y, x]
+        durability = config.get("tool_durability", 2)
+
+        # Pick up tools
+        obj = grid.objects[y, x]
+        tool_map = {
+            ObjectType.GEM: "torch",
+            ObjectType.KEY: "bridge",
+            ObjectType.TOOL: "hammer",
+        }
+        if obj in tool_map:
+            tool_name = tool_map[obj]
             grid.objects[y, x] = ObjectType.NONE
             agent.inventory.append(
                 Entity(
-                    id=f"tool_{x}_{y}",
-                    entity_type="tool",
+                    id=f"{tool_name}_{x}_{y}",
+                    entity_type=tool_name,
                     position=pos,
                 )
             )
-        if grid.terrain[y, x] == CellType.HAZARD:
-            durability = config.get("tool_durability", 0)
-            if durability > 0:
-                tool = next(
-                    (e for e in agent.inventory
-                     if e.entity_type == "tool"),
-                    None,
-                )
-                if tool:
-                    uses = config.setdefault("_tool_uses", {})
-                    uses[tool.id] = uses.get(tool.id, 0) + 1
-                    if uses[tool.id] >= durability:
-                        agent.inventory.remove(tool)
+
+        # Use tools on obstacles
+        if terrain == CellType.HAZARD:
+            tool = next(
+                (e for e in agent.inventory if e.entity_type == "torch"), None
+            )
+            if tool is None:
+                config["_lava_death"] = True
+                return
+            uses = config.setdefault("_tool_uses", {})
+            uses[tool.id] = uses.get(tool.id, 0) + 1
+            if durability > 0 and uses[tool.id] >= durability:
+                agent.inventory.remove(tool)
+
+        elif terrain == CellType.WATER:
+            tool = next(
+                (e for e in agent.inventory if e.entity_type == "bridge"), None
+            )
+            if tool:
+                uses = config.setdefault("_tool_uses", {})
+                uses[tool.id] = uses.get(tool.id, 0) + 1
+                if durability > 0 and uses[tool.id] >= durability:
+                    agent.inventory.remove(tool)
+
+        elif terrain == CellType.WALL:
+            tool = next(
+                (e for e in agent.inventory if e.entity_type == "hammer"), None
+            )
+            if tool:
+                # Break the wall permanently
+                grid.terrain[y, x] = CellType.EMPTY
+                uses = config.setdefault("_tool_uses", {})
+                uses[tool.id] = uses.get(tool.id, 0) + 1
+                if durability > 0 and uses[tool.id] >= durability:
+                    agent.inventory.remove(tool)
+
+    def compute_sparse_reward(self, old_state, action, new_state, info):
+        config = new_state.get("config", {})
+        if config.get("_lava_death", False):
+            return -1.0
+        if self.check_success(new_state):
+            return 1.0
+        return 0.0
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        reward = -0.01
         config = new_state.get("config", {})
-        agent = new_state.get("agent")
-        if agent:
-            has_tool = any(e.entity_type == "tool" for e in agent.inventory)
-            if not has_tool:
-                # Reward getting to tool
-                tool = config.get("tool_pos")
-                if tool:
-                    ax, ay = agent.position
-                    ox, oy = old_state.get('agent_position', new_state['agent'].position)
-                    reward += 0.05 * (abs(ox-tool[0])+abs(oy-tool[1]) -
-                                      abs(ax-tool[0])-abs(ay-tool[1]))
-            else:
-                goal = config.get("goal_positions", [None])[0]
-                if goal:
-                    ax, ay = agent.position
-                    ox, oy = old_state.get('agent_position', new_state['agent'].position)
-                    reward += 0.05 * (abs(ox-goal[0])+abs(oy-goal[1]) -
-                                      abs(ax-goal[0])-abs(ay-goal[1]))
+        if config.get("_lava_death", False):
+            return -1.0
+        reward = -0.01
+        if "agent" in new_state:
+            goal = config.get("goal_positions", [None])[0]
+            if goal:
+                ax, ay = new_state["agent"].position
+                ox, oy = old_state.get("agent_position", new_state["agent"].position)
+                reward += 0.05 * (
+                    abs(ox - goal[0]) + abs(oy - goal[1])
+                    - abs(ax - goal[0]) - abs(ay - goal[1])
+                )
         if self.check_success(new_state):
             reward += 1.0
         return reward
 
+    def check_done(self, state):
+        config = state.get("config", {})
+        if config.get("_lava_death", False):
+            return True
+        return self.check_success(state)
+
     def check_success(self, state):
+        config = state.get("config", {})
+        if config.get("_lava_death", False):
+            return False
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def validate_instance(self, grid, config):
-        return True  # dynamic hazard passability
+        return True  # dynamic obstacle passability
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

@@ -1,17 +1,15 @@
-"""CausalChain - Activate switches in order to unlock the goal room.
+"""CausalChain - Activate switches that each cause a visible physical effect.
 
 MECHANICS:
-  - N switches placed on the grid, must be activated in ORDER (0 → 1 → ... → N-1)
-  - Goal is in a WALLED ROOM accessible ONLY through a gate
-  - Gate only opens when ALL switches have been activated in correct order
-  - Wrong-order switch visits do nothing (switches only activate when it's their turn)
-  - Tests causal reasoning and ordered planning
-
-PROCEDURAL DIVERSITY (per seed):
-  - Switch positions randomized
-  - Goal room placed in a random corner
-  - Gate location varies
-  - Open arena with random interior obstacles
+  - N switches (LEVER objects) on the grid, each with a physical consequence
+  - Each lever, when stepped on, causes a visible change:
+    - Removes a specific wall barrier (opens a path)
+    - Creates a bridge over water/hazard
+    - Deactivates a hazard zone
+  - Switches must be activated in causal order (switch 0 opens path to switch 1, etc.)
+  - Goal room only accessible after all switches activated
+  - Decoy levers do nothing or cause harmful effects (add walls)
+  - Tests causal reasoning: observe cause → effect relationships
 """
 
 import numpy as np
@@ -25,28 +23,28 @@ from agentick.tasks.registry import register_task
 
 @register_task("CausalChain-v0", tags=["reasoning", "causal_reasoning"])
 class CausalChainTask(TaskSpec):
-    """Activate a chain of causes in order to unlock the goal room."""
+    """Activate levers in causal order; each causes a physical grid change."""
 
     name = "CausalChain-v0"
-    description = "Activate causal chain in order to unlock goal room"
+    description = "Activate causal chain of levers with physical consequences"
     capability_tags = ["reasoning", "causal_reasoning"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy", grid_size=9, max_steps=100,
-            params={"n_switches": 2, "n_obstacles": 0, "n_decoys": 0},
+            params={"n_switches": 2, "n_decoys": 0},
         ),
         "medium": DifficultyConfig(
             name="medium", grid_size=11, max_steps=180,
-            params={"n_switches": 3, "n_obstacles": 3, "n_decoys": 1},
+            params={"n_switches": 3, "n_decoys": 1},
         ),
         "hard": DifficultyConfig(
             name="hard", grid_size=13, max_steps=280,
-            params={"n_switches": 4, "n_obstacles": 5, "n_decoys": 2},
+            params={"n_switches": 4, "n_decoys": 2},
         ),
         "expert": DifficultyConfig(
             name="expert", grid_size=15, max_steps=420,
-            params={"n_switches": 5, "n_obstacles": 7, "n_decoys": 3},
+            params={"n_switches": 5, "n_decoys": 3},
         ),
     }
 
@@ -54,88 +52,85 @@ class CausalChainTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         n = self.difficulty_config.params.get("n_switches", 2)
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
 
         for attempt in range(20):
             grid = Grid(size, size)
-            # Border walls only
             grid.terrain[0, :]  = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
             grid.terrain[:, 0]  = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
 
-            # Choose a random corner for the goal room (2x2 room)
-            corner = int(rng.integers(0, 4))
-            if corner == 0:    # top-left
-                room_cells = [(1,1),(2,1),(1,2),(2,2)]
-                gate_cell  = (3, 1)
-                gate_wall1 = (1, 3)
-                room_walls = [(3,1),(3,2),(1,3),(2,3)]
-            elif corner == 1:  # top-right
-                room_cells = [(size-2,1),(size-3,1),(size-2,2),(size-3,2)]
-                gate_cell  = (size-4, 1)
-                room_walls = [(size-4,1),(size-4,2),(size-2,3),(size-3,3)]
-            elif corner == 2:  # bottom-left
-                room_cells = [(1,size-2),(2,size-2),(1,size-3),(2,size-3)]
-                gate_cell  = (3, size-2)
-                room_walls = [(3,size-2),(3,size-3),(1,size-4),(2,size-4)]
-            else:              # bottom-right
-                room_cells = [(size-2,size-2),(size-3,size-2),(size-2,size-3),(size-3,size-3)]
-                gate_cell  = (size-4, size-2)
-                room_walls = [(size-4,size-2),(size-4,size-3),(size-2,size-4),(size-3,size-4)]
+            agent_pos = (1, 1)
 
-            goal_cell = room_cells[0]
+            # Create N+1 zones separated by wall barriers
+            # Each barrier has a gap that starts as WALL (blocked)
+            # Activating switch i opens barrier i (removes wall at gap)
+            # Zone 0: agent start area
+            # Zone i (1..N): contains switch i
+            # Zone N: contains goal
 
-            # Wall off the goal room (except gate)
-            for wx, wy in room_walls:
-                if 0 < wx < size-1 and 0 < wy < size-1:
-                    grid.terrain[wy, wx] = CellType.WALL
-            # Gate starts as WALL (will open when all switches activated)
-            gx, gy = gate_cell
-            if 0 < gx < size-1 and 0 < gy < size-1:
-                grid.terrain[gy, gx] = CellType.WALL
+            # Divide the grid into vertical strips
+            n_zones = n + 1
+            zone_width = max(2, (size - 2) // n_zones)
+            barriers = []  # list of (barrier_col, gap_row)
 
-            # Agent starts in opposite area from goal room
-            ax = size - 2 if goal_cell[0] < size // 2 else 1
-            ay = size - 2 if goal_cell[1] < size // 2 else 1
-            agent_pos = (ax, ay)
+            for i in range(n):
+                bx = 1 + (i + 1) * zone_width
+                bx = min(bx, size - 3)
+                # Build wall column
+                for y in range(1, size - 1):
+                    if 0 < bx < size - 1:
+                        grid.terrain[y, bx] = CellType.WALL
+                # Gap position (will be walled, opened by switch i)
+                gap_y = 1 + int(rng.integers(1, max(2, size - 3)))
+                gap_y = min(gap_y, size - 2)
+                barriers.append((bx, gap_y))
 
-            # Place switches in the open area (not in goal room or agent start)
-            forbidden = set(room_cells) | set(room_walls) | {gate_cell, agent_pos, goal_cell}
-            free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                    if (x, y) not in forbidden and grid.terrain[y, x] == CellType.EMPTY]
-            rng.shuffle(free)
-
-            if len(free) < n:
-                continue  # retry
-
-            # Spread switches across the grid for diversity
+            # Place switches in each zone (switch i is in zone i, accessible before barrier i)
             switch_positions = []
-            for _ in range(n):
-                if not free:
-                    break
-                # Pick a position far from existing switches for spread
-                if switch_positions:
-                    best = max(free, key=lambda p: min(
-                        abs(p[0]-s[0])+abs(p[1]-s[1]) for s in switch_positions))
+            switch_effects = []  # (barrier_x, gap_y) that each switch opens
+            for i in range(n):
+                # Zone i spans from previous barrier+1 to current barrier-1
+                zone_left = 1 if i == 0 else min(barriers[i - 1][0] + 1, size - 2)
+                zone_right = barriers[i][0] - 1 if i < len(barriers) else size - 2
+                zone_right = max(zone_left, zone_right)
+
+                zone_cells = [
+                    (x, y) for x in range(zone_left, zone_right + 1)
+                    for y in range(1, size - 1)
+                    if grid.terrain[y, x] == CellType.EMPTY
+                    and (x, y) != agent_pos
+                ]
+                if zone_cells:
+                    pos = zone_cells[int(rng.integers(len(zone_cells)))]
                 else:
-                    best = free[rng.integers(len(free))]
-                switch_positions.append(best)
-                free = [p for p in free if p != best]
+                    pos = (max(1, zone_left), size // 2)
+                switch_positions.append(pos)
+                switch_effects.append(barriers[i])
 
-            if len(switch_positions) < n:
-                continue
+            # Place goal in the last zone
+            last_barrier = barriers[-1][0] if barriers else 1
+            goal_zone_cells = [
+                (x, y) for x in range(last_barrier + 1, size - 1)
+                for y in range(1, size - 1)
+                if grid.terrain[y, x] == CellType.EMPTY
+            ]
+            if goal_zone_cells:
+                goal_pos = goal_zone_cells[int(rng.integers(len(goal_zone_cells)))]
+            else:
+                goal_pos = (size - 2, size - 2)
 
-            # Add a few random interior obstacles for visual diversity
-            n_obstacles = int(rng.integers(0, size // 3))
-            obs_free = [p for p in free if p not in switch_positions]
-            for _ in range(min(n_obstacles, len(obs_free))):
-                ox, oy = obs_free[rng.integers(len(obs_free))]
-                grid.terrain[oy, ox] = CellType.WALL
-                obs_free = [p for p in obs_free if p != (ox, oy)]
+            # Place switch markers (LEVER objects)
+            for sx, sy in switch_positions:
+                grid.objects[sy, sx] = ObjectType.LEVER
 
-            # Verify agent can reach all switches and is NOT in goal room
+            # Place goal
+            grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.NONE  # placed on reset
+
+            # Verify agent can reach first switch
             reachable = grid.flood_fill(agent_pos)
-            if all(sw in reachable for sw in switch_positions) and agent_pos not in room_cells:
+            if switch_positions[0] in reachable:
                 break
         else:
             # Fallback: simple layout
@@ -144,35 +139,33 @@ class CausalChainTask(TaskSpec):
             grid.terrain[-1, :] = CellType.WALL
             grid.terrain[:, 0]  = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
-            agent_pos   = (1, 1)
-            goal_cell   = (size-2, size-2)
-            gate_cell   = (size-2, size-3)
-            room_cells  = [goal_cell]
-            room_walls  = [(size-3, size-2), (size-3, size-3)]
-            for wx, wy in room_walls:
-                grid.terrain[wy, wx] = CellType.WALL
-            grid.terrain[gate_cell[1], gate_cell[0]] = CellType.WALL
-            switch_positions = [(1 + i*2, 1) for i in range(n)]
+            agent_pos = (1, 1)
+            goal_pos = (size - 2, size - 2)
+            switch_positions = [(1 + i * 2, size // 2) for i in range(n)]
+            barriers = [(size // 2, size // 2)]
+            switch_effects = barriers * n
+            for sx, sy in switch_positions:
+                if 0 < sx < size - 1 and 0 < sy < size - 1:
+                    grid.objects[sy, sx] = ObjectType.LEVER
 
-        # Place switch markers
-        for sx, sy in switch_positions:
-            grid.objects[sy, sx] = ObjectType.TARGET  # unactivated = TARGET
-
-        # Decoy switches: look identical but don't count
-        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
-        decoy_free = [p for p in free if p not in switch_positions]
-        rng.shuffle(decoy_free)
-        decoy_positions = decoy_free[:n_decoys]
+        # Place decoy levers (stepping on them adds a wall near the agent)
+        all_used = {agent_pos, goal_pos} | set(switch_positions)
+        all_free = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and (x, y) not in all_used
+        ]
+        rng.shuffle(all_free)
+        decoy_positions = all_free[:n_decoys]
         for dx, dy in decoy_positions:
-            grid.objects[dy, dx] = ObjectType.TARGET
+            grid.objects[dy, dx] = ObjectType.LEVER
 
         return grid, {
             "agent_start":      agent_pos,
-            "goal_positions":   [goal_cell],
+            "goal_positions":   [goal_pos],
             "switch_positions": switch_positions,
+            "switch_effects":   [list(e) for e in switch_effects],
             "decoy_positions":  decoy_positions,
-            "gate_pos":         gate_cell,
-            "room_cells":       room_cells,
             "n_switches":       n,
             "max_steps":        self.get_max_steps(),
         }
@@ -181,35 +174,47 @@ class CausalChainTask(TaskSpec):
 
     def on_env_reset(self, agent, grid, config):
         config["_switch_progress"] = 0
-        config["_gate_open"] = False
+        config["_all_activated"] = False
         self._last_progress = 0
         self._config = config
-        # Ensure goal NOT placed (goal room starts locked)
+        # Goal not placed yet (only after all switches)
         gx, gy = config["goal_positions"][0]
         grid.objects[gy, gx] = ObjectType.NONE
-        # Redraw switches as TARGET
-        for sx, sy in config["switch_positions"]:
-            grid.objects[sy, sx] = ObjectType.TARGET
 
     def on_agent_moved(self, pos, agent, grid):
-        """Activate next switch in sequence when stepped on."""
+        """Activate next switch in causal sequence → open corresponding barrier."""
         config = getattr(self, "_config", {})
         progress = config.get("_switch_progress", 0)
         switches = config.get("switch_positions", [])
+        effects = config.get("switch_effects", [])
+        decoys = config.get("decoy_positions", [])
         ax, ay = pos
 
+        # Check if stepped on a decoy
+        if (ax, ay) in [tuple(d) for d in decoys]:
+            if grid.objects[ay, ax] == ObjectType.LEVER:
+                grid.objects[ay, ax] = ObjectType.NONE  # consumed
+                # Decoy effect: remove from decoys list (harmless visual)
+            return
+
+        # Check if stepped on the next switch in sequence
         if progress < len(switches):
             sx, sy = switches[progress]
-            if (ax, ay) == (sx, sy) and grid.objects[sy, sx] == ObjectType.TARGET:
-                grid.objects[sy, sx] = ObjectType.SWITCH  # activated = SWITCH visual
+            if (ax, ay) == (sx, sy) and grid.objects[sy, sx] == ObjectType.LEVER:
+                # Activate: change lever to NONE (consumed)
+                grid.objects[sy, sx] = ObjectType.NONE
+
+                # Physical consequence: open the barrier (remove wall at gap)
+                if progress < len(effects):
+                    bx, by = effects[progress]
+                    if 0 < bx < grid.width - 1 and 0 < by < grid.height - 1:
+                        grid.terrain[by, bx] = CellType.EMPTY
+
                 config["_switch_progress"] = progress + 1
 
-                # If all switches done, open gate and place goal
+                # If all switches done, place goal
                 if config["_switch_progress"] >= len(switches):
-                    gx, gy = config["gate_pos"]
-                    if 0 < gx < grid.width-1 and 0 < gy < grid.height-1:
-                        grid.terrain[gy, gx] = CellType.EMPTY
-                    config["_gate_open"] = True
+                    config["_all_activated"] = True
                     goal_x, goal_y = config["goal_positions"][0]
                     grid.objects[goal_y, goal_x] = ObjectType.GOAL
 
@@ -220,7 +225,6 @@ class CausalChainTask(TaskSpec):
         config = new_state.get("config", {})
         new_p = config.get("_switch_progress", 0)
 
-        # Milestone per switch
         if new_p > self._last_progress:
             reward += 0.3 * (new_p - self._last_progress)
         self._last_progress = new_p
@@ -232,9 +236,9 @@ class CausalChainTask(TaskSpec):
             switches = config.get("switch_positions", [])
             goal = config.get("goal_positions", [None])[0]
 
-            if not config.get("_gate_open", False) and new_p < len(switches):
-                tgt = switches[new_p]  # next switch
-            elif config.get("_gate_open", False) and goal:
+            if not config.get("_all_activated", False) and new_p < len(switches):
+                tgt = switches[new_p]
+            elif config.get("_all_activated", False) and goal:
                 tgt = goal
             else:
                 tgt = None
@@ -249,15 +253,13 @@ class CausalChainTask(TaskSpec):
         return reward
 
     def check_success(self, state):
-        """Success = agent at GOAL object (only possible after all switches activated)."""
         if "grid" not in state or "agent" not in state:
             return False
         x, y = state["agent"].position
-        # Goal object only present after all switches activated — cannot cheat
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def validate_instance(self, grid, config):
-        return True  # gate is dynamic
+        return True  # barriers are dynamic
 
     def get_optimal_return(self, difficulty=None): return 1.0
     def get_random_baseline(self, difficulty=None): return 0.0

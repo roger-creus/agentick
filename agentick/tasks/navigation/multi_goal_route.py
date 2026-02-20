@@ -147,10 +147,12 @@ class MultiGoalRouteTask(TaskSpec):
         config["goals_visited"] = []
         self._n_goals = len(config.get("goal_positions", []))
         self._visited_goals_set = set()
-        self._last_visited_count = 0  # must reset to avoid stale reward at episode start
+        self._last_visited_count = 0
+        self._decoy_penalty = False
+        self._config = config
 
     def on_agent_moved(self, new_pos, agent, grid):
-        """Track goal visits when agent steps onto a GOAL cell (fires before success check)."""
+        """Track goal visits and decoy penalties."""
         x, y = new_pos
         if grid.objects[y, x] == ObjectType.GOAL:
             if not hasattr(self, "_visited_goals_set"):
@@ -158,17 +160,32 @@ class MultiGoalRouteTask(TaskSpec):
             if new_pos not in self._visited_goals_set:
                 self._visited_goals_set.add(new_pos)
                 grid.objects[y, x] = ObjectType.NONE  # consume the goal object
+        elif grid.objects[y, x] == ObjectType.TARGET:
+            # Decoy: consume it and flag penalty
+            grid.objects[y, x] = ObjectType.NONE
+            self._decoy_penalty = True
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Reward for visiting goals and moving toward nearest unvisited goal."""
-        reward = -0.01  # Step penalty
-        # _visited_goals_set is updated by on_agent_moved before this is called
+        """Reward for visiting goals, speed bonus, and decoy penalty."""
+        reward = -0.01  # Step penalty encourages shorter paths
+        # Decoy penalty
+        if getattr(self, "_decoy_penalty", False):
+            reward -= 0.2
+            self._decoy_penalty = False
+        # Goal visit reward
         visited = getattr(self, "_visited_goals_set", set())
         old_visited = getattr(self, "_last_visited_count", 0)
         new_visited = len(visited)
         if new_visited > old_visited:
             reward += 1.0
         self._last_visited_count = new_visited
+        # Speed bonus on completion: reward faster routes
+        if self.check_success(new_state):
+            config = new_state.get("config", {})
+            max_steps = config.get("max_steps", 100)
+            steps_used = new_state.get("step_count", max_steps)
+            speed_bonus = max(0.0, 1.0 - steps_used / max_steps)
+            reward += speed_bonus
         # Approach shaping: guide toward nearest remaining (unvisited) goal
         if "agent" in new_state and "grid" in new_state:
             from agentick.core.types import ObjectType as OT

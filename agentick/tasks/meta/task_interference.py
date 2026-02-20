@@ -1,12 +1,14 @@
-"""TaskInterference - Multiple conflicting tasks with resource competition.
+"""TaskInterference - Complete competing/contradictory objectives.
 
 MECHANICS:
-  - N sub-tasks (goal pairs: KEY item → matching GOAL delivery)
-  - Picking up one KEY disables ability to pick up others (must deliver first)
-  - Goals that move or become temporarily inaccessible when other goals are completed
-  - Completing task A may block the direct path to task B (wall appears)
-  - Limited step budget forces prioritization
-  - Success = complete ALL sub-tasks despite interference
+  - Two competing resource pools: COIN vs GEM
+  - Collecting a COIN destroys the nearest uncollected GEM (and vice versa)
+  - Agent must collect ALL of one type and deliver to a matching GOAL
+  - Then switch and collect ALL of the other type to its GOAL
+  - The destruction mechanic means order matters: collecting wrong type first
+    can make the task unsolvable
+  - Interference walls appear when first goal is completed
+  - Tests planning under competing objectives and interference resistance
 """
 
 import numpy as np
@@ -20,35 +22,36 @@ from agentick.tasks.registry import register_task
 
 @register_task("TaskInterference-v0", tags=["multi_task", "interference", "meta_learning"])
 class TaskInterferenceTask(TaskSpec):
-    """Complete multiple interfering sub-tasks: collect items and deliver to matching goals."""
+    """Complete competing objectives where progress on one harms the other."""
 
     name = "TaskInterference-v0"
-    description = "Complete interfering sub-tasks with resource competition"
+    description = "Complete competing objectives with destructive interference"
     capability_tags = ["multi_task", "interference_resistance", "attention"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy", grid_size=9, max_steps=150,
-            params={"n_tasks": 2, "interference": False},
+            params={"n_coins": 2, "n_gems": 2, "interference": False},
         ),
         "medium": DifficultyConfig(
             name="medium", grid_size=11, max_steps=250,
-            params={"n_tasks": 2, "interference": True},
+            params={"n_coins": 3, "n_gems": 3, "interference": True},
         ),
         "hard": DifficultyConfig(
             name="hard", grid_size=13, max_steps=400,
-            params={"n_tasks": 3, "interference": True},
+            params={"n_coins": 4, "n_gems": 4, "interference": True},
         ),
         "expert": DifficultyConfig(
             name="expert", grid_size=15, max_steps=600,
-            params={"n_tasks": 4, "interference": True},
+            params={"n_coins": 5, "n_gems": 5, "interference": True},
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        n_tasks = self.difficulty_config.params.get("n_tasks", 2)
+        n_coins = self.difficulty_config.params.get("n_coins", 2)
+        n_gems = self.difficulty_config.params.get("n_gems", 2)
         interference = self.difficulty_config.params.get("interference", False)
 
         grid = Grid(size, size)
@@ -57,150 +60,163 @@ class TaskInterferenceTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        agent_pos = (size // 2, size // 2)
 
         free = [
-            (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
             if (x, y) != agent_pos
         ]
         rng.shuffle(free)
-
-        # Place KEY items (collectibles) and GOAL delivery points
-        # Each task: pick up KEY at position A, deliver to GOAL at position B
-        key_positions = []
-        goal_positions = []
         used = {agent_pos}
 
-        for i in range(n_tasks):
-            # Key position
-            for pos in free:
-                if pos not in used:
-                    key_positions.append(pos)
-                    used.add(pos)
-                    break
+        # Place coin delivery goal (left side)
+        coin_goal = (1, size // 2)
+        grid.objects[coin_goal[1], coin_goal[0]] = ObjectType.GOAL
+        grid.metadata[coin_goal[1], coin_goal[0]] = int(ObjectType.COIN)
+        used.add(coin_goal)
 
-            # Goal position (far from corresponding key for challenge)
-            best_goal = None
-            best_dist = 0
-            for pos in free:
-                if pos not in used:
-                    d = abs(pos[0] - key_positions[-1][0]) + abs(pos[1] - key_positions[-1][1])
-                    if d > best_dist:
-                        best_dist = d
-                        best_goal = pos
-            if best_goal:
-                goal_positions.append(best_goal)
-                used.add(best_goal)
+        # Place gem delivery goal (right side)
+        gem_goal = (size - 2, size // 2)
+        grid.objects[gem_goal[1], gem_goal[0]] = ObjectType.GOAL
+        grid.metadata[gem_goal[1], gem_goal[0]] = int(ObjectType.GEM)
+        used.add(gem_goal)
 
-        # Place objects on grid
-        for kx, ky in key_positions:
-            grid.objects[ky, kx] = ObjectType.KEY
-        for gx, gy in goal_positions:
-            grid.objects[gy, gx] = ObjectType.GOAL
+        # Place coins scattered
+        coin_positions = []
+        coin_candidates = [p for p in free if p not in used]
+        rng.shuffle(coin_candidates)
+        for p in coin_candidates[:n_coins]:
+            cx, cy = p
+            grid.objects[cy, cx] = ObjectType.COIN
+            coin_positions.append(p)
+            used.add(p)
 
-        # Interference walls: completing one task places a wall near another task's path
+        # Place gems scattered
+        gem_positions = []
+        gem_candidates = [p for p in free if p not in used]
+        rng.shuffle(gem_candidates)
+        for p in gem_candidates[:n_gems]:
+            gx, gy = p
+            grid.objects[gy, gx] = ObjectType.GEM
+            gem_positions.append(p)
+            used.add(p)
+
+        # Interference wall positions (activated when first objective is completed)
         interference_walls = []
-        if interference and n_tasks >= 2:
-            for i in range(min(n_tasks - 1, 3)):
-                # Wall position between goal i and key i+1
-                gi = goal_positions[i]
-                ki = key_positions[(i + 1) % n_tasks]
-                wx = (gi[0] + ki[0]) // 2
-                wy = (gi[1] + ki[1]) // 2
-                wx = max(1, min(size - 2, wx))
-                wy = max(1, min(size - 2, wy))
-                if (wx, wy) not in used and grid.terrain[wy, wx] == CellType.EMPTY:
-                    interference_walls.append((wx, wy, i))
+        if interference:
+            # Wall positions between the two goals
+            mid = size // 2
+            for y in range(2, size - 2):
+                if y != mid:
+                    wx = mid
+                    if (wx, y) not in used and grid.terrain[y, wx] == CellType.EMPTY:
+                        interference_walls.append((wx, y))
 
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": goal_positions,
-            "key_positions": key_positions,
-            "n_tasks": n_tasks,
+            "goal_positions": [coin_goal, gem_goal],
+            "coin_goal": coin_goal,
+            "gem_goal": gem_goal,
+            "coin_positions": coin_positions,
+            "gem_positions": gem_positions,
+            "n_coins": n_coins,
+            "n_gems": n_gems,
             "interference": interference,
             "interference_walls": interference_walls,
             "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
-        config["_carrying"] = -1  # index of key being carried (-1 = none)
-        config["_tasks_completed"] = set()
-        config["_keys_collected"] = set()
-        self._tasks_completed_last = 0
+        config["_coins_held"] = 0
+        config["_gems_held"] = 0
+        config["_coins_delivered"] = 0
+        config["_gems_delivered"] = 0
+        config["_first_objective_done"] = False
+        config["_live_coins"] = list(config.get("coin_positions", []))
+        config["_live_gems"] = list(config.get("gem_positions", []))
+        self._last_delivered = 0
         self._config = config
 
     def on_agent_moved(self, pos, agent, grid):
         config = getattr(self, "_config", {})
         x, y = pos
-        keys = config.get("key_positions", [])
-        goals = config.get("goal_positions", [])
-        carrying = config.get("_carrying", -1)
-        completed = config.get("_tasks_completed", set())
-        collected = config.get("_keys_collected", set())
+        obj = grid.objects[y, x]
+        interference = config.get("interference", False)
 
-        # Pick up key (only if not already carrying one)
-        if carrying < 0:
-            for i, (kx, ky) in enumerate(keys):
-                if (x, y) == (kx, ky) and i not in collected:
-                    if grid.objects[y, x] == ObjectType.KEY:
-                        grid.objects[y, x] = ObjectType.NONE
-                        config["_carrying"] = i
-                        collected.add(i)
-                        config["_keys_collected"] = collected
-                        break
+        # Collect coin
+        if obj == ObjectType.COIN:
+            grid.objects[y, x] = ObjectType.NONE
+            config["_coins_held"] = config.get("_coins_held", 0) + 1
+            if (x, y) in config.get("_live_coins", []):
+                config["_live_coins"].remove((x, y))
 
-        # Deliver to matching goal
-        elif carrying >= 0 and carrying < len(goals):
-            gx, gy = goals[carrying]
-            if (x, y) == (gx, gy):
-                if grid.objects[y, x] == ObjectType.GOAL:
-                    grid.objects[y, x] = ObjectType.NONE  # goal consumed
-                    completed.add(carrying)
-                    config["_tasks_completed"] = completed
-                    config["_carrying"] = -1
+            # Interference: collecting a coin destroys nearest uncollected gem
+            if interference:
+                live_gems = config.get("_live_gems", [])
+                if live_gems:
+                    nearest = min(live_gems, key=lambda g: abs(g[0] - x) + abs(g[1] - y))
+                    gx, gy = nearest
+                    if grid.objects[gy, gx] == ObjectType.GEM:
+                        grid.objects[gy, gx] = ObjectType.NONE
+                    live_gems.remove(nearest)
+                    config["_live_gems"] = live_gems
 
-                    # Interference: place wall if configured
-                    if config.get("interference", False):
-                        for wx, wy, trigger_task in config.get("interference_walls", []):
-                            if trigger_task == carrying:
-                                grid.terrain[wy, wx] = CellType.WALL
+        # Collect gem
+        elif obj == ObjectType.GEM:
+            grid.objects[y, x] = ObjectType.NONE
+            config["_gems_held"] = config.get("_gems_held", 0) + 1
+            if (x, y) in config.get("_live_gems", []):
+                config["_live_gems"].remove((x, y))
+
+            # Interference: collecting a gem destroys nearest uncollected coin
+            if interference:
+                live_coins = config.get("_live_coins", [])
+                if live_coins:
+                    nearest = min(live_coins, key=lambda c: abs(c[0] - x) + abs(c[1] - y))
+                    cx, cy = nearest
+                    if grid.objects[cy, cx] == ObjectType.COIN:
+                        grid.objects[cy, cx] = ObjectType.NONE
+                    live_coins.remove(nearest)
+                    config["_live_coins"] = live_coins
+
+        # Deliver at coin goal
+        elif obj == ObjectType.GOAL:
+            meta = int(grid.metadata[y, x])
+            if meta == int(ObjectType.COIN) and config.get("_coins_held", 0) > 0:
+                delivered = config.get("_coins_held", 0)
+                config["_coins_delivered"] = config.get("_coins_delivered", 0) + delivered
+                config["_coins_held"] = 0
+                # Check if first objective done
+                if (config.get("_coins_delivered", 0) >= config.get("n_coins", 2)
+                        and not config.get("_first_objective_done", False)):
+                    config["_first_objective_done"] = True
+                    self._activate_interference_walls(grid, config)
+
+            elif meta == int(ObjectType.GEM) and config.get("_gems_held", 0) > 0:
+                delivered = config.get("_gems_held", 0)
+                config["_gems_delivered"] = config.get("_gems_delivered", 0) + delivered
+                config["_gems_held"] = 0
+                if (config.get("_gems_delivered", 0) >= config.get("n_gems", 2)
+                        and not config.get("_first_objective_done", False)):
+                    config["_first_objective_done"] = True
+                    self._activate_interference_walls(grid, config)
+
+    def _activate_interference_walls(self, grid, config):
+        """Place interference walls when first objective is completed."""
+        walls = config.get("interference_walls", [])
+        for wx, wy in walls:
+            if grid.terrain[wy, wx] == CellType.EMPTY and grid.objects[wy, wx] == ObjectType.NONE:
+                grid.terrain[wy, wx] = CellType.WALL
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
         config = new_state.get("config", {})
-        completed = config.get("_tasks_completed", set())
-        n_done = len(completed)
-
-        # Reward per task completed
-        if n_done > self._tasks_completed_last:
-            reward += 0.5 * (n_done - self._tasks_completed_last)
-        self._tasks_completed_last = n_done
-
-        # Approach shaping
-        if "agent_position" in new_state and "grid" in new_state:
-            ax, ay = new_state["agent_position"]
-            ox, oy = old_state.get("agent_position", (ax, ay))
-            carrying = config.get("_carrying", -1)
-            keys = config.get("key_positions", [])
-            goals = config.get("goal_positions", [])
-            collected = config.get("_keys_collected", set())
-
-            if carrying >= 0 and carrying < len(goals):
-                # Guide toward delivery goal
-                gx, gy = goals[carrying]
-                d_new = abs(ax - gx) + abs(ay - gy)
-                d_old = abs(ox - gx) + abs(oy - gy)
-                reward += 0.05 * (d_old - d_new)
-            else:
-                # Guide toward nearest uncollected key
-                uncollected = [
-                    keys[i] for i in range(len(keys))
-                    if i not in collected and i not in completed
-                ]
-                if uncollected:
-                    d_new = min(abs(ax - kx) + abs(ay - ky) for kx, ky in uncollected)
-                    d_old = min(abs(ox - kx) + abs(oy - ky) for kx, ky in uncollected)
-                    reward += 0.05 * (d_old - d_new)
+        total_delivered = (
+            config.get("_coins_delivered", 0) + config.get("_gems_delivered", 0)
+        )
+        if total_delivered > self._last_delivered:
+            reward += 0.3 * (total_delivered - self._last_delivered)
+        self._last_delivered = total_delivered
 
         if self.check_success(new_state):
             reward += 1.0
@@ -208,14 +224,11 @@ class TaskInterferenceTask(TaskSpec):
 
     def check_success(self, state):
         config = state.get("config", {})
-        if "grid" not in state or "agent" not in state:
-            return False
-        completed = config.get("_tasks_completed", set())
-        n_tasks = config.get("n_tasks", 2)
-        return len(completed) >= n_tasks
+        n_coins = config.get("n_coins", 2)
+        n_gems = config.get("n_gems", 2)
+        coins_ok = config.get("_coins_delivered", 0) >= n_coins
+        gems_ok = config.get("_gems_delivered", 0) >= n_gems
+        return coins_ok and gems_ok
 
-    def get_optimal_return(self, difficulty=None):
-        return 1.0
-
-    def get_random_baseline(self, difficulty=None):
-        return 0.0
+    def get_optimal_return(self, difficulty=None): return 1.0
+    def get_random_baseline(self, difficulty=None): return 0.0

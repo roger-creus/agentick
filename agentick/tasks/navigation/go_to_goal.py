@@ -248,7 +248,7 @@ class GoToGoalTask(TaskSpec):
             if grid.terrain[gy, gx] == CellType.EMPTY: grid.objects[gy, gx] = ObjectType.NPC
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        """Distance-based shaping reward."""
+        """Distance-based shaping reward with success bonus."""
         config = new_state.get("config", {})
         if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
             return -1.0
@@ -256,11 +256,14 @@ class GoToGoalTask(TaskSpec):
         if "config" in new_state:
             if "goal_positions" in config and config["goal_positions"]:
                 goal_pos = config["goal_positions"][0]
-                agent_pos = new_state["agent_position"]
-                old_dist = abs(old_state["agent_position"][0] - goal_pos[0]) + abs(
-                    old_state["agent_position"][1] - goal_pos[1])
-                new_dist = abs(agent_pos[0] - goal_pos[0]) + abs(agent_pos[1] - goal_pos[1])
-                reward += 0.1 * (old_dist - new_dist)
+                if "agent" in new_state:
+                    ax, ay = new_state["agent"].position
+                    ox, oy = old_state.get("agent_position", (ax, ay))
+                    old_dist = abs(ox - goal_pos[0]) + abs(oy - goal_pos[1])
+                    new_dist = abs(ax - goal_pos[0]) + abs(ay - goal_pos[1])
+                    reward += 0.1 * (old_dist - new_dist)
+        if self.check_success(new_state):
+            reward += 1.0
         return reward
 
     def check_done(self, state):

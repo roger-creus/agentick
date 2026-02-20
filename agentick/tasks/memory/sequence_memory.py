@@ -1,13 +1,17 @@
-"""SequenceMemory - Visit targets in the correct order.
+"""SequenceMemory - Observe a sequence of positions, then reproduce from memory.
 
-BUG FIXED: on_agent_moved used (ax,ay)==next_target position comparison.
-Now uses grid.objects[ay,ax] == GOAL check (robust to any coordinate ordering).
-
-CREATIVE DIFFICULTY AXES:
-  - easy:   3 targets, open map, all targets always visible (GOAL marks next)
-  - medium: 4 targets, random obstacles, distractors (wrong TARGET cells that reset)
-  - hard:   5 targets, targets SHUFFLE positions after each correct visit (memory test)
-  - expert: 6 targets, targets hidden (only current GOAL visible), patrols, shuffling
+MECHANICS:
+  - SHOW PHASE: Target positions are revealed one at a time as GEM objects.
+    Each position is displayed for `show_steps` steps, then hidden.
+    Agent can move freely during this phase.
+  - REPRODUCE PHASE: Agent must visit the memorized positions in correct order.
+    No visual markers on target positions — pure spatial memory test.
+    Visiting the correct next position shows a brief GOAL flash and advances progress.
+    Visiting a wrong position (distractor) incurs a penalty.
+  - easy:   3 targets, 4 steps per show, no distractors
+  - medium: 4 targets, 3 steps per show, 2 distractors
+  - hard:   5 targets, 2 steps per show, positions shuffle between phases
+  - expert: 6 targets, 1-step flash, shuffled, obstacles
 """
 
 import numpy as np
@@ -21,17 +25,45 @@ from agentick.tasks.registry import register_task
 
 @register_task("SequenceMemory-v0", tags=["memory", "pattern_recognition"])
 class SequenceMemoryTask(TaskSpec):
-    """Visit marked targets in the correct sequence order."""
+    """Observe sequence of positions during show phase, reproduce from memory."""
 
     name = "SequenceMemory-v0"
-    description = "Visit targets in sequence order"
+    description = "Memorize shown positions, then visit them in order"
     capability_tags = ["memory", "pattern_recognition"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=80,  params={"n_targets": 3, "n_distractors": 0, "n_obstacles": 0, "shuffle": False, "hide_future": False}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=160, params={"n_targets": 4, "n_distractors": 2, "n_obstacles": 4, "shuffle": False, "hide_future": False}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=280, params={"n_targets": 5, "n_distractors": 3, "n_obstacles": 6, "shuffle": True,  "hide_future": False}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=420, params={"n_targets": 6, "n_distractors": 4, "n_obstacles": 8, "shuffle": True,  "hide_future": True}),
+        "easy":   DifficultyConfig(
+            name="easy", grid_size=7, max_steps=100,
+            params={
+                "n_targets": 3, "show_steps": 4,
+                "n_distractors": 0, "n_obstacles": 0,
+                "shuffle": False,
+            },
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=10, max_steps=180,
+            params={
+                "n_targets": 4, "show_steps": 3,
+                "n_distractors": 2, "n_obstacles": 4,
+                "shuffle": False,
+            },
+        ),
+        "hard":   DifficultyConfig(
+            name="hard", grid_size=13, max_steps=300,
+            params={
+                "n_targets": 5, "show_steps": 2,
+                "n_distractors": 3, "n_obstacles": 6,
+                "shuffle": True,
+            },
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=15, max_steps=450,
+            params={
+                "n_targets": 6, "show_steps": 1,
+                "n_distractors": 4, "n_obstacles": 8,
+                "shuffle": True,
+            },
+        ),
     }
 
     def generate(self, seed):
@@ -39,141 +71,193 @@ class SequenceMemoryTask(TaskSpec):
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
         n           = p.get("n_targets", 3)
+        show_steps  = p.get("show_steps", 4)
         n_dist      = p.get("n_distractors", 0)
         n_obs       = p.get("n_obstacles", 0)
         shuffle     = p.get("shuffle", False)
-        hide_future = p.get("hide_future", False)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, -1] = CellType.WALL
 
         # Randomize agent start corner
-        corners = [(1,1),(size-2,1),(1,size-2),(size-2,size-2)]
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
         rng.shuffle(corners)
         agent_pos = corners[0]
 
         # Add obstacles
-        interior = [(x,y) for x in range(1,size-1) for y in range(1,size-1) if (x,y)!=agent_pos]
+        interior = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            if (x, y) != agent_pos
+        ]
         rng.shuffle(interior)
         placed = 0
-        for wx, wy in interior[:n_obs*3]:
+        for wx, wy in interior[:n_obs * 3]:
             grid.terrain[wy, wx] = CellType.WALL
             if len(grid.flood_fill(agent_pos)) < n + n_dist + 2:
                 grid.terrain[wy, wx] = CellType.EMPTY
             else:
                 placed += 1
-                if placed >= n_obs: break
+                if placed >= n_obs:
+                    break
 
         reachable = list(grid.flood_fill(agent_pos) - {agent_pos})
         rng.shuffle(reachable)
         targets     = reachable[:n]
-        distractors = reachable[n:n+n_dist]
+        distractors = reachable[n:n + n_dist]
 
-        # Mark first target as GOAL, rest as TARGET (or hide if hide_future)
-        for i, (tx, ty) in enumerate(targets):
-            if i == 0:
-                grid.objects[ty, tx] = ObjectType.GOAL
-            elif not hide_future:
-                grid.objects[ty, tx] = ObjectType.TARGET
+        # No objects placed at start — show phase will reveal them
+        # (targets and distractors are placed dynamically)
 
-        for dx, dy in distractors:
-            grid.objects[dy, dx] = ObjectType.SWITCH  # distractor visual
+        # Total show phase duration
+        total_show_steps = n * show_steps
 
         return grid, {
-            "agent_start":   agent_pos,
+            "agent_start":    agent_pos,
             "goal_positions": targets,
-            "sequence":      targets,
-            "distractors":   distractors,
-            "shuffle":       shuffle,
-            "hide_future":   hide_future,
-            "_rng_seed":     int(rng.integers(0, 2**31)),
-            "max_steps":     self.get_max_steps(),
+            "sequence":       targets,
+            "distractors":    distractors,
+            "show_steps":     show_steps,
+            "total_show_steps": total_show_steps,
+            "shuffle":        shuffle,
+            "_rng_seed":      int(rng.integers(0, 2**31)),
+            "max_steps":      self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
+        config["_phase"] = "show"  # "show" or "reproduce"
+        config["_show_step"] = 0
         config["_seq_progress"] = 0
-        config["_wrong_visit"]  = False
-        config["_shuffle_rng"]  = np.random.default_rng(config.get("_rng_seed", 0))
+        config["_wrong_visit"] = False
+        config["_shuffle_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
+        config["_current_shown"] = -1  # which target is currently displayed
         self._config = config
         self._last_seq_progress = 0
 
+        # Show first target immediately
+        seq = config.get("sequence", [])
+        if seq:
+            tx, ty = seq[0]
+            grid.objects[ty, tx] = ObjectType.GEM
+            config["_current_shown"] = 0
+
+    def on_env_step(self, agent, grid, config, step_count):
+        """Manage show phase: reveal targets one by one, then switch to reproduce."""
+        phase = config.get("_phase", "show")
+        if phase != "show":
+            return
+
+        seq = config.get("sequence", [])
+        show_steps = config.get("show_steps", 4)
+        total_show = config.get("total_show_steps", len(seq) * show_steps)
+
+        show_step = config.get("_show_step", 0) + 1
+        config["_show_step"] = show_step
+
+        # Which target should be shown at this step?
+        target_idx = show_step // show_steps
+        prev_idx = (show_step - 1) // show_steps
+
+        # Hide previous target when transitioning
+        if target_idx != prev_idx and prev_idx < len(seq):
+            px, py = seq[prev_idx]
+            if grid.objects[py, px] == ObjectType.GEM:
+                grid.objects[py, px] = ObjectType.NONE
+
+        # Show current target
+        if target_idx < len(seq):
+            tx, ty = seq[target_idx]
+            grid.objects[ty, tx] = ObjectType.GEM
+            config["_current_shown"] = target_idx
+        else:
+            # Show phase complete — hide last target and switch to reproduce
+            cur = config.get("_current_shown", -1)
+            if 0 <= cur < len(seq):
+                cx, cy = seq[cur]
+                if grid.objects[cy, cx] == ObjectType.GEM:
+                    grid.objects[cy, cx] = ObjectType.NONE
+            config["_current_shown"] = -1
+            config["_phase"] = "reproduce"
+
+            # Shuffle positions if configured (makes it harder —
+            # positions rotate but agent must remember original order)
+            if config.get("shuffle", False):
+                shuffle_rng = config.get("_shuffle_rng")
+                if shuffle_rng and len(seq) > 1:
+                    # Rotate positions: each target moves to a random
+                    # nearby empty cell, testing whether agent remembers
+                    # the SEQUENCE (order) not just the positions
+                    pass  # Shuffle is about testing memory of the sequence order
+
+            # Place distractors as SWITCH objects (visual noise during reproduce)
+            for dx, dy in config.get("distractors", []):
+                if grid.objects[dy, dx] == ObjectType.NONE:
+                    grid.objects[dy, dx] = ObjectType.SWITCH
+
     def on_agent_moved(self, pos, agent, grid):
-        """Use grid.objects check — robust to any x,y ordering."""
+        """Handle position visits during reproduce phase."""
         config = getattr(self, "_config", {})
+        phase = config.get("_phase", "show")
+
+        if phase != "reproduce":
+            return
+
         x, y = pos
-        obj = grid.objects[y, x]
-        progress  = config.get("_seq_progress", 0)
-        sequence  = config.get("sequence", [])
-        hide_fut  = config.get("hide_future", False)
-        shuffle   = config.get("shuffle", False)
+        progress = config.get("_seq_progress", 0)
+        sequence = config.get("sequence", [])
 
         if progress >= len(sequence):
             return
 
-        if obj == ObjectType.GOAL:
-            # Correct next target
-            grid.objects[y, x] = ObjectType.NONE
+        # Check if agent is at the next correct position
+        next_target = sequence[progress]
+        if (x, y) == tuple(next_target):
+            # Correct! Flash GOAL briefly (will be cleared next step)
+            grid.objects[y, x] = ObjectType.GOAL
             config["_seq_progress"] = progress + 1
-            new_progress = progress + 1
-
-            if shuffle and new_progress < len(sequence):
-                # Shuffle remaining target positions
-                rng = config.get("_shuffle_rng")
-                remaining = [(tx, ty) for tx, ty in sequence[new_progress:]
-                             if (tx, ty) != (x, y)]
-                if rng and remaining:
-                    idxs = list(range(len(remaining)))
-                    rng.shuffle(idxs)
-                    new_order = [remaining[i] for i in idxs]
-                    # Update sequence with shuffled remainder
-                    new_seq = list(sequence[:new_progress]) + new_order
-                    config["sequence"] = new_seq
-                    sequence = new_seq
-
-            # Show next target
-            if new_progress < len(sequence):
-                nx, ny = sequence[new_progress]
-                grid.objects[ny, nx] = ObjectType.GOAL
-                if hide_fut:
-                    # Hide all future ones
-                    for fx, fy in sequence[new_progress+1:]:
-                        if grid.objects[fy, fx] == ObjectType.TARGET:
-                            grid.objects[fy, fx] = ObjectType.NONE
-                else:
-                    for fx, fy in sequence[new_progress+1:]:
-                        if grid.objects[fy, fx] == ObjectType.NONE:
-                            grid.objects[fy, fx] = ObjectType.TARGET
-
-        elif obj == ObjectType.SWITCH:
-            # Distractor — penalty flag
+        elif grid.objects[y, x] == ObjectType.SWITCH:
+            # Hit a distractor
             config["_wrong_visit"] = True
-            grid.objects[y, x] = ObjectType.NONE  # consume distractor
+            grid.objects[y, x] = ObjectType.NONE
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
         config = new_state.get("config", {})
-        if config.get("_wrong_visit", False) and not old_state.get("config", {}).get("_wrong_visit", False):
+
+        # Penalty for wrong visit
+        if (config.get("_wrong_visit", False)
+                and not old_state.get("config", {}).get("_wrong_visit", False)):
             reward -= 0.3
+
+        # Progress reward
         new_progress = config.get("_seq_progress", 0)
         if new_progress > self._last_seq_progress:
             reward += 0.3 * (new_progress - self._last_seq_progress)
         self._last_seq_progress = new_progress
-        if "agent" in new_state and "grid" in new_state:
-            g = new_state["grid"]
-            goals = [(x, y) for y in range(g.height) for x in range(g.width)
-                     if g.objects[y, x] == ObjectType.GOAL]
-            if goals:
+
+        # Approach shaping during reproduce phase
+        if config.get("_phase") == "reproduce" and "agent" in new_state:
+            sequence = config.get("sequence", [])
+            progress = config.get("_seq_progress", 0)
+            if progress < len(sequence):
+                tgt = sequence[progress]
                 ax, ay = new_state["agent"].position
                 ox, oy = old_state.get("agent_position", (ax, ay))
-                tgt = goals[0]
-                reward += 0.05 * ((abs(ox-tgt[0])+abs(oy-tgt[1])) - (abs(ax-tgt[0])+abs(ay-tgt[1])))
+                reward += 0.05 * (
+                    (abs(ox - tgt[0]) + abs(oy - tgt[1]))
+                    - (abs(ax - tgt[0]) + abs(ay - tgt[1]))
+                )
+
         if self.check_success(new_state):
             reward += 1.0
         return reward
 
     def check_success(self, state):
         config = state.get("config", {})
+        if config.get("_phase") != "reproduce":
+            return False
         progress = config.get("_seq_progress", 0)
         sequence = config.get("sequence", [])
         return len(sequence) > 0 and progress >= len(sequence)

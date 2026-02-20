@@ -111,6 +111,16 @@ class LightsOutTask(TaskSpec):
             if grid.objects[y, x] == ObjectType.SWITCH
         )
         self._lights_remaining_last = self._lights_remaining
+        # Set metadata for visual rendering: lit cells = 1 (bright yellow)
+        self._update_light_metadata(grid)
+
+    def _update_light_metadata(self, grid):
+        """Update metadata layer for lit/unlit rendering."""
+        for lx, ly in self._light_grid:
+            if grid.objects[ly, lx] == ObjectType.SWITCH:
+                grid.metadata[ly, lx] = 1   # META_LIT: bright yellow
+            else:
+                grid.metadata[ly, lx] = 2   # META_LIGHT_POS: dark gray (unlit)
 
     def on_agent_moved(self, pos, agent, grid):
         """Toggle lights immediately on step — fires BEFORE reward computation."""
@@ -123,6 +133,9 @@ class LightsOutTask(TaskSpec):
                 nx, ny = x + dx, y + dy
                 if 0 < nx < grid.width - 1 and 0 < ny < grid.height - 1:
                     self._toggle_cell(nx, ny, grid)
+
+        # Update visual metadata after toggling
+        self._update_light_metadata(grid)
 
     def _toggle_cell(self, x, y, grid):
         """Toggle a single cell: ON→OFF or OFF→ON, but only at light grid positions."""

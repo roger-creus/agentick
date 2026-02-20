@@ -139,6 +139,22 @@ class RecursiveRoomsTask(TaskSpec):
 
         return deepest if deepest else quads[target_quad % len(quads)]
 
+    def _validate_map(self, grid, agent_pos, goal_pos):
+        """Check that map is non-trivial and solvable."""
+        # Count empty cells — reject maps that are too sparse
+        empty_count = int(np.sum(grid.terrain == CellType.EMPTY))
+        min_empty = max(10, grid.width * grid.height // 8)
+        if empty_count < min_empty:
+            return False
+        # Goal must be reachable
+        reachable = grid.flood_fill(agent_pos)
+        if goal_pos not in reachable:
+            return False
+        # Goal must be at least some distance away
+        if abs(agent_pos[0] - goal_pos[0]) + abs(agent_pos[1] - goal_pos[1]) < 4:
+            return False
+        return True
+
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
@@ -148,78 +164,108 @@ class RecursiveRoomsTask(TaskSpec):
         if size % 2 == 0:
             size += 1
 
-        grid = Grid(size, size)
-        # Start with all walls
-        grid.terrain[:, :] = CellType.WALL
+        # Retry loop to avoid empty or degenerate maps
+        for attempt in range(20):
+            attempt_rng = np.random.default_rng(seed + attempt * 1000)
+            grid = Grid(size, size)
+            # Start with all walls
+            grid.terrain[:, :] = CellType.WALL
 
-        # Carve outer room
-        for y in range(1, size - 1):
-            for x in range(1, size - 1):
-                grid.terrain[y, x] = CellType.EMPTY
-
-        # Recursively subdivide
-        doorways = []
-        deepest_room = self._subdivide(
-            grid, 1, 1, size - 2, size - 2, depth, rng, doorways
-        )
-
-        # Agent starts in top-left area
-        agent_pos = (1, 1)
-        if grid.terrain[1, 1] == CellType.WALL:
-            # Find nearest empty cell
+            # Carve outer room
             for y in range(1, size - 1):
                 for x in range(1, size - 1):
-                    if grid.terrain[y, x] == CellType.EMPTY:
-                        agent_pos = (x, y)
+                    grid.terrain[y, x] = CellType.EMPTY
+
+            # Recursively subdivide
+            doorways = []
+            deepest_room = self._subdivide(
+                grid, 1, 1, size - 2, size - 2, depth, attempt_rng, doorways
+            )
+
+            # Agent starts in top-left area
+            agent_pos = (1, 1)
+            if grid.terrain[1, 1] == CellType.WALL:
+                # Find nearest empty cell
+                found = False
+                for y in range(1, size - 1):
+                    for x in range(1, size - 1):
+                        if grid.terrain[y, x] == CellType.EMPTY:
+                            agent_pos = (x, y)
+                            found = True
+                            break
+                    if found:
                         break
-                if agent_pos != (1, 1):
-                    break
 
-        # Goal in deepest room
-        rx1, ry1, rx2, ry2 = deepest_room
-        goal_candidates = [
-            (x, y) for x in range(rx1, rx2 + 1) for y in range(ry1, ry2 + 1)
-            if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
-        ]
-        if goal_candidates:
-            goal_pos = goal_candidates[int(rng.integers(len(goal_candidates)))]
-        else:
-            # Fallback: farthest reachable cell
-            reachable = grid.flood_fill(agent_pos)
-            reachable_list = list(reachable - {agent_pos})
-            if reachable_list:
-                goal_pos = max(
-                    reachable_list,
-                    key=lambda p: abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]),
-                )
+            # Goal in deepest room
+            if deepest_room is None:
+                continue
+            rx1, ry1, rx2, ry2 = deepest_room
+            goal_candidates = [
+                (x, y) for x in range(rx1, rx2 + 1) for y in range(ry1, ry2 + 1)
+                if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
+            ]
+            if goal_candidates:
+                goal_pos = goal_candidates[
+                    int(attempt_rng.integers(len(goal_candidates)))
+                ]
             else:
-                goal_pos = (size - 2, size - 2)
-                grid.terrain[goal_pos[1], goal_pos[0]] = CellType.EMPTY
+                # Fallback: farthest reachable cell
+                reachable = grid.flood_fill(agent_pos)
+                reachable_list = list(reachable - {agent_pos})
+                if reachable_list:
+                    goal_pos = max(
+                        reachable_list,
+                        key=lambda p: abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]),
+                    )
+                else:
+                    continue  # retry — no reachable cells
 
-        # Verify reachable
-        reachable = grid.flood_fill(agent_pos)
-        if goal_pos not in reachable:
-            # Open doorways until reachable
-            for dx, dy in doorways:
-                grid.terrain[dy, dx] = CellType.EMPTY
+            # Ensure goal is reachable, opening doorways if needed
             reachable = grid.flood_fill(agent_pos)
             if goal_pos not in reachable:
-                # Ultimate fallback: open grid
-                grid = Grid(size, size)
-                grid.terrain[0, :] = CellType.WALL
-                grid.terrain[-1, :] = CellType.WALL
-                grid.terrain[:, 0] = CellType.WALL
-                grid.terrain[:, -1] = CellType.WALL
-                goal_pos = (size - 2, size - 2)
+                for dx, dy in doorways:
+                    grid.terrain[dy, dx] = CellType.EMPTY
+                reachable = grid.flood_fill(agent_pos)
+                if goal_pos not in reachable:
+                    continue  # retry — still unreachable
 
+            # Validate map quality
+            if self._validate_map(grid, agent_pos, goal_pos):
+                grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+                return grid, {
+                    "agent_start": agent_pos,
+                    "goal_positions": [goal_pos],
+                    "max_steps": self.get_max_steps(),
+                    "depth": depth,
+                    "n_doorways": len(doorways),
+                }
+
+        # Ultimate fallback: simple bordered grid with interior walls
+        grid = Grid(size, size)
+        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, -1] = CellType.WALL
+        # Add a simple cross wall to create rooms
+        mid = size // 2
+        for x in range(1, size - 1):
+            grid.terrain[mid, x] = CellType.WALL
+        for y in range(1, size - 1):
+            grid.terrain[y, mid] = CellType.WALL
+        # Add doorways
+        grid.terrain[mid, mid // 2] = CellType.EMPTY
+        grid.terrain[mid, mid + mid // 2] = CellType.EMPTY
+        grid.terrain[mid // 2, mid] = CellType.EMPTY
+        grid.terrain[mid + mid // 2, mid] = CellType.EMPTY
+        agent_pos = (1, 1)
+        goal_pos = (size - 2, size - 2)
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
-
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
             "max_steps": self.get_max_steps(),
             "depth": depth,
-            "n_doorways": len(doorways),
+            "n_doorways": 4,
         }
 
     def compute_dense_reward(self, old_state, action, new_state, info):

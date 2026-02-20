@@ -341,10 +341,7 @@ class AgentickEnv(gym.Env):
         elif action_type == ActionType.ROTATE_RIGHT:
             self.agent.orientation = self.agent.orientation.rotate_right()
         elif action_type == ActionType.MOVE_FORWARD:
-            dx, dy = self.agent.orientation.to_delta()
-            new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
-            if self.grid.is_walkable(new_pos):
-                self.agent.position = new_pos
+            self._move_forward()
 
     def _move_agent(self, action_type: ActionType) -> None:
         """Move agent based on action."""
@@ -355,6 +352,13 @@ class AgentickEnv(gym.Env):
         dx, dy = delta
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
 
+        if self.grid.is_walkable(new_pos):
+            self.agent.position = new_pos
+
+    def _move_forward(self) -> None:
+        """Move agent forward in its facing direction."""
+        dx, dy = self.agent.orientation.to_delta()
+        new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
         if self.grid.is_walkable(new_pos):
             self.agent.position = new_pos
 

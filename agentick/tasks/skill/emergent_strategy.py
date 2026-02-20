@@ -160,6 +160,11 @@ class EmergentStrategyTask(TaskSpec):
             config["_keys_collected"] = config.get("_keys_collected", 0) + 1
 
     def on_env_step(self, agent, grid, config, step_count):
+        # If agent already reached goal, don't process barrier logic
+        x_a, y_a = agent.position
+        if grid.objects[y_a, x_a] == ObjectType.GOAL:
+            return
+
         rows = config.get(
             "barrier_rows",
             [config.get("barrier_row", grid.height // 2)],
@@ -171,7 +176,6 @@ class EmergentStrategyTask(TaskSpec):
         warning = config.get("barrier_warning", 0)
         closed_flags = config.get("_barriers_closed", [False] * len(rows))
         warned_flags = config.get("_barriers_warned", [False] * len(rows))
-        ax, ay = agent.position
 
         for idx, (row, closes_at) in enumerate(
             zip(rows, close_times)
@@ -195,7 +199,7 @@ class EmergentStrategyTask(TaskSpec):
         if any(closed_flags):
             config["_barrier_closed"] = True
 
-        if grid.terrain[ay, ax] == CellType.HAZARD:
+        if grid.terrain[y_a, x_a] == CellType.HAZARD:
             config["_hit_barrier"] = True
 
     def compute_sparse_reward(self, old_state, action, new_state, info):
