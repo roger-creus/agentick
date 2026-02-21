@@ -44,6 +44,8 @@ class HuggingFaceLLMBackend(ModelBackend):
             raise ImportError("transformers package not installed. Run: uv sync --extra llm")
 
         self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        if self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
 
         model_kwargs: dict[str, Any] = {}
         if self.quantization == "4bit":
@@ -91,18 +93,27 @@ class HuggingFaceLLMBackend(ModelBackend):
 
         inputs = self._tokenizer(prompt, return_tensors="pt", truncation=True)
         input_ids = inputs["input_ids"].to(self._model.device)
+        attention_mask = inputs["attention_mask"].to(self._model.device)
         input_len = input_ids.shape[1]
 
         gen_kwargs: dict[str, Any] = {
             "max_new_tokens": self.max_new_tokens,
             "do_sample": self.temperature > 0,
+            "pad_token_id": self._tokenizer.pad_token_id,
         }
         if self.temperature > 0:
             gen_kwargs["temperature"] = self.temperature
+        else:
+            # Override model generation_config defaults to suppress warnings
+            gen_kwargs["temperature"] = None
+            gen_kwargs["top_p"] = None
+            gen_kwargs["top_k"] = None
 
         start = time.time()
         with torch.no_grad():
-            output_ids = self._model.generate(input_ids, **gen_kwargs)
+            output_ids = self._model.generate(
+                input_ids, attention_mask=attention_mask, **gen_kwargs
+            )
         latency = time.time() - start
 
         new_ids = output_ids[0][input_len:]

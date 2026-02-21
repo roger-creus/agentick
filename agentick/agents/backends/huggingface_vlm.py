@@ -107,6 +107,10 @@ class HuggingFaceVLMBackend(ModelBackend):
         }
         if self.temperature > 0:
             gen_kwargs["temperature"] = self.temperature
+        else:
+            gen_kwargs["temperature"] = None
+            gen_kwargs["top_p"] = None
+            gen_kwargs["top_k"] = None
 
         start = time.time()
         with torch.no_grad():
