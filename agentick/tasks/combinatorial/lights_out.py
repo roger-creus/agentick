@@ -26,31 +26,35 @@ class LightsOutTask(TaskSpec):
     capability_tags = ["combinatorial_logic"]
 
     difficulty_configs = {
-        # n_lights: lit switches to turn off | adjacent: toggling propagates to neighbors
-        # n_decoys: extra switches that look lit but reset if not in sequence | walls: obstacles
+        # Easy: simple toggle (step on light = turn it off/on). No cascade.
+        # Medium+: adjacent toggle (the classic Lights Out mechanic).
+        # n_lights: initially-lit switches to turn off.
+        # puzzle_size: side length of the NxN light grid embedded in the room.
+        # n_decoys: extra isolated switches that add noise but must also be toggled.
+        # n_walls: interior obstacles creating longer routing decisions.
         "easy": DifficultyConfig(
             name="easy",
             grid_size=7,
-            max_steps=60,
-            params={"n_lights": 3, "adjacent": False, "n_decoys": 0, "n_walls": 0},
+            max_steps=80,
+            params={"n_lights": 3, "adjacent": False, "n_decoys": 0, "n_walls": 0, "puzzle_size": 3},
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=9,
-            max_steps=100,
-            params={"n_lights": 5, "adjacent": True, "n_decoys": 1, "n_walls": 2},
+            max_steps=150,
+            params={"n_lights": 5, "adjacent": True, "n_decoys": 1, "n_walls": 2, "puzzle_size": 4},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=11,
-            max_steps=160,
-            params={"n_lights": 7, "adjacent": True, "n_decoys": 2, "n_walls": 4},
+            max_steps=250,
+            params={"n_lights": 8, "adjacent": True, "n_decoys": 2, "n_walls": 3, "puzzle_size": 4},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=13,
-            max_steps=250,
-            params={"n_lights": 9, "adjacent": True, "n_decoys": 3, "n_walls": 6},
+            max_steps=400,
+            params={"n_lights": 10, "adjacent": True, "n_decoys": 3, "n_walls": 4, "puzzle_size": 5},
         ),
     }
 
@@ -60,7 +64,8 @@ class LightsOutTask(TaskSpec):
         n_lights = self.difficulty_config.params.get("n_lights", 3)
         n_decoys = self.difficulty_config.params.get("n_decoys", 0)
         n_walls = self.difficulty_config.params.get("n_walls", 0)
-        adjacent = self.difficulty_config.params.get("adjacent", False)
+        adjacent = self.difficulty_config.params.get("adjacent", True)
+        puzzle_size = self.difficulty_config.params.get("puzzle_size", 3)
 
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
@@ -68,42 +73,100 @@ class LightsOutTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
+        # Place agent in top-left area, away from the puzzle grid
         agent_pos = (1, 1)
 
+        # Build a structured NxN light grid in the center of the room
+        # Offset so puzzle is centered
+        p_off_x = max(1, (size - puzzle_size) // 2)
+        p_off_y = max(1, (size - puzzle_size) // 2)
+        # Shift puzzle away from agent start if possible
+        if p_off_x <= 2:
+            p_off_x = min(3, size - puzzle_size - 1)
+        if p_off_y <= 2:
+            p_off_y = min(3, size - puzzle_size - 1)
+
+        # All puzzle cell positions
+        puzzle_cells = [
+            (p_off_x + px, p_off_y + py)
+            for py in range(puzzle_size)
+            for px in range(puzzle_size)
+            if 1 <= p_off_x + px < size - 1 and 1 <= p_off_y + py < size - 1
+            and (p_off_x + px, p_off_y + py) != agent_pos
+        ]
+
+        # Generate a valid solvable puzzle: start with all-off, then apply
+        # random toggle moves to create an on-pattern that we know is solvable
+        light_state = {pos: False for pos in puzzle_cells}
+        n_lit = min(n_lights, len(puzzle_cells))
+
+        if adjacent:
+            # Generate solvable puzzle by applying random moves to all-off state
+            # Each move toggles a cell + neighbors — this ensures solvability
+            n_moves = max(n_lit, int(rng.integers(n_lit, n_lit * 2 + 1)))
+            toggle_positions = list(puzzle_cells)
+            for _ in range(n_moves):
+                toggle_pos = toggle_positions[int(rng.integers(len(toggle_positions)))]
+                tx, ty = toggle_pos
+                for affected in [(tx, ty), (tx + 1, ty), (tx - 1, ty), (tx, ty + 1), (tx, ty - 1)]:
+                    if affected in light_state:
+                        light_state[affected] = not light_state[affected]
+            # Ensure at least n_lit lights are on; if too few, toggle more
+            lit_count = sum(1 for v in light_state.values() if v)
+            if lit_count == 0:
+                # Force-light some cells
+                for pos in rng.choice(len(puzzle_cells), size=n_lit, replace=False):
+                    light_state[puzzle_cells[pos]] = True
+        else:
+            # Simple mode: randomly pick n_lit cells to be on
+            on_cells = [puzzle_cells[i] for i in rng.choice(len(puzzle_cells), size=n_lit, replace=False)]
+            for pos in on_cells:
+                light_state[pos] = True
+
+        light_positions = [pos for pos, on in light_state.items() if on]
+
+        # If no lights ended up on, turn some on
+        if not light_positions:
+            for pos in puzzle_cells[:n_lit]:
+                light_state[pos] = True
+            light_positions = puzzle_cells[:n_lit]
+
+        used = set(puzzle_cells) | {agent_pos}
+
+        # Decoy SWITCHes outside the puzzle area — agent must toggle all SWITCHes to win
         free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            if (x, y) not in used and (x, y) != agent_pos
         ]
         rng.shuffle(free)
-        light_positions = free[: min(n_lights, len(free))]
-        used = set(light_positions) | {agent_pos}
-
-        # Decoy SWITCHes: extra lights — agent must toggle all SWITCHes to win
         decoy_positions = []
-        for p in free[n_lights:]:
+        for p in free:
             if len(decoy_positions) >= n_decoys:
                 break
-            if p not in used:
-                decoy_positions.append(p)
-                used.add(p)
+            decoy_positions.append(p)
+            used.add(p)
 
         # Interior walls — flood-fill to keep all lights reachable
         wall_positions = []
         wall_candidates = [p for p in free if p not in used]
+        all_lights = list(puzzle_cells) + decoy_positions
         for p in wall_candidates:
             if len(wall_positions) >= n_walls:
                 break
             wx, wy = p
             grid.terrain[wy, wx] = CellType.WALL
             reachable = grid.flood_fill(agent_pos)
-            all_reach = all(lp in reachable for lp in light_positions + decoy_positions)
-            if all_reach:
+            if all(lp in reachable for lp in all_lights):
                 wall_positions.append(p)
                 used.add(p)
             else:
                 grid.terrain[wy, wx] = CellType.EMPTY
 
-        for lx, ly in light_positions:
-            grid.objects[ly, lx] = ObjectType.SWITCH
+        # Place lights: SWITCH for lit cells (on), NONE for off (tracked via metadata)
+        for pos in puzzle_cells:
+            lx, ly = pos
+            if light_state.get(pos, False):
+                grid.objects[ly, lx] = ObjectType.SWITCH
         for dx, dy in decoy_positions:
             grid.objects[dy, dx] = ObjectType.SWITCH  # decoys look identical to lights
 
@@ -112,6 +175,7 @@ class LightsOutTask(TaskSpec):
             "goal_positions": [],
             "light_positions": light_positions,
             "decoy_positions": decoy_positions,
+            "puzzle_cells": puzzle_cells,  # all cells in the puzzle grid
             "adjacent_toggle": adjacent,
             "max_steps": self.get_max_steps(),
         }

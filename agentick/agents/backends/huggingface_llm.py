@@ -20,7 +20,11 @@ class HuggingFaceLLMBackend(ModelBackend):
         dtype: str = "bfloat16",
         quantization: str | None = None,
         max_new_tokens: int = 50,
-        temperature: float = 0.0,
+        temperature: float = 0.7,
+        top_p: float = 0.8,
+        top_k: int = 20,
+        min_p: float = 0.0,
+        enable_thinking: bool = False,
     ):
         self.name = f"hf/{model_id.split('/')[-1]}"
         self.model_id = model_id
@@ -29,6 +33,10 @@ class HuggingFaceLLMBackend(ModelBackend):
         self.quantization = quantization
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.min_p = min_p
+        self.enable_thinking = enable_thinking
 
         self._model = None
         self._tokenizer = None
@@ -81,11 +89,22 @@ class HuggingFaceLLMBackend(ModelBackend):
         # Flatten multimodal content blocks to text-only
         text_messages = _flatten_to_text(messages)
 
-        # Use chat template if available, else manual formatting
+        # Use chat template if available, else manual formatting.
+        # Pass enable_thinking=False for Qwen3 models to suppress <think>...</think> output,
+        # which would exhaust max_new_tokens before producing a valid action.
         if hasattr(self._tokenizer, "apply_chat_template"):
-            prompt = self._tokenizer.apply_chat_template(
-                text_messages, tokenize=False, add_generation_prompt=True
-            )
+            try:
+                prompt = self._tokenizer.apply_chat_template(
+                    text_messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=self.enable_thinking,
+                )
+            except TypeError:
+                # Model's chat template doesn't support enable_thinking (non-Qwen3)
+                prompt = self._tokenizer.apply_chat_template(
+                    text_messages, tokenize=False, add_generation_prompt=True
+                )
         else:
             prompt = _manual_chat_format(text_messages)
 
@@ -103,6 +122,10 @@ class HuggingFaceLLMBackend(ModelBackend):
         }
         if self.temperature > 0:
             gen_kwargs["temperature"] = self.temperature
+            gen_kwargs["top_p"] = self.top_p
+            gen_kwargs["top_k"] = self.top_k
+            if self.min_p > 0:
+                gen_kwargs["min_p"] = self.min_p
         else:
             # Override model generation_config defaults to suppress warnings
             gen_kwargs["temperature"] = None

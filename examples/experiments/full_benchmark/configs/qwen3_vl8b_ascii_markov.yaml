@@ -12,7 +12,10 @@ agent:
     device: auto
     dtype: bfloat16
     max_new_tokens: 50
-    temperature: 0.0
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    min_p: 0.0
 tasks: full
 difficulties:
 - easy

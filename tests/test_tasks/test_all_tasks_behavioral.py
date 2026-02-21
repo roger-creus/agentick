@@ -385,18 +385,27 @@ def test_distribution_shift_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_recipe_assembly_can_succeed():
-    """RecipeAssembly: collect all ingredients via movement then reach goal."""
+    """RecipeAssembly: collect ingredients in recipe order and bring each to crafting station."""
     env = agentick.make("RecipeAssembly-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    for ing in cfg["ingredient_positions"]:
-        _walk_to(env, ing[0], ing[1])
-    goal = cfg["goal_positions"][0]
-    obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+    recipe = cfg.get("recipe", [])  # list of int (ObjectType values)
+    ing_pos = cfg.get("ingredient_positions", {})  # dict int -> [[x,y], ...]
+    station = cfg.get("station_pos", cfg.get("goal_positions", [[4, 4]])[0])
+    term, trunc, info = False, False, {}
+    for needed_type in recipe:
+        if term or trunc:
+            break
+        positions = ing_pos.get(needed_type, ing_pos.get(str(needed_type), []))
+        if positions:
+            pos = positions[0]
+            obs, rew, term, trunc, info = _walk_to(env, pos[0], pos[1])
+        if not (term or trunc):
+            obs, rew, term, trunc, info = _walk_to(env, station[0], station[1])
     if not (term or trunc):
         obs, rew, term, trunc, info = _noop(env)
     env.close()
-    assert info["success"], "RecipeAssembly: success didn't fire after collecting all ingredients"
+    assert info["success"], "RecipeAssembly: success didn't fire after following recipe"
 
 
 @pytest.mark.timeout(60)
@@ -731,7 +740,14 @@ def test_packing_puzzle_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_cooperative_transport_can_succeed():
-    """CooperativeTransport: push box to target using Sokoban mechanic."""
+    """CooperativeTransport: push box to target using Sokoban mechanic (any direction)."""
+    # Direction maps: (push_action, pre_push_offset_from_box, box_delta)
+    # To push east: stand west of box, take east action
+    # To push west: stand east of box, take west action
+    # To push south: stand north of box, take south action
+    # To push north: stand south of box, take north action
+    ACTION_FOR_DELTA = {(1, 0): 4, (-1, 0): 3, (0, 1): 2, (0, -1): 1}
+
     env = agentick.make("CooperativeTransport-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
@@ -740,23 +756,43 @@ def test_cooperative_transport_can_succeed():
     bx, by = box[0], box[1]
     tx, ty = target[0], target[1]
     last_info = {"success": False}
-    # Push south (box above target)
-    dy = ty - by
-    for _ in range(dy):
+
+    # Determine push direction(s) needed
+    push_steps = []
+    if tx > bx:  # push east: stand west (bx-1, by), step east
+        for _ in range(tx - bx):
+            push_steps.append(((1, 0), (-1, 0)))  # (box_delta, pre_offset)
+    elif tx < bx:  # push west: stand east (bx+1, by), step west
+        for _ in range(bx - tx):
+            push_steps.append(((-1, 0), (1, 0)))
+    if ty > by:  # push south: stand north (bx, by-1), step south
+        for _ in range(ty - by):
+            push_steps.append(((0, 1), (0, -1)))
+    elif ty < by:  # push north: stand south (bx, by+1), step north
+        for _ in range(by - ty):
+            push_steps.append(((0, -1), (0, 1)))
+
+    for box_delta, pre_offset in push_steps:
         if env.done:
             break
-        path = _bfs_nobox(env, bx, by - 1)
+        # Navigate to position opposite the push direction (pre_offset from current box)
+        pre_x = bx + pre_offset[0]
+        pre_y = by + pre_offset[1]
+        path = _bfs_nobox(env, pre_x, pre_y)
         if path:
             prev = env.agent.position
             for nxt in path[1:]:
                 if env.done:
                     break
                 ddx, ddy = nxt[0] - prev[0], nxt[1] - prev[1]
-                env.step({(1, 0): 4, (-1, 0): 3, (0, 1): 2, (0, -1): 1}[(ddx, ddy)])
+                env.step(ACTION_FOR_DELTA[(ddx, ddy)])
                 prev = env.agent.position
         if not env.done:
-            _, rew, term, trunc, last_info = env.step(2)  # push south
-            by += 1
+            push_action = ACTION_FOR_DELTA[box_delta]
+            _, rew, term, trunc, last_info = env.step(push_action)
+            bx += box_delta[0]
+            by += box_delta[1]
+
     if not env.done:
         _, rew, term, trunc, last_info = _noop(env)
     env.close()
@@ -843,30 +879,47 @@ def test_precise_navigation_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_graph_coloring_can_succeed():
-    """GraphColoring: pick up colors and assign to nodes with no adjacency violation."""
+    """GraphColoring: walk to each node and INTERACT to cycle to target color."""
+    from agentick.core.types import ActionType
+    interact_action = int(ActionType.INTERACT)
+
     env = agentick.make("GraphColoring-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
     nodes = cfg.get("node_positions", [])
-    stations = cfg.get("color_stations", [])
+    n_colors = cfg.get("n_colors", 2)
     adj = cfg.get("adjacency", {})
 
-    # Greedy coloring: assign colors respecting adjacency constraints
+    # Greedy coloring (1-based to match task internals: 0=uncolored, 1..n_colors=colored)
     node_colors = {}
-    for i, node in enumerate(nodes):
+    for i in range(len(nodes)):
         used = set()
         for nb in adj.get(i, adj.get(str(i), [])):
-            if nb in node_colors or str(nb) in node_colors:
-                used.add(node_colors.get(nb, node_colors.get(str(nb))))
-        color = 0
-        while color in used:
-            color += 1
-        node_colors[i] = color
-        # Walk to color station, then walk to node
-        if color < len(stations) and not env.done:
-            _walk_to(env, stations[color][0], stations[color][1])
-        if not env.done:
-            obs, rew, term, trunc, info = _walk_to(env, node[0], node[1])
+            nb = int(nb)
+            if nb in node_colors:
+                used.add(node_colors[nb])
+        c = 1  # 1-based target color
+        while c in used:
+            c += 1
+        node_colors[i] = c
+
+    info = {}
+    for i, (nx, ny) in enumerate(nodes):
+        if env.done:
+            break
+        # Walk to node
+        obs, rew, term, trunc, info = _walk_to(env, nx, ny)
+        if env.done:
+            break
+        # Read current color from grid metadata
+        current = int(env.grid.metadata[ny, nx])
+        target = node_colors[i]
+        # INTERACT to cycle color: need (target - current) % (n_colors+1) times
+        cycles = (target - current) % (n_colors + 1)
+        for _ in range(cycles):
+            if env.done:
+                break
+            obs, rew, term, trunc, info = env.step(interact_action)
     if not env.done:
         obs, rew, term, trunc, info = _noop(env)
     env.close()

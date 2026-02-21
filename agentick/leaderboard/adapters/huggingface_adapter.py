@@ -20,7 +20,10 @@ class HuggingFaceAgent:
         dtype: str | None = "float16",
         quantization: str | None = None,  # "4bit", "8bit", or None
         max_new_tokens: int = 50,
-        temperature: float = 0.0,
+        temperature: float = 0.7,
+        top_p: float = 0.8,
+        top_k: int = 20,
+        min_p: float = 0.0,
         **kwargs,
     ):
         """
@@ -33,7 +36,10 @@ class HuggingFaceAgent:
             dtype: Data type ("float16", "bfloat16", "float32")
             quantization: Quantization mode ("4bit", "8bit", None)
             max_new_tokens: Max tokens to generate
-            temperature: Sampling temperature
+            temperature: Sampling temperature (Qwen default: 0.7)
+            top_p: Nucleus sampling probability (Qwen default: 0.8)
+            top_k: Top-k sampling (Qwen default: 20)
+            min_p: Minimum probability threshold (Qwen default: 0.0)
             **kwargs: Additional model/tokenizer kwargs
         """
         self.model_id = model_id
@@ -43,6 +49,9 @@ class HuggingFaceAgent:
         self.quantization = quantization
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.min_p = min_p
         self.kwargs = kwargs
 
         # Load model and tokenizer
@@ -129,14 +138,24 @@ class HuggingFaceAgent:
         # Generate
         import torch
 
+        gen_kwargs: dict[str, Any] = {
+            "max_new_tokens": self.max_new_tokens,
+            "do_sample": self.temperature > 0,
+            "pad_token_id": self.tokenizer.eos_token_id,
+        }
+        if self.temperature > 0:
+            gen_kwargs["temperature"] = self.temperature
+            gen_kwargs["top_p"] = self.top_p
+            gen_kwargs["top_k"] = self.top_k
+            if self.min_p > 0:
+                gen_kwargs["min_p"] = self.min_p
+        else:
+            gen_kwargs["temperature"] = None
+            gen_kwargs["top_p"] = None
+            gen_kwargs["top_k"] = None
+
         with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                temperature=self.temperature if self.temperature > 0 else None,
-                do_sample=self.temperature > 0,
-                pad_token_id=self.tokenizer.eos_token_id,
-            )
+            outputs = self.model.generate(**inputs, **gen_kwargs)
 
         # Decode
         response = self.tokenizer.decode(

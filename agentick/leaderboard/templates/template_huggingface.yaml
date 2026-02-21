@@ -21,7 +21,10 @@ config:
   dtype: "float16"  # float16, bfloat16, float32
   quantization: null  # 4bit, 8bit, or null
   max_new_tokens: 50
-  temperature: 0.0
+  temperature: 0.7
+  top_p: 0.8
+  top_k: 20
+  min_p: 0.0
 
 suites:
   - "agentick-quick-v1"
