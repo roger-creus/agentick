@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# Regex to strip ANSI escape sequences
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 # System prompt template
 SYSTEM_PROMPT = """You are an AI agent playing grid-world tasks in the Agentick benchmark.
 
@@ -35,15 +38,11 @@ Respond with ONLY the action number, nothing else."""
 DIRECT_ACTION_PROMPT = """Current observation:
 {observation}
 
-Valid actions: {valid_actions}
-
 Select the best action (respond with just the number):"""
 
 # Chain-of-thought prompt
 COT_PROMPT = """Current observation:
 {observation}
-
-Valid actions: {valid_actions}
 
 Think step-by-step:
 1. What do I see?
@@ -83,8 +82,8 @@ def format_observation_to_text(
         Formatted text prompt
     """
     if observation_mode == "ascii":
-        # ASCII is already text
-        obs_text = str(observation)
+        # ASCII is already text; strip ANSI color codes for LLM readability
+        obs_text = _ANSI_RE.sub("", str(observation))
 
     elif observation_mode == "language":
         # Natural language description
@@ -120,14 +119,11 @@ def format_observation_to_text(
     # Add task context
     task_name = info.get("task_name", "unknown")
     step = info.get("step", 0)
-    valid_actions = info.get("valid_actions", [])
 
     prompt = f"""Task: {task_name}
 Step: {step}
 
 {obs_text}
-
-Valid actions: {valid_actions}
 
 Select the best action (respond with just the action number):"""
 
@@ -321,9 +317,5 @@ def create_cot_prompt(observation: Any, info: dict[str, Any], observation_mode: 
         CoT prompt
     """
     obs_text = str(observation)
-    valid_actions = info.get("valid_actions", [])
 
-    return COT_PROMPT.format(
-        observation=obs_text,
-        valid_actions=valid_actions,
-    )
+    return COT_PROMPT.format(observation=obs_text)
