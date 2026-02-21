@@ -91,13 +91,11 @@ def _make_user_content(
                 # Add minimal text context alongside the image
                 task_name = info.get("task_name", "unknown")
                 step = info.get("step", 0)
-                valid_actions = info.get("valid_actions", [])
                 parts.append(
                     {
                         "type": "text",
                         "text": (
                             f"Task: {task_name}\nStep: {step}\n"
-                            f"Valid actions: {valid_actions}\n"
                             "Select the best action (respond with just the action number):"
                         ),
                     }

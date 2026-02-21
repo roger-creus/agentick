@@ -82,9 +82,9 @@ class BaseAgent:
         response: BackendResponse = self.backend.generate(messages)
         latency = time.time() - start
 
-        # Parse action
-        valid_actions = info.get("valid_actions", list(range(8)))
-        action = parse_action_from_text(response.text, valid_actions)
+        # Parse action — always use integer action IDs (0-7) for the parser
+        # since env.step() expects ActionType integers, not string indices.
+        action = parse_action_from_text(response.text, list(range(8)))
 
         # Extract reasoning for CoT harness
         reasoning = None

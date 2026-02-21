@@ -255,7 +255,7 @@ class TaskEnv(AgentickEnv):
         """
         self.task = task
         self.task_config = config
-        self._task_name = task.name.replace("-v0", "")
+        self._task_name = task.name
 
         # Get max_steps from task
         max_steps = config.get("max_steps", task.get_max_steps())
