@@ -652,6 +652,7 @@ class ExperimentRunner:
                     # Run episode
                     episode_data = self._run_episode(
                         env, seed, seed_idx, ep_idx, episodes_dir, ep_video_dir,
+                        task_name=task_name, difficulty=difficulty,
                     )
                     difficulty_results["episodes"].append(episode_data)
 
@@ -707,6 +708,8 @@ class ExperimentRunner:
         ep_idx: int,
         episodes_dir: Path,
         video_dir: Path | None = None,
+        task_name: str = "unknown",
+        difficulty: str = "unknown",
     ) -> dict[str, Any]:
         """Run a single episode."""
         obs, info = env.reset(seed=seed)
@@ -758,7 +761,7 @@ class ExperimentRunner:
             total_reward += reward
             step_count += 1
 
-            if self.config.record_trajectories:
+            if self.config.record_trajectories or self.agent is not None:
                 step_data = {
                     "step": step_count,
                     "action": int(action),
@@ -781,6 +784,43 @@ class ExperimentRunner:
         # Save video
         if video_dir is not None and frames:
             self._save_video(frames, video_dir, seed_idx, ep_idx)
+
+        # Save agent trace
+        if self.agent is not None and self.agent.call_log:
+            trace = {
+                "metadata": {
+                    "task": task_name,
+                    "difficulty": difficulty,
+                    "seed": seed,
+                    "config_name": self.config.name,
+                    "model_id": self.config.agent.hyperparameters.get("model", ""),
+                    "harness": self.config.agent.hyperparameters.get("harness", ""),
+                    "observation_modes": self.agent.observation_modes,
+                    "success": trajectory["success"],
+                    "total_reward": trajectory["total_reward"],
+                    "episode_length": trajectory["episode_length"],
+                    "total_tokens": sum(
+                        e.get("input_tokens", 0) + e.get("output_tokens", 0)
+                        for e in self.agent.call_log
+                    ),
+                },
+                "system_prompt": getattr(self.agent, "_system_prompt", ""),
+                "steps": [],
+            }
+            for i, log_entry in enumerate(self.agent.call_log):
+                step_data = dict(log_entry)
+                # Merge reward/terminated/truncated from trajectory
+                if i < len(trajectory["steps"]):
+                    traj_step = trajectory["steps"][i]
+                    step_data["reward"] = traj_step["reward"]
+                    step_data["terminated"] = traj_step["terminated"]
+                    step_data["truncated"] = traj_step["truncated"]
+                trace["steps"].append(step_data)
+
+            trace_dir = episodes_dir.parent / "traces" / difficulty
+            trace_dir.mkdir(parents=True, exist_ok=True)
+            with open(trace_dir / f"seed_{seed_idx}_ep_{ep_idx}.json", "w") as f:
+                json.dump(trace, f, indent=2)
 
         # Build episode result
         episode_result: dict[str, Any] = {
