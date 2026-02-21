@@ -138,24 +138,30 @@ class HuggingFaceAgent:
         # Generate
         import torch
 
-        gen_kwargs: dict[str, Any] = {
+        from transformers import GenerationConfig
+
+        gen_config_kwargs: dict[str, Any] = {
             "max_new_tokens": self.max_new_tokens,
-            "do_sample": self.temperature > 0,
             "pad_token_id": self.tokenizer.eos_token_id,
         }
         if self.temperature > 0:
-            gen_kwargs["temperature"] = self.temperature
-            gen_kwargs["top_p"] = self.top_p
-            gen_kwargs["top_k"] = self.top_k
+            gen_config_kwargs["do_sample"] = True
+            gen_config_kwargs["temperature"] = self.temperature
+            gen_config_kwargs["top_p"] = self.top_p
+            gen_config_kwargs["top_k"] = self.top_k
             if self.min_p > 0:
-                gen_kwargs["min_p"] = self.min_p
+                gen_config_kwargs["min_p"] = self.min_p
         else:
-            gen_kwargs["temperature"] = None
-            gen_kwargs["top_p"] = None
-            gen_kwargs["top_k"] = None
+            gen_config_kwargs["do_sample"] = False
+
+        # Use explicit GenerationConfig to avoid the model's stored
+        # generation_config overriding our sampling parameters.
+        gen_config = GenerationConfig(**gen_config_kwargs)
 
         with torch.no_grad():
-            outputs = self.model.generate(**inputs, **gen_kwargs)
+            outputs = self.model.generate(
+                **inputs, generation_config=gen_config
+            )
 
         # Decode
         response = self.tokenizer.decode(
