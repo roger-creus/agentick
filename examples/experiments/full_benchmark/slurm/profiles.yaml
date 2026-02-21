@@ -15,6 +15,7 @@ classification:  # first match wins
   - { pattern: "ppo_*",           profile: ppo }
   - { pattern: "qwen3_vl*",       profile: local_vlm }
   - { pattern: "qwen*",           profile: local_llm }
+  - { pattern: "qwen3_4b*",           profile: local_llm }
   - { pattern: "claude_sonnet_*", profile: api_llm }
   - { pattern: "gpt4o_*",         profile: api_llm }
   - { pattern: "anthropic_*",     profile: api_llm }
