@@ -30,39 +30,55 @@ class NoisyObservationTask(TaskSpec):
     capability_tags = ["robustness", "navigation", "noise"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={
-                "n_decoys": 3, "n_obstacles": 3,
+                "n_decoys": 3,
+                "n_obstacles": 3,
                 "n_guards": 0,
-                "moving_decoys": False, "n_moving_decoys": 0,
+                "moving_decoys": False,
+                "n_moving_decoys": 0,
                 "n_ghosts": 2,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=9, max_steps=150,
+            name="medium",
+            grid_size=9,
+            max_steps=150,
             params={
-                "n_decoys": 6, "n_obstacles": 5,
+                "n_decoys": 6,
+                "n_obstacles": 5,
                 "n_guards": 1,
-                "moving_decoys": False, "n_moving_decoys": 0,
+                "moving_decoys": False,
+                "n_moving_decoys": 0,
                 "n_ghosts": 4,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=11, max_steps=220,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=11,
+            max_steps=220,
             params={
-                "n_decoys": 10, "n_obstacles": 8,
+                "n_decoys": 10,
+                "n_obstacles": 8,
                 "n_guards": 2,
-                "moving_decoys": True, "n_moving_decoys": 4,
+                "moving_decoys": True,
+                "n_moving_decoys": 4,
                 "n_ghosts": 6,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=13, max_steps=320,
+            name="expert",
+            grid_size=13,
+            max_steps=320,
             params={
-                "n_decoys": 14, "n_obstacles": 12,
+                "n_decoys": 14,
+                "n_obstacles": 12,
                 "n_guards": 3,
-                "moving_decoys": True, "n_moving_decoys": 6,
+                "moving_decoys": True,
+                "n_moving_decoys": 6,
                 "n_ghosts": 10,
             },
         ),
@@ -72,28 +88,28 @@ class NoisyObservationTask(TaskSpec):
     _GHOST_TYPES = [ObjectType.SCROLL, ObjectType.ORB, ObjectType.LEVER, ObjectType.COIN]
 
     def generate(self, seed):
-        rng      = np.random.default_rng(seed)
-        size     = self.difficulty_config.grid_size
+        rng = np.random.default_rng(seed)
+        size = self.difficulty_config.grid_size
         n_decoys = self.difficulty_config.params.get("n_decoys", 3)
-        n_obs    = self.difficulty_config.params.get("n_obstacles", 3)
+        n_obs = self.difficulty_config.params.get("n_obstacles", 3)
         n_guards = self.difficulty_config.params.get("n_guards", 0)
         moving_decoys = self.difficulty_config.params.get("moving_decoys", False)
         n_moving_decoys = self.difficulty_config.params.get("n_moving_decoys", 0)
         n_ghosts = self.difficulty_config.params.get("n_ghosts", 2)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
-        interior = [(x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-                    if (x, y) != agent_pos]
+        interior = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+        ]
         rng.shuffle(interior)
 
-        non_corner = [(x, y) for (x, y) in interior
-                      if not (x == size - 2 and y == size - 2)]
+        non_corner = [(x, y) for (x, y) in interior if not (x == size - 2 and y == size - 2)]
         goal_pos = non_corner[0]
         used = {goal_pos, agent_pos}
 
@@ -123,9 +139,13 @@ class NoisyObservationTask(TaskSpec):
 
         # Guards
         reachable = grid.flood_fill(agent_pos)
-        guard_candidates = [p for p in reachable if p not in used
-                            and p != goal_pos
-                            and abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]) > 2]
+        guard_candidates = [
+            p
+            for p in reachable
+            if p not in used
+            and p != goal_pos
+            and abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]) > 2
+        ]
         rng.shuffle(guard_candidates)
         guard_positions = guard_candidates[:n_guards]
         for gx, gy in guard_positions:
@@ -176,8 +196,8 @@ class NoisyObservationTask(TaskSpec):
 
         # Move guards
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         if guards and rng is not None:
             for gx, gy in guards:
                 if grid.objects[gy, gx] == ObjectType.NPC:
@@ -187,11 +207,12 @@ class NoisyObservationTask(TaskSpec):
                 d = dirs[i]
                 dx, dy = self._DIRS[d]
                 nx, ny = gx + dx, gy + dy
-                if (0 < nx < grid.width - 1
-                        and 0 < ny < grid.height - 1
-                        and grid.terrain[ny, nx] == CellType.EMPTY
-                        and grid.objects[ny, nx] not in (
-                            ObjectType.GOAL, ObjectType.TARGET)):
+                if (
+                    0 < nx < grid.width - 1
+                    and 0 < ny < grid.height - 1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] not in (ObjectType.GOAL, ObjectType.TARGET)
+                ):
                     new_g.append((nx, ny))
                 else:
                     d = int(rng.integers(0, 4))
@@ -218,10 +239,12 @@ class NoisyObservationTask(TaskSpec):
                 d = md_dirs[i]
                 ddx, ddy = self._DIRS[d]
                 nx, ny = mx + ddx, my + ddy
-                if (0 < nx < grid.width - 1
-                        and 0 < ny < grid.height - 1
-                        and grid.terrain[ny, nx] == CellType.EMPTY
-                        and grid.objects[ny, nx] == ObjectType.NONE):
+                if (
+                    0 < nx < grid.width - 1
+                    and 0 < ny < grid.height - 1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] == ObjectType.NONE
+                ):
                     new_m.append((nx, ny))
                 else:
                     d = int(md_rng.integers(0, 4))
@@ -247,11 +270,14 @@ class NoisyObservationTask(TaskSpec):
             # Place new ghosts on random empty cells
             new_ghosts = []
             empties = [
-                (x, y) for y in range(1, grid.height - 1)
+                (x, y)
+                for y in range(1, grid.height - 1)
                 for x in range(1, grid.width - 1)
-                if (grid.terrain[y, x] == CellType.EMPTY
+                if (
+                    grid.terrain[y, x] == CellType.EMPTY
                     and grid.objects[y, x] == ObjectType.NONE
-                    and (x, y) != (ax, ay))
+                    and (x, y) != (ax, ay)
+                )
             ]
             if empties:
                 n_place = min(n_ghosts, len(empties))
@@ -272,8 +298,9 @@ class NoisyObservationTask(TaskSpec):
         if goal and "agent" in new_state:
             ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", new_state["agent"].position)
-            reward += 0.05 * (abs(ox - goal[0]) + abs(oy - goal[1])
-                              - abs(ax - goal[0]) - abs(ay - goal[1]))
+            reward += 0.05 * (
+                abs(ox - goal[0]) + abs(oy - goal[1]) - abs(ax - goal[0]) - abs(ay - goal[1])
+            )
         if self.check_success(new_state):
             reward += 1.0
         return reward
@@ -293,5 +320,8 @@ class NoisyObservationTask(TaskSpec):
             return True
         return self.check_success(state)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

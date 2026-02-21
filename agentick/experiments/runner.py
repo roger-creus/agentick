@@ -234,7 +234,12 @@ class ExperimentRunner:
 
             self.agent = create_agent(config.agent)
 
-    def run(self, resume_from: str | Path | None = None, n_parallel: int = 1, output_dir: str | Path | None = None) -> ExperimentResults:
+    def run(
+        self,
+        resume_from: str | Path | None = None,
+        n_parallel: int = 1,
+        output_dir: str | Path | None = None,
+    ) -> ExperimentResults:
         """
         Run the experiment with crash-safe checkpoint support.
 
@@ -629,9 +634,7 @@ class ExperimentRunner:
             # Video directory (record first episode per seed only to save space)
             video_dir = None
             if self.config.record_videos:
-                video_dir = (
-                    output_dir / "videos" / task_name / difficulty
-                )
+                video_dir = output_dir / "videos" / task_name / difficulty
                 video_dir.mkdir(parents=True, exist_ok=True)
 
             # Run episodes
@@ -651,8 +654,14 @@ class ExperimentRunner:
 
                     # Run episode
                     episode_data = self._run_episode(
-                        env, seed, seed_idx, ep_idx, episodes_dir, ep_video_dir,
-                        task_name=task_name, difficulty=difficulty,
+                        env,
+                        seed,
+                        seed_idx,
+                        ep_idx,
+                        episodes_dir,
+                        ep_video_dir,
+                        task_name=task_name,
+                        difficulty=difficulty,
                     )
                     difficulty_results["episodes"].append(episode_data)
 
@@ -716,10 +725,10 @@ class ExperimentRunner:
 
         if is_agent:
             print(
-                f"\n{'='*60}\n"
+                f"\n{'=' * 60}\n"
                 f"  Episode: {task_name} | {difficulty} | "
                 f"seed={seed} (#{seed_idx}) ep={ep_idx}\n"
-                f"{'='*60}"
+                f"{'=' * 60}"
             )
 
         obs, info = env.reset(seed=seed)
@@ -808,9 +817,7 @@ class ExperimentRunner:
         if is_agent:
             status = "SUCCESS" if trajectory["success"] else "FAIL"
             ep_latency = sum(e["latency"] for e in self.agent.call_log)
-            ep_tokens = sum(
-                e["input_tokens"] + e["output_tokens"] for e in self.agent.call_log
-            )
+            ep_tokens = sum(e["input_tokens"] + e["output_tokens"] for e in self.agent.call_log)
             print(
                 f"  --- {status} | {step_count} steps | "
                 f"reward={total_reward:.2f} | "
@@ -916,13 +923,9 @@ class ExperimentRunner:
                 if latencies:
                     metrics["mean_latency"] = float(np.mean(latencies))
             if "total_tokens" in self.config.metrics:
-                metrics["total_tokens"] = sum(
-                    s.get("total_tokens", 0) for s in agent_stats_list
-                )
+                metrics["total_tokens"] = sum(s.get("total_tokens", 0) for s in agent_stats_list)
             if "total_api_calls" in self.config.metrics:
-                metrics["total_api_calls"] = sum(
-                    s.get("total_calls", 0) for s in agent_stats_list
-                )
+                metrics["total_api_calls"] = sum(s.get("total_calls", 0) for s in agent_stats_list)
 
         return metrics
 

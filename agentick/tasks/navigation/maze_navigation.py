@@ -36,25 +36,43 @@ class MazeNavigationTask(TaskSpec):
             name="medium",
             grid_size=11,
             max_steps=120,
-            params={"loop_freq": 0.15, "n_guards": 1, "n_hazards": 2, "algorithm": "recursive_backtracker"},
+            params={
+                "loop_freq": 0.15,
+                "n_guards": 1,
+                "n_hazards": 2,
+                "algorithm": "recursive_backtracker",
+            },
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=15,
             max_steps=250,
-            params={"loop_freq": 0.08, "n_guards": 2, "n_hazards": 4, "algorithm": "recursive_backtracker"},
+            params={
+                "loop_freq": 0.08,
+                "n_guards": 2,
+                "n_hazards": 4,
+                "algorithm": "recursive_backtracker",
+            },
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=21,
             max_steps=500,
-            params={"loop_freq": 0.03, "n_guards": 3, "n_hazards": 6, "algorithm": "recursive_backtracker"},
+            params={
+                "loop_freq": 0.03,
+                "n_guards": 3,
+                "n_hazards": 6,
+                "algorithm": "recursive_backtracker",
+            },
         ),
     }
 
     def _generate_maze(
-        self, grid: Grid, rng: np.random.Generator,
-        algorithm: str = "recursive_backtracker", loop_freq: float = 0.1
+        self,
+        grid: Grid,
+        rng: np.random.Generator,
+        algorithm: str = "recursive_backtracker",
+        loop_freq: float = 0.1,
     ):
         """Generate maze using generation engine."""
         maze_config = MazeConfig(
@@ -89,10 +107,10 @@ class MazeNavigationTask(TaskSpec):
         """
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        p         = self.difficulty_config.params or {}
+        p = self.difficulty_config.params or {}
         algorithm = p.get("algorithm", "recursive_backtracker")
         loop_freq = p.get("loop_freq", 0.1)
-        n_guards  = p.get("n_guards", 0)
+        n_guards = p.get("n_guards", 0)
 
         # Ensure odd size for maze generation
         if size % 2 == 0:
@@ -172,7 +190,8 @@ class MazeNavigationTask(TaskSpec):
         # Place guard NPCs in dead-end corridors (far from agent, not on goal or path)
         path_set = set(optimal_path) if optimal_path else set()
         guard_candidates = [
-            pos for pos in valid_positions
+            pos
+            for pos in valid_positions
             if pos != agent_pos and pos != goal_pos and pos not in path_set
         ]
         rng.shuffle(guard_candidates)
@@ -191,9 +210,11 @@ class MazeNavigationTask(TaskSpec):
                     continue
                 px, py = pos
                 neighbors = sum(
-                    1 for ddx, ddy in self._DIRS
-                    if 0 <= px+ddx < size and 0 <= py+ddy < size
-                    and grid.terrain[py+ddy, px+ddx] == CellType.EMPTY
+                    1
+                    for ddx, ddy in self._DIRS
+                    if 0 <= px + ddx < size
+                    and 0 <= py + ddy < size
+                    and grid.terrain[py + ddy, px + ddx] == CellType.EMPTY
                 )
                 if neighbors == 1:
                     dead_ends.append(pos)
@@ -214,7 +235,7 @@ class MazeNavigationTask(TaskSpec):
 
         return grid, config
 
-    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def on_env_reset(self, agent, grid, config):
         config["_guard_collision"] = False
@@ -232,26 +253,37 @@ class MazeNavigationTask(TaskSpec):
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         ax, ay = agent.position
-        if not guards or rng is None: return
+        if not guards or rng is None:
+            return
         for gx, gy in guards:
-            if grid.objects[gy, gx] == ObjectType.NPC: grid.objects[gy, gx] = ObjectType.NONE
+            if grid.objects[gy, gx] == ObjectType.NPC:
+                grid.objects[gy, gx] = ObjectType.NONE
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
-            d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
-            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                    and grid.terrain[ny, nx] == CellType.EMPTY
-                    and grid.objects[ny, nx] != ObjectType.GOAL):
+            d = dirs[i]
+            dx, dy = self._DIRS[d]
+            nx, ny = gx + dx, gy + dy
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and grid.terrain[ny, nx] == CellType.EMPTY
+                and grid.objects[ny, nx] != ObjectType.GOAL
+            ):
                 new_g.append((nx, ny))
             else:
-                d = int(rng.integers(0, 4)); new_g.append((gx, gy))
+                d = int(rng.integers(0, 4))
+                new_g.append((gx, gy))
             new_d.append(d)
-            if (new_g[-1][0], new_g[-1][1]) == (ax, ay): config["_guard_collision"] = True
-        config["_guard_positions"] = new_g; config["_guard_dirs"] = new_d
+            if (new_g[-1][0], new_g[-1][1]) == (ax, ay):
+                config["_guard_collision"] = True
+        config["_guard_positions"] = new_g
+        config["_guard_dirs"] = new_d
         for gx, gy in new_g:
-            if grid.terrain[gy, gx] == CellType.EMPTY: grid.objects[gy, gx] = ObjectType.NPC
+            if grid.terrain[gy, gx] == CellType.EMPTY:
+                grid.objects[gy, gx] = ObjectType.NPC
 
     def check_done(self, state):
         config = state.get("config", {})

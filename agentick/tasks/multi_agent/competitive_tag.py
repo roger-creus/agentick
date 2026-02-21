@@ -29,31 +29,55 @@ class CompetitiveTagTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={
-                "n_targets": 1, "evade_prob": 0.40, "chase_prob": 0.10,
-                "n_safe_zones": 1, "tag_cooldown": 3, "n_obstacles": 0,
+                "n_targets": 1,
+                "evade_prob": 0.40,
+                "chase_prob": 0.10,
+                "n_safe_zones": 1,
+                "tag_cooldown": 3,
+                "n_obstacles": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=200,
+            name="medium",
+            grid_size=10,
+            max_steps=200,
             params={
-                "n_targets": 2, "evade_prob": 0.50, "chase_prob": 0.20,
-                "n_safe_zones": 2, "tag_cooldown": 2, "n_obstacles": 2,
+                "n_targets": 2,
+                "evade_prob": 0.50,
+                "chase_prob": 0.20,
+                "n_safe_zones": 2,
+                "tag_cooldown": 2,
+                "n_obstacles": 2,
             },
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=350,
+            name="hard",
+            grid_size=13,
+            max_steps=350,
             params={
-                "n_targets": 3, "evade_prob": 0.60, "chase_prob": 0.30,
-                "n_safe_zones": 2, "tag_cooldown": 2, "n_obstacles": 4,
+                "n_targets": 3,
+                "evade_prob": 0.60,
+                "chase_prob": 0.30,
+                "n_safe_zones": 2,
+                "tag_cooldown": 2,
+                "n_obstacles": 4,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500,
+            name="expert",
+            grid_size=15,
+            max_steps=500,
             params={
-                "n_targets": 4, "evade_prob": 0.70, "chase_prob": 0.40,
-                "n_safe_zones": 3, "tag_cooldown": 1, "n_obstacles": 6,
+                "n_targets": 4,
+                "evade_prob": 0.55,
+                "chase_prob": 0.40,
+                "n_safe_zones": 3,
+                "tag_cooldown": 1,
+                "n_obstacles": 6,
             },
         ),
     }
@@ -78,7 +102,9 @@ class CompetitiveTagTask(TaskSpec):
 
         # Place obstacles
         interior = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
             if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > 2
         ]
         rng.shuffle(interior)
@@ -88,7 +114,9 @@ class CompetitiveTagTask(TaskSpec):
 
         # Place safe zones (ICE terrain — visually distinct, functional)
         walkable = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
             if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
         ]
         rng.shuffle(walkable)
@@ -107,13 +135,18 @@ class CompetitiveTagTask(TaskSpec):
 
         # Place NPCs on opposite side of grid from agent
         npc_candidates = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and (x, y) != agent_pos
             and abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > size // 2
         ]
         if len(npc_candidates) < n:
             npc_candidates = [
-                (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
                 if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
             ]
         rng.shuffle(npc_candidates)
@@ -174,8 +207,7 @@ class CompetitiveTagTask(TaskSpec):
         if grid.objects[ay, ax] == ObjectType.ENEMY:
             grid.objects[ay, ax] = ObjectType.NONE
             config["_live_npcs"] = [
-                (nx, ny) for nx, ny in config.get("_live_npcs", [])
-                if (nx, ny) != (ax, ay)
+                (nx, ny) for nx, ny in config.get("_live_npcs", []) if (nx, ny) != (ax, ay)
             ]
             config["_score"] = config.get("_score", 0) + 1.0
 
@@ -205,9 +237,12 @@ class CompetitiveTagTask(TaskSpec):
                 best, best_d = (nx, ny), dist
                 for dx, dy in self._DIRS:
                     cx, cy = nx + dx, ny + dy
-                    if (0 < cx < grid.width - 1 and 0 < cy < grid.height - 1
-                            and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
-                            and grid.objects[cy, cx] != ObjectType.ENEMY):
+                    if (
+                        0 < cx < grid.width - 1
+                        and 0 < cy < grid.height - 1
+                        and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
+                        and grid.objects[cy, cx] != ObjectType.ENEMY
+                    ):
                         d = abs(cx - ax) + abs(cy - ay)
                         if d < best_d:
                             best_d, best = d, (cx, cy)
@@ -217,9 +252,12 @@ class CompetitiveTagTask(TaskSpec):
                 best, best_d = (nx, ny), dist
                 for dx, dy in self._DIRS:
                     cx, cy = nx + dx, ny + dy
-                    if (0 < cx < grid.width - 1 and 0 < cy < grid.height - 1
-                            and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
-                            and grid.objects[cy, cx] != ObjectType.ENEMY):
+                    if (
+                        0 < cx < grid.width - 1
+                        and 0 < cy < grid.height - 1
+                        and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
+                        and grid.objects[cy, cx] != ObjectType.ENEMY
+                    ):
                         d = abs(cx - ax) + abs(cy - ay)
                         if d > best_d:
                             best_d, best = d, (cx, cy)
@@ -228,22 +266,26 @@ class CompetitiveTagTask(TaskSpec):
                 # Random move
                 moves = [(nx + dx, ny + dy) for dx, dy in self._DIRS]
                 valid = [
-                    (x, y) for x, y in moves
-                    if (0 < x < grid.width - 1 and 0 < y < grid.height - 1
+                    (x, y)
+                    for x, y in moves
+                    if (
+                        0 < x < grid.width - 1
+                        and 0 < y < grid.height - 1
                         and grid.terrain[y, x] in (CellType.EMPTY, CellType.ICE)
-                        and grid.objects[y, x] != ObjectType.ENEMY)
+                        and grid.objects[y, x] != ObjectType.ENEMY
+                    )
                 ]
-                new_npcs.append(
-                    valid[int(rng.integers(len(valid)))] if valid else (nx, ny)
-                )
+                new_npcs.append(valid[int(rng.integers(len(valid)))] if valid else (nx, ny))
 
         # Check for NPC-tags-agent (bidirectional tagging)
         final = []
         for nx, ny in new_npcs:
             if (nx, ny) == (ax, ay):
                 # NPC tags agent (unless agent in safe zone or has cooldown)
-                if (not self._is_safe_zone((ax, ay), grid)
-                        and config.get("_cooldown_remaining", 0) <= 0):
+                if (
+                    not self._is_safe_zone((ax, ay), grid)
+                    and config.get("_cooldown_remaining", 0) <= 0
+                ):
                     config["_score"] = config.get("_score", 0) - 0.5
                     config["_cooldown_remaining"] = config.get("tag_cooldown", 2)
                 # NPC is still "tagged" by collision
@@ -262,7 +304,7 @@ class CompetitiveTagTask(TaskSpec):
 
         # Reward for score changes
         if score != self._last_score:
-            reward += (score - self._last_score)
+            reward += score - self._last_score
         self._last_score = score
 
         if new_n < self._last_n:

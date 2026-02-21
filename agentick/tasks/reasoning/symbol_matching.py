@@ -38,41 +38,50 @@ class SymbolMatchingTask(TaskSpec):
     capability_tags = ["reasoning", "pattern_recognition"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={"n_pairs": 2, "n_fakes": 0, "n_obstacles": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=180,
+            name="medium",
+            grid_size=10,
+            max_steps=180,
             params={"n_pairs": 3, "n_fakes": 1, "n_obstacles": 3},
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=300,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=300,
             params={"n_pairs": 4, "n_fakes": 2, "n_obstacles": 5},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500,
+            name="expert",
+            grid_size=15,
+            max_steps=500,
             params={"n_pairs": 5, "n_fakes": 3, "n_obstacles": 8},
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size        = self.difficulty_config.grid_size
-        n           = self.difficulty_config.params.get("n_pairs", 2)
-        n_fakes     = self.difficulty_config.params.get("n_fakes", 0)
+        size = self.difficulty_config.grid_size
+        n = self.difficulty_config.params.get("n_pairs", 2)
+        n_fakes = self.difficulty_config.params.get("n_fakes", 0)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
 
-        free = [(x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-                if (x, y) != agent_pos]
+        free = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+        ]
         rng.shuffle(free)
 
         # Choose n different symbol types for the pairs
@@ -86,7 +95,7 @@ class SymbolMatchingTask(TaskSpec):
 
         # Place items (the symbol objects) and targets (TARGET with metadata encoding type)
         item_positions = free[:n]
-        target_positions = free[n:2 * n]
+        target_positions = free[n : 2 * n]
         used = {agent_pos} | set(item_positions) | set(target_positions)
 
         # Store pair info: [(item_pos, target_pos, symbol_type), ...]
@@ -102,15 +111,17 @@ class SymbolMatchingTask(TaskSpec):
             grid.objects[ty, tx] = ObjectType.TARGET
             grid.metadata[ty, tx] = int(sym_type)
 
-            pair_info.append({
-                "item_pos": list(item_positions[i]),
-                "target_pos": list(target_positions[i]),
-                "symbol_type": int(sym_type),
-            })
+            pair_info.append(
+                {
+                    "item_pos": list(item_positions[i]),
+                    "target_pos": list(target_positions[i]),
+                    "symbol_type": int(sym_type),
+                }
+            )
 
         # Fake items: use symbol types not in the current pair set (or random)
         fake_positions = []
-        remaining_free = [p for p in free[2 * n:] if p not in used]
+        remaining_free = [p for p in free[2 * n :] if p not in used]
         unused_types = [t for t in _SYMBOL_TYPES if t not in pair_types]
         for i in range(min(n_fakes, len(remaining_free))):
             fx, fy = remaining_free[i]
@@ -197,13 +208,17 @@ class SymbolMatchingTask(TaskSpec):
             if self._carrying is None:
                 # Guide toward nearest uncollected symbol item
                 items = [
-                    (x, y) for y in range(g.height) for x in range(g.width)
+                    (x, y)
+                    for y in range(g.height)
+                    for x in range(g.width)
                     if g.objects[y, x] in _SYMBOL_TYPES
                 ]
             else:
                 # Guide toward the matching TARGET
                 items = [
-                    (x, y) for y in range(g.height) for x in range(g.width)
+                    (x, y)
+                    for y in range(g.height)
+                    for x in range(g.width)
                     if g.objects[y, x] == ObjectType.TARGET
                     and int(g.metadata[y, x]) == self._carrying
                 ]
@@ -220,5 +235,8 @@ class SymbolMatchingTask(TaskSpec):
         n = config.get("n_pairs", 1)
         return self._items_placed >= n
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

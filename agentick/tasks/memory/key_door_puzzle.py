@@ -32,25 +32,47 @@ class KeyDoorPuzzleTask(TaskSpec):
     capability_tags = ["memory", "sequential_reasoning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"n_keys": 1, "n_guards": 0, "chain": False}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_keys": 2, "n_guards": 0, "chain": False}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=300, params={"n_keys": 3, "n_guards": 1, "chain": True}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=450, params={"n_keys": 4, "n_guards": 2, "chain": True}),
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
+            params={"n_keys": 1, "n_guards": 0, "chain": False},
+        ),
+        "medium": DifficultyConfig(
+            name="medium",
+            grid_size=10,
+            max_steps=180,
+            params={"n_keys": 2, "n_guards": 0, "chain": False},
+        ),
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=300,
+            params={"n_keys": 3, "n_guards": 1, "chain": True},
+        ),
+        "expert": DifficultyConfig(
+            name="expert",
+            grid_size=15,
+            max_steps=450,
+            params={"n_keys": 4, "n_guards": 2, "chain": True},
+        ),
     }
 
-    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        p     = self.difficulty_config.params
-        n_keys   = p.get("n_keys", 1)
+        p = self.difficulty_config.params
+        n_keys = p.get("n_keys", 1)
         n_guards = p.get("n_guards", 0)
-        chain    = p.get("chain", False)
+        chain = p.get("chain", False)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL; grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL; grid.terrain[:, -1] = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
+        grid.terrain[-1, :] = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
+        grid.terrain[:, -1] = CellType.WALL
 
         # Divide grid into n_keys+1 rooms separated by walls with doorways
         # Rooms left→right, each with a door. Key in room i unlocks door to room i+1.
@@ -77,20 +99,26 @@ class KeyDoorPuzzleTask(TaskSpec):
         # Key i is in room i (to the LEFT of door i)
         key_positions = []
         for i, wc in enumerate(wall_cols):
-            room_left  = 1 if i == 0 else wall_cols[i-1] + 1
+            room_left = 1 if i == 0 else wall_cols[i - 1] + 1
             room_right = wc - 1
             if room_left > room_right:
                 room_left = max(1, wc - 2)
-            room_cells = [(x, y) for x in range(room_left, room_right + 1)
-                          for y in range(1, size - 1)
-                          if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos]
+            room_cells = [
+                (x, y)
+                for x in range(room_left, room_right + 1)
+                for y in range(1, size - 1)
+                if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
+            ]
             if chain and i > 0 and room_cells:
                 # Key i is BEHIND door i-1 (requires solving previous door first)
                 # So key i is on RIGHT side of wall i-1 = left side of room i
-                right_room_left = wall_cols[i-1] + 1
-                right_cells = [(x, y) for x in range(right_room_left, wc)
-                               for y in range(1, size - 1)
-                               if grid.terrain[y, x] == CellType.EMPTY]
+                right_room_left = wall_cols[i - 1] + 1
+                right_cells = [
+                    (x, y)
+                    for x in range(right_room_left, wc)
+                    for y in range(1, size - 1)
+                    if grid.terrain[y, x] == CellType.EMPTY
+                ]
                 room_cells = right_cells if right_cells else room_cells
             if room_cells:
                 kp = room_cells[int(rng.integers(len(room_cells)))]
@@ -99,34 +127,41 @@ class KeyDoorPuzzleTask(TaskSpec):
 
         # Goal: rightmost room
         rightmost = wall_cols[-1] + 1 if wall_cols else 1
-        goal_cells = [(x, y) for x in range(rightmost, size - 1)
-                      for y in range(1, size - 1)
-                      if grid.terrain[y, x] == CellType.EMPTY]
+        goal_cells = [
+            (x, y)
+            for x in range(rightmost, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+        ]
         if not goal_cells:
-            goal_cells = [(size-2, size-2)]
+            goal_cells = [(size - 2, size - 2)]
         goal_pos = goal_cells[int(rng.integers(len(goal_cells)))]
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
         # Guard start positions: hallway areas
-        all_empty = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                     if grid.terrain[y, x] == CellType.EMPTY
-                     and grid.objects[y, x] == ObjectType.NONE
-                     and (x, y) != agent_pos]
+        all_empty = [
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
+            and grid.objects[y, x] == ObjectType.NONE
+            and (x, y) != agent_pos
+        ]
         rng.shuffle(all_empty)
         guard_positions = all_empty[:n_guards]
 
         return grid, {
-            "agent_start":     agent_pos,
-            "goal_positions":  [goal_pos],
-            "key_pos":         key_positions[0] if key_positions else None,  # compat with tests
-            "key_positions":   key_positions,
-            "door_pos":        door_positions[0] if door_positions else None,  # compat with tests
-            "door_positions":  door_positions,
-            "n_keys":          n_keys,
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "key_pos": key_positions[0] if key_positions else None,  # compat with tests
+            "key_positions": key_positions,
+            "door_pos": door_positions[0] if door_positions else None,  # compat with tests
+            "door_positions": door_positions,
+            "n_keys": n_keys,
             "_guard_positions": guard_positions,
-            "_guard_dirs":     [int(rng.integers(0, 4)) for _ in guard_positions],
-            "_guard_seed":     int(rng.integers(0, 2**31)),
-            "max_steps":       self.get_max_steps(),
+            "_guard_dirs": [int(rng.integers(0, 4)) for _ in guard_positions],
+            "_guard_seed": int(rng.integers(0, 2**31)),
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
@@ -134,9 +169,9 @@ class KeyDoorPuzzleTask(TaskSpec):
         self._had_keys = 0
         self._doors_opened = 0
         self._config = config
-        config["_door_open"]       = False
+        config["_door_open"] = False
         config["_guard_collision"] = False
-        config["_guard_rng"]       = np.random.default_rng(config.get("_guard_seed", 0))
+        config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
         # Redraw guards
         for gx, gy in config.get("_guard_positions", []):
             if grid.terrain[gy, gx] == CellType.EMPTY:
@@ -167,8 +202,8 @@ class KeyDoorPuzzleTask(TaskSpec):
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         ax, ay = agent.position
         if not guards or rng is None:
             return
@@ -179,10 +214,13 @@ class KeyDoorPuzzleTask(TaskSpec):
         for i, (gx, gy) in enumerate(guards):
             d = dirs[i]
             dx, dy = self._DIRS[d]
-            nx, ny = gx+dx, gy+dy
-            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                    and grid.terrain[ny, nx] == CellType.EMPTY
-                    and grid.objects[ny, nx] == ObjectType.NONE):
+            nx, ny = gx + dx, gy + dy
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and grid.terrain[ny, nx] == CellType.EMPTY
+                and grid.objects[ny, nx] == ObjectType.NONE
+            ):
                 new_g.append((nx, ny))
             else:
                 d = int(rng.integers(0, 4))
@@ -191,7 +229,7 @@ class KeyDoorPuzzleTask(TaskSpec):
             if (new_g[-1][0], new_g[-1][1]) == (ax, ay):
                 config["_guard_collision"] = True
         config["_guard_positions"] = new_g
-        config["_guard_dirs"]      = new_d
+        config["_guard_dirs"] = new_d
         for gx, gy in new_g:
             if grid.terrain[gy, gx] == CellType.EMPTY:
                 grid.objects[gy, gx] = ObjectType.NPC
@@ -208,24 +246,34 @@ class KeyDoorPuzzleTask(TaskSpec):
             self._had_keys = n_keys
         door_open = config.get("_door_open", False)
         if door_open and not self._doors_opened:
-            reward += 0.3; self._doors_opened += 1
+            reward += 0.3
+            self._doors_opened += 1
         goal = config.get("goal_positions", [None])[0]
         if goal and agent:
             ax, ay = agent.position
             ox, oy = old_state.get("agent_position", (ax, ay))
-            reward += 0.05 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
-        if self.check_success(new_state): reward += 1.0
+            reward += 0.05 * (
+                (abs(ox - goal[0]) + abs(oy - goal[1])) - (abs(ax - goal[0]) + abs(ay - goal[1]))
+            )
+        if self.check_success(new_state):
+            reward += 1.0
         return reward
 
     def check_done(self, state):
-        if state.get("config", {}).get("_guard_collision", False): return True
+        if state.get("config", {}).get("_guard_collision", False):
+            return True
         return self.check_success(state)
 
     def check_success(self, state):
-        if state.get("config", {}).get("_guard_collision", False): return False
-        if "grid" not in state or "agent" not in state: return False
+        if state.get("config", {}).get("_guard_collision", False):
+            return False
+        if "grid" not in state or "agent" not in state:
+            return False
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

@@ -30,19 +30,27 @@ class ProgramSynthesisTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=120,
+            name="easy",
+            grid_size=9,
+            max_steps=120,
             params={"n_examples": 2, "n_tests": 1, "pattern": "translate"},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=11, max_steps=200,
+            name="medium",
+            grid_size=11,
+            max_steps=200,
             params={"n_examples": 2, "n_tests": 2, "pattern": "translate"},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=350,
+            name="hard",
+            grid_size=13,
+            max_steps=350,
             params={"n_examples": 3, "n_tests": 2, "pattern": "mirror"},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=550,
+            name="expert",
+            grid_size=15,
+            max_steps=550,
             params={"n_examples": 3, "n_tests": 3, "pattern": "rotate"},
         ),
     }
@@ -69,9 +77,9 @@ class ProgramSynthesisTask(TaskSpec):
         pattern_type = self.difficulty_config.params.get("pattern", "translate")
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
@@ -99,9 +107,13 @@ class ProgramSynthesisTask(TaskSpec):
                 inp = (ix, iy)
                 out = self._apply_pattern(inp, pattern_type, dx, dy, center_x, center_y)
                 ox, oy = out
-                if (1 <= ox < size - 1 and 1 <= oy < size - 1
-                        and inp not in used and out not in used
-                        and inp != out):
+                if (
+                    1 <= ox < size - 1
+                    and 1 <= oy < size - 1
+                    and inp not in used
+                    and out not in used
+                    and inp != out
+                ):
                     candidate_inputs.append((inp, out))
                     used.add(inp)
                     used.add(out)
@@ -122,14 +134,14 @@ class ProgramSynthesisTask(TaskSpec):
             for i in range(n_examples + n_tests):
                 inp = (2, 2 + i * 2)
                 out = (5, 2 + i * 2)
-                if (1 <= out[0] < size - 1 and 1 <= out[1] < size - 1):
+                if 1 <= out[0] < size - 1 and 1 <= out[1] < size - 1:
                     input_positions.append((inp, out))
                     used.add(inp)
                     used.add(out)
 
         # Split into examples and tests
         examples = input_positions[:n_examples]
-        tests = input_positions[n_examples:n_examples + n_tests]
+        tests = input_positions[n_examples : n_examples + n_tests]
 
         # Place examples: SCROLL for input, GEM for output (visible answer)
         example_info = []
@@ -154,7 +166,9 @@ class ProgramSynthesisTask(TaskSpec):
         # Place ORB items for the agent to pick up and deliver
         orb_positions = []
         free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
             if grid.terrain[y, x] == CellType.EMPTY
             and grid.objects[y, x] == ObjectType.NONE
             and (x, y) != agent_pos
@@ -213,13 +227,17 @@ class ProgramSynthesisTask(TaskSpec):
             g = new_state["grid"]
             if not self._carrying_orb:
                 orbs = [
-                    (x, y) for y in range(g.height) for x in range(g.width)
+                    (x, y)
+                    for y in range(g.height)
+                    for x in range(g.width)
                     if g.objects[y, x] == ObjectType.ORB
                 ]
                 targets = orbs
             else:
                 targets = [
-                    (x, y) for y in range(g.height) for x in range(g.width)
+                    (x, y)
+                    for y in range(g.height)
+                    for x in range(g.width)
                     if g.objects[y, x] == ObjectType.TARGET
                 ]
             if targets:
@@ -236,5 +254,8 @@ class ProgramSynthesisTask(TaskSpec):
         n_tests = config.get("n_tests", 1)
         return self._targets_filled >= n_tests
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

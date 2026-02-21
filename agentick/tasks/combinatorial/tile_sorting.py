@@ -26,10 +26,18 @@ class TileSortingTask(TaskSpec):
     capability_tags = ["combinatorial_logic", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"puzzle_size": 2, "n_shuffles": 5}),
-        "medium": DifficultyConfig(name="medium",  grid_size=9,  max_steps=200, params={"puzzle_size": 3, "n_shuffles": 15}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=11, max_steps=350, params={"puzzle_size": 3, "n_shuffles": 30}),
-        "expert": DifficultyConfig(name="expert",  grid_size=13, max_steps=600, params={"puzzle_size": 4, "n_shuffles": 60}),
+        "easy": DifficultyConfig(
+            name="easy", grid_size=7, max_steps=100, params={"puzzle_size": 2, "n_shuffles": 5}
+        ),
+        "medium": DifficultyConfig(
+            name="medium", grid_size=9, max_steps=200, params={"puzzle_size": 3, "n_shuffles": 15}
+        ),
+        "hard": DifficultyConfig(
+            name="hard", grid_size=11, max_steps=350, params={"puzzle_size": 3, "n_shuffles": 30}
+        ),
+        "expert": DifficultyConfig(
+            name="expert", grid_size=13, max_steps=600, params={"puzzle_size": 4, "n_shuffles": 60}
+        ),
     }
 
     def generate(self, seed):
@@ -51,7 +59,6 @@ class TileSortingTask(TaskSpec):
         # Create solved state: tiles numbered 1..N*N-1, last cell is empty
         n_tiles = puzzle_size * puzzle_size - 1
         # Use metadata to store tile numbers
-        tile_positions = {}  # maps (gx, gy) -> tile_number
         goal_positions_map = {}  # maps tile_number -> (gx, gy)
         tile_num = 1
         for py in range(puzzle_size):
@@ -83,7 +90,10 @@ class TileSortingTask(TaskSpec):
             ex, ey = empty
             for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
                 nx, ny = ex + dx, ey + dy
-                if offset_x <= nx < offset_x + puzzle_size and offset_y <= ny < offset_y + puzzle_size:
+                if (
+                    offset_x <= nx < offset_x + puzzle_size
+                    and offset_y <= ny < offset_y + puzzle_size
+                ):
                     neighbors.append((nx, ny))
             # Pick random neighbor and swap
             slide_pos = neighbors[int(rng.integers(len(neighbors)))]
@@ -114,8 +124,10 @@ class TileSortingTask(TaskSpec):
         for y in range(offset_y - 1, offset_y + puzzle_size + 1):
             for x in range(offset_x - 1, offset_x + puzzle_size + 1):
                 if 0 < x < size - 1 and 0 < y < size - 1:
-                    if not (offset_x <= x < offset_x + puzzle_size
-                            and offset_y <= y < offset_y + puzzle_size):
+                    if not (
+                        offset_x <= x < offset_x + puzzle_size
+                        and offset_y <= y < offset_y + puzzle_size
+                    ):
                         grid.terrain[y, x] = CellType.WALL
 
         return grid, {
@@ -195,5 +207,8 @@ class TileSortingTask(TaskSpec):
     def validate_instance(self, grid, config):
         return True  # puzzle is always solvable by construction
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

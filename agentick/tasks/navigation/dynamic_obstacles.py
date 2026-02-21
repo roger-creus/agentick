@@ -7,7 +7,7 @@ DIFFICULTY AXES (multi-dimensional):
   - easy:   2 obstacles, small map, slow (50% move chance), safe start zone
   - medium: 3 obstacles, medium map, normal speed (75% move chance)
   - hard:   5 obstacles, large map, fast (100% move chance), bouncing walls
-  - expert: 7 obstacles, largest map, fast + pursuing behavior
+  - expert: 7 obstacles, largest map, 90% move chance + stochastic pursuing (15%)
 """
 
 import numpy as np
@@ -28,10 +28,36 @@ class DynamicObstaclesTask(TaskSpec):
     capability_tags = ["reactive_planning", "navigation"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=60,  params={"n_obs": 2, "move_prob": 0.50, "pursuing": False, "n_walls": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=100, params={"n_obs": 3, "move_prob": 0.75, "pursuing": False, "n_walls": 3}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=150, params={"n_obs": 5, "move_prob": 1.00, "pursuing": False, "n_walls": 6}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=200, params={"n_obs": 7, "move_prob": 1.00, "pursuing": True, "n_walls": 9}),
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=60,
+            params={"n_obs": 2, "move_prob": 0.50, "pursuing": False, "n_walls": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium",
+            grid_size=10,
+            max_steps=100,
+            params={"n_obs": 3, "move_prob": 0.75, "pursuing": False, "n_walls": 3},
+        ),
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=150,
+            params={"n_obs": 5, "move_prob": 1.00, "pursuing": False, "n_walls": 6},
+        ),
+        "expert": DifficultyConfig(
+            name="expert",
+            grid_size=15,
+            max_steps=200,
+            params={
+                "n_obs": 7,
+                "move_prob": 0.90,
+                "pursuing": True,
+                "pursue_prob": 0.15,
+                "n_walls": 9,
+            },
+        ),
     }
 
     _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
@@ -39,20 +65,21 @@ class DynamicObstaclesTask(TaskSpec):
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        p    = self.difficulty_config.params
-        n_obs     = p.get("n_obs", 2)
+        p = self.difficulty_config.params
+        n_obs = p.get("n_obs", 2)
         move_prob = p.get("move_prob", 0.5)
-        pursuing  = p.get("pursuing", False)
+        pursuing = p.get("pursuing", False)
+        pursue_prob = p.get("pursue_prob", 1.0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         # Random agent and goal positions (opposite corners/areas)
         agent_pos = (int(rng.integers(1, 3)), int(rng.integers(1, 3)))
-        goal_pos  = (int(rng.integers(size-3, size-1)), int(rng.integers(size-3, size-1)))
+        goal_pos = (int(rng.integers(size - 3, size - 1)), int(rng.integers(size - 3, size - 1)))
 
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
@@ -60,7 +87,9 @@ class DynamicObstaclesTask(TaskSpec):
         n_walls = p.get("n_walls", 0)
         if n_walls > 0:
             wall_candidates = [
-                (x, y) for x in range(1, size-1) for y in range(1, size-1)
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
                 if (x, y) != agent_pos and (x, y) != goal_pos
             ]
             rng.shuffle(wall_candidates)
@@ -76,40 +105,45 @@ class DynamicObstaclesTask(TaskSpec):
 
         # Place obstacles away from agent start (safe zone radius 2)
         candidates = [
-            (x, y) for x in range(1, size-1) for y in range(1, size-1)
-            if (x, y) != agent_pos and (x, y) != goal_pos
-            and abs(x-agent_pos[0])+abs(y-agent_pos[1]) > 2
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos
+            and (x, y) != goal_pos
+            and abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > 2
         ]
         rng.shuffle(candidates)
-        obstacle_positions = candidates[:min(n_obs, len(candidates))]
+        obstacle_positions = candidates[: min(n_obs, len(candidates))]
 
         obs_dirs = [int(rng.integers(0, 4)) for _ in obstacle_positions]
 
         return grid, {
-            "agent_start":          agent_pos,
-            "goal_positions":       [goal_pos],
-            "max_steps":            self.get_max_steps(),
-            "_obstacle_positions":  obstacle_positions,
-            "_obstacle_dirs":       obs_dirs,
-            "_obs_seed":            int(rng.integers(0, 2**31)),
-            "_move_prob":           move_prob,
-            "_pursuing":            pursuing,
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "max_steps": self.get_max_steps(),
+            "_obstacle_positions": obstacle_positions,
+            "_obstacle_dirs": obs_dirs,
+            "_obs_seed": int(rng.integers(0, 2**31)),
+            "_move_prob": move_prob,
+            "_pursuing": pursuing,
+            "_pursue_prob": pursue_prob,
         }
 
     def on_env_reset(self, agent, grid, config):
         config["_live_obstacles"] = list(config["_obstacle_positions"])
-        config["_live_dirs"]      = list(config["_obstacle_dirs"])
-        config["_obs_rng"]        = np.random.default_rng(config["_obs_seed"])
-        config["_collision"]      = False
+        config["_live_dirs"] = list(config["_obstacle_dirs"])
+        config["_obs_rng"] = np.random.default_rng(config["_obs_seed"])
+        config["_collision"] = False
         self._draw_obstacles(grid, config["_live_obstacles"], draw=True)
 
     def on_env_step(self, agent, grid, config, step_count):
         obstacles = config["_live_obstacles"]
-        dirs      = config["_live_dirs"]
-        rng       = config["_obs_rng"]
+        dirs = config["_live_dirs"]
+        rng = config["_obs_rng"]
         move_prob = config.get("_move_prob", 1.0)
-        pursuing  = config.get("_pursuing", False)
-        ax, ay    = agent.position
+        pursuing = config.get("_pursuing", False)
+        pursue_prob = config.get("_pursue_prob", 1.0)
+        ax, ay = agent.position
 
         self._draw_obstacles(grid, obstacles, draw=False)
 
@@ -121,15 +155,18 @@ class DynamicObstaclesTask(TaskSpec):
                 continue
 
             d = dirs[i]
-            if pursuing:
-                # Move toward agent
-                best, best_d = (ox, oy), abs(ox-ax)+abs(oy-ay)
+            if pursuing and rng.random() < pursue_prob:
+                # Move toward agent (stochastic pursuit)
+                best, best_d = (ox, oy), abs(ox - ax) + abs(oy - ay)
                 for di, (ddx, ddy) in enumerate(self._DIRS):
-                    nx, ny = ox+ddx, oy+ddy
-                    if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                            and grid.terrain[ny, nx] == CellType.EMPTY
-                            and grid.objects[ny, nx] != ObjectType.GOAL):
-                        dist = abs(nx-ax)+abs(ny-ay)
+                    nx, ny = ox + ddx, oy + ddy
+                    if (
+                        0 < nx < grid.width - 1
+                        and 0 < ny < grid.height - 1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and grid.objects[ny, nx] != ObjectType.GOAL
+                    ):
+                        dist = abs(nx - ax) + abs(ny - ay)
                         if dist < best_d:
                             best_d, best = dist, (nx, ny)
                             d = di
@@ -137,18 +174,26 @@ class DynamicObstaclesTask(TaskSpec):
             else:
                 # Bounce/random walk
                 dx, dy = self._DIRS[d]
-                nx, ny = ox+dx, oy+dy
-                if (nx <= 0 or nx >= grid.width-1 or ny <= 0 or ny >= grid.height-1
-                        or grid.terrain[ny, nx] != CellType.EMPTY
-                        or grid.objects[ny, nx] == ObjectType.GOAL):
+                nx, ny = ox + dx, oy + dy
+                if (
+                    nx <= 0
+                    or nx >= grid.width - 1
+                    or ny <= 0
+                    or ny >= grid.height - 1
+                    or grid.terrain[ny, nx] != CellType.EMPTY
+                    or grid.objects[ny, nx] == ObjectType.GOAL
+                ):
                     # Try a random new direction
                     for _ in range(4):
                         d = int(rng.integers(0, 4))
                         dx, dy = self._DIRS[d]
-                        nx, ny = ox+dx, oy+dy
-                        if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                                and grid.terrain[ny, nx] == CellType.EMPTY
-                                and grid.objects[ny, nx] != ObjectType.GOAL):
+                        nx, ny = ox + dx, oy + dy
+                        if (
+                            0 < nx < grid.width - 1
+                            and 0 < ny < grid.height - 1
+                            and grid.terrain[ny, nx] == CellType.EMPTY
+                            and grid.objects[ny, nx] != ObjectType.GOAL
+                        ):
                             break
                     else:
                         nx, ny = ox, oy
@@ -156,7 +201,7 @@ class DynamicObstaclesTask(TaskSpec):
             new_dirs.append(d)
 
         config["_live_obstacles"] = new_obs
-        config["_live_dirs"]      = new_dirs
+        config["_live_dirs"] = new_dirs
         self._draw_obstacles(grid, new_obs, draw=True)
 
         # Collision check: use GRID OBJECT (robust, no X,Y flip bug)
@@ -188,7 +233,9 @@ class DynamicObstaclesTask(TaskSpec):
         if goal and "agent" in new_state:
             ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", (ax, ay))
-            reward += 0.05 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
+            reward += 0.05 * (
+                (abs(ox - goal[0]) + abs(oy - goal[1])) - (abs(ax - goal[0]) + abs(ay - goal[1]))
+            )
         return reward
 
     def compute_sparse_reward(self, old_state, action, new_state, info):
@@ -214,5 +261,8 @@ class DynamicObstaclesTask(TaskSpec):
         # Use grid object check (robust)
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

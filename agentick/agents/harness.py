@@ -150,10 +150,12 @@ class NonMarkovianZeroShot(HarnessPreset):
         return messages
 
     def record_step(self, obs, info, action, response, reward):
-        # Record the user turn and assistant response
+        # Record the user turn and the action actually taken (not raw response,
+        # since the parser may have extracted a different action than what the
+        # raw text seems to say — the env state reflects the parsed action).
         obs_modes = info.get("_obs_modes", ["language"])
         self._history.append({"role": "user", "content": _make_user_content(obs, info, obs_modes)})
-        self._history.append({"role": "assistant", "content": response})
+        self._history.append({"role": "assistant", "content": f"ACTION: {action}"})
 
         # Truncate if needed
         if self.max_history is not None:

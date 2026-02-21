@@ -22,8 +22,7 @@ from agentick.tasks.registry import register_task
 # Compound rule functions: given targets and grid, return the correct index
 def _rule_closest_corner(targets, grid):
     """Correct target is the one closest to any corner."""
-    corners = [(1, 1), (grid.width - 2, 1), (1, grid.height - 2),
-               (grid.width - 2, grid.height - 2)]
+    corners = [(1, 1), (grid.width - 2, 1), (1, grid.height - 2), (grid.width - 2, grid.height - 2)]
     best_idx, best_dist = 0, float("inf")
     for i, (tx, ty) in enumerate(targets):
         d = min(abs(tx - cx) + abs(ty - cy) for cx, cy in corners)
@@ -77,49 +76,69 @@ class RuleInductionTask(TaskSpec):
     capability_tags = ["reasoning", "memory"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=80,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=80,
             params={
-                "n_targets": 2, "n_decoys": 0, "n_obstacles": 0,
-                "n_phases": 1, "compound_rules": False,
+                "n_targets": 2,
+                "n_decoys": 0,
+                "n_obstacles": 0,
+                "n_phases": 1,
+                "compound_rules": False,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=150,
+            name="medium",
+            grid_size=10,
+            max_steps=150,
             params={
-                "n_targets": 3, "n_decoys": 1, "n_obstacles": 3,
-                "n_phases": 1, "compound_rules": True,
+                "n_targets": 3,
+                "n_decoys": 1,
+                "n_obstacles": 3,
+                "n_phases": 1,
+                "compound_rules": True,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=300,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=300,
             params={
-                "n_targets": 4, "n_decoys": 2, "n_obstacles": 5,
-                "n_phases": 2, "compound_rules": True,
+                "n_targets": 4,
+                "n_decoys": 2,
+                "n_obstacles": 5,
+                "n_phases": 2,
+                "compound_rules": True,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=450,
+            name="expert",
+            grid_size=15,
+            max_steps=450,
             params={
-                "n_targets": 5, "n_decoys": 3, "n_obstacles": 8,
-                "n_phases": 3, "compound_rules": True,
+                "n_targets": 5,
+                "n_decoys": 3,
+                "n_obstacles": 8,
+                "n_phases": 3,
+                "compound_rules": True,
             },
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size        = self.difficulty_config.grid_size
-        n           = self.difficulty_config.params.get("n_targets", 2)
-        n_decoys    = self.difficulty_config.params.get("n_decoys", 0)
+        size = self.difficulty_config.grid_size
+        n = self.difficulty_config.params.get("n_targets", 2)
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
-        n_phases    = self.difficulty_config.params.get("n_phases", 1)
-        compound    = self.difficulty_config.params.get("compound_rules", False)
+        n_phases = self.difficulty_config.params.get("n_phases", 1)
+        compound = self.difficulty_config.params.get("compound_rules", False)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
@@ -127,9 +146,14 @@ class RuleInductionTask(TaskSpec):
         switch_pos = (size // 2, size // 2)
         grid.objects[switch_pos[1], switch_pos[0]] = ObjectType.SWITCH
 
-        outer = [(x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-                 if (x, y) != agent_pos and (x, y) != switch_pos
-                 and (abs(x - size // 2) > 1 or abs(y - size // 2) > 1)]
+        outer = [
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos
+            and (x, y) != switch_pos
+            and (abs(x - size // 2) > 1 or abs(y - size // 2) > 1)
+        ]
         rng.shuffle(outer)
         target_positions = outer[:n]
         used = {agent_pos, switch_pos} | set(target_positions)
@@ -159,8 +183,9 @@ class RuleInductionTask(TaskSpec):
 
         # Obstacle walls
         wall_positions = []
-        all_cells = [(x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-                     if (x, y) not in used]
+        all_cells = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) not in used
+        ]
         rng.shuffle(all_cells)
         critical = [agent_pos, switch_pos] + target_positions
         for p in all_cells:
@@ -178,9 +203,9 @@ class RuleInductionTask(TaskSpec):
         # Extra switch positions for additional phases
         extra_switch_positions = []
         if n_phases > 1:
-            sw_candidates = [p for p in outer[n + n_decoys:] if p not in used]
+            sw_candidates = [p for p in outer[n + n_decoys :] if p not in used]
             rng.shuffle(sw_candidates)
-            for p in sw_candidates[:n_phases - 1]:
+            for p in sw_candidates[: n_phases - 1]:
                 extra_switch_positions.append(p)
                 used.add(p)
 
@@ -317,5 +342,8 @@ class RuleInductionTask(TaskSpec):
     def check_done(self, state):
         return self.check_success(state)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

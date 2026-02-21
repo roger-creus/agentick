@@ -191,8 +191,7 @@ class TrainingBenchmarkPlotter:
         for cat in ALL_CATEGORIES:
             tasks_in_cat = [t for t in self.tasks if get_task_category(t) == cat]
             has_curves = any(
-                results.get(f"{t}_{target_diff}", {}).get("training_curve")
-                for t in tasks_in_cat
+                results.get(f"{t}_{target_diff}", {}).get("training_curve") for t in tasks_in_cat
             )
             if has_curves:
                 active_cats.append(cat)
@@ -210,9 +209,7 @@ class TrainingBenchmarkPlotter:
 
         for idx, cat in enumerate(active_cats):
             ax = axes[idx // n_cols][idx % n_cols]
-            tasks_in_cat = sorted(
-                t for t in self.tasks if get_task_category(t) == cat
-            )
+            tasks_in_cat = sorted(t for t in self.tasks if get_task_category(t) == cat)
 
             for ti, task in enumerate(tasks_in_cat):
                 key = f"{task}_{target_diff}"
@@ -326,11 +323,13 @@ class TrainingBenchmarkPlotter:
         for task in self.tasks:
             key = f"{task}_{target_diff}"
             if key in results:
-                task_scores.append({
-                    "task": task.replace("-v0", ""),
-                    "mean_return": results[key].get("mean_return", 0.0),
-                    "category": get_task_category(task),
-                })
+                task_scores.append(
+                    {
+                        "task": task.replace("-v0", ""),
+                        "mean_return": results[key].get("mean_return", 0.0),
+                        "category": get_task_category(task),
+                    }
+                )
 
         if not task_scores:
             return
@@ -363,9 +362,7 @@ class TrainingBenchmarkPlotter:
         ax.legend(handles=legend_patches, fontsize=6, loc="lower right")
 
         plt.tight_layout()
-        save_figure(
-            fig, str(self.figures_dir / "per_task_final_scores"), formats=["png", "pdf"]
-        )
+        save_figure(fig, str(self.figures_dir / "per_task_final_scores"), formats=["png", "pdf"])
 
     def plot_reward_distribution(self) -> None:
         """Box plot of eval returns across all tasks (at medium difficulty)."""
@@ -412,6 +409,4 @@ class TrainingBenchmarkPlotter:
         ax.grid(axis="x", alpha=0.3)
 
         plt.tight_layout()
-        save_figure(
-            fig, str(self.figures_dir / "reward_distribution"), formats=["png", "pdf"]
-        )
+        save_figure(fig, str(self.figures_dir / "reward_distribution"), formats=["png", "pdf"])

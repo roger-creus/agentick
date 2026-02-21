@@ -33,39 +33,67 @@ class ResourceManagementTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=100,
+            name="easy",
+            grid_size=9,
+            max_steps=100,
             params={
-                "n_coins": 4, "n_potions": 2, "n_hazard_patches": 1,
-                "n_water_patches": 1, "n_guards": 0,
-                "start_energy": 40, "start_health": 3,
-                "energy_per_coin": 15, "health_per_potion": 2,
+                "n_coins": 4,
+                "n_potions": 2,
+                "n_hazard_patches": 1,
+                "n_water_patches": 1,
+                "n_guards": 0,
+                "start_energy": 40,
+                "start_health": 3,
+                "energy_per_coin": 15,
+                "health_per_potion": 2,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=12, max_steps=180,
+            name="medium",
+            grid_size=12,
+            max_steps=180,
             params={
-                "n_coins": 5, "n_potions": 3, "n_hazard_patches": 2,
-                "n_water_patches": 2, "n_guards": 0,
-                "start_energy": 50, "start_health": 4,
-                "energy_per_coin": 12, "health_per_potion": 2,
+                "n_coins": 5,
+                "n_potions": 3,
+                "n_hazard_patches": 2,
+                "n_water_patches": 2,
+                "n_guards": 0,
+                "start_energy": 50,
+                "start_health": 4,
+                "energy_per_coin": 12,
+                "health_per_potion": 2,
             },
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=15, max_steps=300,
+            name="hard",
+            grid_size=15,
+            max_steps=300,
             params={
-                "n_coins": 6, "n_potions": 3, "n_hazard_patches": 3,
-                "n_water_patches": 3, "n_guards": 1,
-                "start_energy": 60, "start_health": 5,
-                "energy_per_coin": 10, "health_per_potion": 2,
+                "n_coins": 6,
+                "n_potions": 3,
+                "n_hazard_patches": 3,
+                "n_water_patches": 3,
+                "n_guards": 1,
+                "start_energy": 60,
+                "start_health": 5,
+                "energy_per_coin": 10,
+                "health_per_potion": 2,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=18, max_steps=500,
+            name="expert",
+            grid_size=18,
+            max_steps=500,
             params={
-                "n_coins": 7, "n_potions": 4, "n_hazard_patches": 4,
-                "n_water_patches": 4, "n_guards": 2,
-                "start_energy": 70, "start_health": 5,
-                "energy_per_coin": 10, "health_per_potion": 2,
+                "n_coins": 7,
+                "n_potions": 4,
+                "n_hazard_patches": 4,
+                "n_water_patches": 4,
+                "n_guards": 2,
+                "start_energy": 70,
+                "start_health": 5,
+                "energy_per_coin": 10,
+                "health_per_potion": 2,
             },
         ),
     }
@@ -78,9 +106,9 @@ class ResourceManagementTask(TaskSpec):
         p = self.difficulty_config.params
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
@@ -88,7 +116,9 @@ class ResourceManagementTask(TaskSpec):
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
         free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
             if (x, y) != agent_pos and (x, y) != goal_pos
         ]
         rng.shuffle(free)
@@ -106,8 +136,12 @@ class ResourceManagementTask(TaskSpec):
             patch = [(cx, cy)]
             for dx, dy in _RM_DIRS:
                 nx, ny = cx + dx, cy + dy
-                if (1 <= nx < size - 1 and 1 <= ny < size - 1
-                        and (nx, ny) not in used and (nx, ny) != goal_pos):
+                if (
+                    1 <= nx < size - 1
+                    and 1 <= ny < size - 1
+                    and (nx, ny) not in used
+                    and (nx, ny) != goal_pos
+                ):
                     patch.append((nx, ny))
                     if len(patch) >= 3:
                         break
@@ -137,8 +171,7 @@ class ResourceManagementTask(TaskSpec):
             patch = [(cx, cy)]
             for dx, dy in _RM_DIRS:
                 nx, ny = cx + dx, cy + dy
-                if (1 <= nx < size - 1 and 1 <= ny < size - 1
-                        and (nx, ny) not in used):
+                if 1 <= nx < size - 1 and 1 <= ny < size - 1 and (nx, ny) not in used:
                     patch.append((nx, ny))
                     if len(patch) >= 3:
                         break
@@ -168,8 +201,9 @@ class ResourceManagementTask(TaskSpec):
         # Place guards
         n_guards = p.get("n_guards", 0)
         guard_candidates = [
-            pp for pp in free if pp not in used
-            and abs(pp[0] - agent_pos[0]) + abs(pp[1] - agent_pos[1]) > 3
+            pp
+            for pp in free
+            if pp not in used and abs(pp[0] - agent_pos[0]) + abs(pp[1] - agent_pos[1]) > 3
         ]
         rng.shuffle(guard_candidates)
         guard_positions = guard_candidates[:n_guards]
@@ -248,9 +282,12 @@ class ResourceManagementTask(TaskSpec):
             d = dirs[i]
             ddx, ddy = self._DIRS[d]
             nx, ny = gx + ddx, gy + ddy
-            if (0 < nx < grid.width - 1 and 0 < ny < grid.height - 1
-                    and grid.terrain[ny, nx] == CellType.EMPTY
-                    and grid.objects[ny, nx] == ObjectType.NONE):
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and grid.terrain[ny, nx] == CellType.EMPTY
+                and grid.objects[ny, nx] == ObjectType.NONE
+            ):
                 new_g.append((nx, ny))
             else:
                 d = int(rng.integers(0, 4))
@@ -320,5 +357,8 @@ class ResourceManagementTask(TaskSpec):
     def validate_instance(self, grid, config):
         return True
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

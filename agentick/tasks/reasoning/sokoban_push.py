@@ -31,34 +31,54 @@ class SokobanPushTask(TaskSpec):
     capability_tags = ["reasoning", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=70,  params={"n_boxes": 1, "n_targets": 1, "n_obstacles": 0, "n_hazards": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_boxes": 2, "n_targets": 2, "n_obstacles": 3, "n_hazards": 0}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=350, params={"n_boxes": 3, "n_targets": 3, "n_obstacles": 5, "n_hazards": 3}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=600, params={"n_boxes": 4, "n_targets": 4, "n_obstacles": 8, "n_hazards": 5}),
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=70,
+            params={"n_boxes": 1, "n_targets": 1, "n_obstacles": 0, "n_hazards": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium",
+            grid_size=10,
+            max_steps=180,
+            params={"n_boxes": 2, "n_targets": 2, "n_obstacles": 3, "n_hazards": 0},
+        ),
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=350,
+            params={"n_boxes": 3, "n_targets": 3, "n_obstacles": 5, "n_hazards": 3},
+        ),
+        "expert": DifficultyConfig(
+            name="expert",
+            grid_size=15,
+            max_steps=600,
+            params={"n_boxes": 4, "n_targets": 4, "n_obstacles": 8, "n_hazards": 5},
+        ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size        = self.difficulty_config.grid_size
-        n_boxes     = self.difficulty_config.params.get("n_boxes", 1)
-        n_targets   = self.difficulty_config.params.get("n_targets", n_boxes)
+        size = self.difficulty_config.grid_size
+        n_boxes = self.difficulty_config.params.get("n_boxes", 1)
+        n_targets = self.difficulty_config.params.get("n_targets", n_boxes)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
         # Free cells excluding borders (boxes against outer walls = deadlock)
         # Boxes need at least 2 cells clearance from walls in push directions
-        interior_free = [(x, y) for x in range(2, size - 2)
-                                for y in range(2, size - 2)
-                         if (x, y) != agent_pos]
-        all_free = [(x, y) for x in range(1, size - 1)
-                            for y in range(1, size - 1)
-                    if (x, y) != agent_pos]
+        interior_free = [
+            (x, y) for x in range(2, size - 2) for y in range(2, size - 2) if (x, y) != agent_pos
+        ]
+        all_free = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+        ]
         rng.shuffle(interior_free)
         rng.shuffle(all_free)
 
@@ -71,8 +91,14 @@ class SokobanPushTask(TaskSpec):
             bp = next((p for p in interior_free if p not in used), None)
             if bp is None:
                 # Fallback: use any free cell but avoid corners
-                bp = next((p for p in all_free if p not in used
-                          and not (p[0] in (1, size-2) and p[1] in (1, size-2))), None)
+                bp = next(
+                    (
+                        p
+                        for p in all_free
+                        if p not in used and not (p[0] in (1, size - 2) and p[1] in (1, size - 2))
+                    ),
+                    None,
+                )
             if bp is None:
                 break
             used.add(bp)
@@ -108,8 +134,9 @@ class SokobanPushTask(TaskSpec):
         # Place hazard terrain (agent loses if stepped on, boxes can't be pushed onto)
         n_hazards = self.difficulty_config.params.get("n_hazards", 0)
         if n_hazards > 0:
-            hazard_candidates = [p for p in all_free if p not in used
-                                and grid.terrain[p[1], p[0]] == CellType.EMPTY]
+            hazard_candidates = [
+                p for p in all_free if p not in used and grid.terrain[p[1], p[0]] == CellType.EMPTY
+            ]
             placed_h = 0
             for hx, hy in hazard_candidates:
                 if placed_h >= n_hazards:
@@ -150,9 +177,12 @@ class SokobanPushTask(TaskSpec):
             nx, ny = x + dx, y + dy
 
             # Can push if next cell is empty (terrain and objects, not wall/hazard)
-            if (0 <= nx < grid.width and 0 <= ny < grid.height
-                    and grid.terrain[ny, nx] not in (CellType.WALL, CellType.HAZARD)
-                    and grid.objects[ny, nx] not in (ObjectType.BOX,)):
+            if (
+                0 <= nx < grid.width
+                and 0 <= ny < grid.height
+                and grid.terrain[ny, nx] not in (CellType.WALL, CellType.HAZARD)
+                and grid.objects[ny, nx] not in (ObjectType.BOX,)
+            ):
                 # Move box
                 grid.objects[y, x] = ObjectType.NONE
                 # If target was here, restore it
@@ -174,7 +204,7 @@ class SokobanPushTask(TaskSpec):
         targets = config.get("target_positions", [])
         if boxes and targets:
             self._last_box_dist = sum(
-                min(abs(bx-tx)+abs(by-ty) for tx,ty in targets) for bx,by in boxes
+                min(abs(bx - tx) + abs(by - ty) for tx, ty in targets) for bx, by in boxes
             )
         else:
             self._last_box_dist = None
@@ -186,12 +216,19 @@ class SokobanPushTask(TaskSpec):
         grid = new_state["grid"]
         config = new_state.get("config", {})
         from agentick.core.types import ObjectType
-        boxes = [(x, y) for y in range(grid.height) for x in range(grid.width)
-                 if grid.objects[y, x] == ObjectType.BOX]
+
+        boxes = [
+            (x, y)
+            for y in range(grid.height)
+            for x in range(grid.width)
+            if grid.objects[y, x] == ObjectType.BOX
+        ]
         targets = config.get("target_positions", [])
         if boxes and targets:
             # Shaping 1: box closer to target
-            total_d = sum(min(abs(bx-tx)+abs(by-ty) for tx,ty in targets) for bx,by in boxes)
+            total_d = sum(
+                min(abs(bx - tx) + abs(by - ty) for tx, ty in targets) for bx, by in boxes
+            )
             if self._last_box_dist is not None and total_d < self._last_box_dist:
                 reward += 0.2 * (self._last_box_dist - total_d)
             self._last_box_dist = total_d
@@ -199,8 +236,8 @@ class SokobanPushTask(TaskSpec):
             if "agent_position" in new_state:
                 ax, ay = new_state["agent_position"]
                 ox, oy = old_state.get("agent_position", (ax, ay))
-                nb_new = min(abs(ax-bx)+abs(ay-by) for bx,by in boxes)
-                nb_old = min(abs(ox-bx)+abs(oy-by) for bx,by in boxes)
+                nb_new = min(abs(ax - bx) + abs(ay - by) for bx, by in boxes)
+                nb_old = min(abs(ox - bx) + abs(oy - by) for bx, by in boxes)
                 reward += 0.05 * (nb_old - nb_new)  # stronger: outweighs step penalty
         if self.check_success(new_state):
             reward += 1.0

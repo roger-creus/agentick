@@ -98,7 +98,9 @@ class TrainingBenchmarkRunner:
         self.start_time: float | None = None
         self.end_time: float | None = None
 
-    def run(self, resume_from: str | Path | None = None, output_dir: str | Path | None = None) -> Path:
+    def run(
+        self, resume_from: str | Path | None = None, output_dir: str | Path | None = None
+    ) -> Path:
         """Run training benchmark over all tasks x difficulties.
 
         Args:
@@ -215,10 +217,13 @@ class TrainingBenchmarkRunner:
                 progress.update(main_task, advance=1)
 
                 # Checkpoint
-                self._save_checkpoint(output_dir, {
-                    "completed_runs": [list(r) for r in completed],
-                    "results": all_results,
-                })
+                self._save_checkpoint(
+                    output_dir,
+                    {
+                        "completed_runs": [list(r) for r in completed],
+                        "results": all_results,
+                    },
+                )
 
         self.end_time = time.time()
 
@@ -389,6 +394,7 @@ class TrainingBenchmarkRunner:
                 )
                 env = Monitor(env)
                 return env
+
             return _init
 
         env_fns = [make_env(seed + i) for i in range(n_envs)]
@@ -492,11 +498,13 @@ class TrainingBenchmarkRunner:
 
         curve = []
         for i, ts in enumerate(timesteps):
-            curve.append({
-                "timestep": int(ts),
-                "mean_reward": float(np.mean(results[i])),
-                "std_reward": float(np.std(results[i])),
-            })
+            curve.append(
+                {
+                    "timestep": int(ts),
+                    "mean_reward": float(np.mean(results[i])),
+                    "std_reward": float(np.std(results[i])),
+                }
+            )
         return curve
 
     def _resolve_tasks(self) -> list[str]:
@@ -550,8 +558,7 @@ class TrainingBenchmarkRunner:
             "n_difficulties": len(difficulties),
             "n_total_runs": len(all_results),
             "per_difficulty_success_rate": {
-                d: float(np.mean(rates)) if rates else 0.0
-                for d, rates in per_difficulty.items()
+                d: float(np.mean(rates)) if rates else 0.0 for d, rates in per_difficulty.items()
             },
             "per_category_success_rate": {
                 c: float(np.mean(rates)) if rates else 0.0

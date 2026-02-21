@@ -28,19 +28,27 @@ class BacktrackPuzzleTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=80,
+            name="easy",
+            grid_size=9,
+            max_steps=80,
             params={"n_switches": 1, "n_dead_ends": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=11, max_steps=160,
+            name="medium",
+            grid_size=11,
+            max_steps=160,
             params={"n_switches": 2, "n_dead_ends": 1},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=280,
+            name="hard",
+            grid_size=13,
+            max_steps=280,
             params={"n_switches": 3, "n_dead_ends": 2},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=450,
+            name="expert",
+            grid_size=15,
+            max_steps=450,
             params={"n_switches": 4, "n_dead_ends": 3},
         ),
     }
@@ -138,7 +146,9 @@ class BacktrackPuzzleTask(TaskSpec):
 
             # Add dead-end branches
             empty_cells = [
-                (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
                 if grid.terrain[y, x] == CellType.EMPTY
             ]
             dead_end_cells = []
@@ -153,10 +163,14 @@ class BacktrackPuzzleTask(TaskSpec):
                     for dx, dy in dirs:
                         nx, ny = ex + dx, ey + dy
                         n2x, n2y = ex + 2 * dx, ey + 2 * dy
-                        if (1 <= nx <= size - 2 and 1 <= ny <= size - 2
-                                and grid.terrain[ny, nx] == CellType.WALL
-                                and 1 <= n2x <= size - 2 and 1 <= n2y <= size - 2
-                                and grid.terrain[n2y, n2x] == CellType.WALL):
+                        if (
+                            1 <= nx <= size - 2
+                            and 1 <= ny <= size - 2
+                            and grid.terrain[ny, nx] == CellType.WALL
+                            and 1 <= n2x <= size - 2
+                            and 1 <= n2y <= size - 2
+                            and grid.terrain[n2y, n2x] == CellType.WALL
+                        ):
                             grid.terrain[ny, nx] = CellType.EMPTY
                             grid.terrain[n2y, n2x] = CellType.EMPTY
                             dead_end_cells.append((n2x, n2y))
@@ -169,15 +183,19 @@ class BacktrackPuzzleTask(TaskSpec):
 
             # Find all reachable cells and compute distances from agent
             from collections import deque
+
             dist_from_agent = {agent_pos: 0}
             queue = deque([agent_pos])
             while queue:
                 cx, cy = queue.popleft()
                 for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                     nx, ny = cx + dx, cy + dy
-                    if (0 < nx < size - 1 and 0 < ny < size - 1
-                            and (nx, ny) not in dist_from_agent
-                            and grid.terrain[ny, nx] == CellType.EMPTY):
+                    if (
+                        0 < nx < size - 1
+                        and 0 < ny < size - 1
+                        and (nx, ny) not in dist_from_agent
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                    ):
                         dist_from_agent[(nx, ny)] = dist_from_agent[(cx, cy)] + 1
                         queue.append((nx, ny))
 
@@ -193,7 +211,9 @@ class BacktrackPuzzleTask(TaskSpec):
             gate_pos = None
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 nx, ny = goal_pos[0] + dx, goal_pos[1] + dy
-                if (nx, ny) in dist_from_agent and dist_from_agent[(nx, ny)] < dist_from_agent[goal_pos]:
+                if (nx, ny) in dist_from_agent and dist_from_agent[(nx, ny)] < dist_from_agent[
+                    goal_pos
+                ]:
                     gate_pos = (nx, ny)
                     break
             if not gate_pos:
@@ -202,9 +222,12 @@ class BacktrackPuzzleTask(TaskSpec):
 
             # Switches: placed PAST the goal (farther from agent than goal)
             switch_candidates = [
-                p for p in reachable
+                p
+                for p in reachable
                 if dist_from_agent.get(p, 0) > dist_from_agent.get(goal_pos, 0) + 1
-                and p != agent_pos and p != goal_pos and p != gate_pos
+                and p != agent_pos
+                and p != goal_pos
+                and p != gate_pos
             ]
 
             # Re-compute reachability after gate placement
@@ -213,11 +236,17 @@ class BacktrackPuzzleTask(TaskSpec):
 
             if len(switch_candidates) < n_sw:
                 # Also consider dead-end cells
-                switch_candidates.extend([
-                    p for p in dead_end_cells
-                    if p in reachable_after and p not in switch_candidates
-                    and p != agent_pos and p != goal_pos and p != gate_pos
-                ])
+                switch_candidates.extend(
+                    [
+                        p
+                        for p in dead_end_cells
+                        if p in reachable_after
+                        and p not in switch_candidates
+                        and p != agent_pos
+                        and p != goal_pos
+                        and p != gate_pos
+                    ]
+                )
 
             if len(switch_candidates) < n_sw:
                 continue
@@ -288,8 +317,9 @@ class BacktrackPuzzleTask(TaskSpec):
                 config["_switch_activated"] = True
 
         n_needed = config.get("n_switches", 1)
-        if (config.get("_switches_activated", 0) >= n_needed
-                and not config.get("_all_activated", False)):
+        if config.get("_switches_activated", 0) >= n_needed and not config.get(
+            "_all_activated", False
+        ):
             config["_all_activated"] = True
             gx, gy = config["gate_pos"]
             grid.terrain[gy, gx] = CellType.EMPTY
@@ -308,7 +338,8 @@ class BacktrackPuzzleTask(TaskSpec):
         if not config.get("_all_activated", False):
             switches = config.get("switch_positions", [])
             remaining = [
-                sw for sw in switches
+                sw
+                for sw in switches
                 if "grid" not in new_state
                 or new_state["grid"].objects[sw[1], sw[0]] == ObjectType.SWITCH
             ]

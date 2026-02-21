@@ -44,7 +44,6 @@ htmlcov/
 # Project specific
 *.log
 *.mp4
-*.gif
 *.png
 results/
 checkpoints/
@@ -70,6 +69,14 @@ uv.lock
 
 PHASE*
 .claude
+
+# Generated artifacts
+CLAUDE_DOCS/
+MEGAPLAN.md
+models/
+sft_output/
+sft_model/
+
 
 .env
 

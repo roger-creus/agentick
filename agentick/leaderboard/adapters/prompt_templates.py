@@ -189,7 +189,10 @@ def parse_action_from_text(
         for action_name, idx in action_name_to_idx.items():
             # Handle variations like "move up" vs "move_up"
             normalized_name = action_name.replace("_", " ")
-            if normalized_name in response_lower or response_lower.replace("_", " ") == normalized_name:
+            if (
+                normalized_name in response_lower
+                or response_lower.replace("_", " ") == normalized_name
+            ):
                 return idx
 
         # Fallback: random valid action index

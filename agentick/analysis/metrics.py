@@ -304,5 +304,3 @@ def transfer_score(
         "test_mean": float(test_mean),
         "generalization_gap": float(train_mean - test_mean),
     }
-
-

@@ -313,13 +313,20 @@ class TaskEnv(AgentickEnv):
 
     def _try_move_to(self, new_pos) -> None:
         """Attempt to move agent to new_pos with task-specific checks."""
-        # Standard terrain check
-        if not self.grid.is_walkable(new_pos):
-            return
-
-        # Task-specific entry check (e.g., door requires key)
         if hasattr(self.task, "can_agent_enter"):
+            # Tasks with can_agent_enter handle their own entry logic.
+            # Check bounds first; walkability is checked unless the task
+            # explicitly overrides terrain (e.g. ToolUse hammer breaks walls).
+            if not self.grid.in_bounds(new_pos):
+                return
             if not self.task.can_agent_enter(new_pos, self.agent, self.grid):
+                return
+            if not getattr(self.task, "overrides_walkable", False):
+                if not self.grid.is_walkable(new_pos):
+                    return
+        else:
+            # Standard terrain check
+            if not self.grid.is_walkable(new_pos):
                 return
 
         self.agent.position = new_pos
@@ -354,11 +361,13 @@ class TaskEnv(AgentickEnv):
     def _get_state_for_reward(self) -> dict[str, Any]:
         """Get state snapshot for reward computation (includes full task state)."""
         state = super()._get_state_for_reward()
-        state.update({
-            "grid": self.grid,
-            "agent": self.agent,
-            "config": self.task_config,
-        })
+        state.update(
+            {
+                "grid": self.grid,
+                "agent": self.agent,
+                "config": self.task_config,
+            }
+        )
         return state
 
     def _compute_reward(
@@ -389,4 +398,3 @@ class TaskEnv(AgentickEnv):
         # Store the true success flag separately so we can fix info["success"] in step()
         self._last_success = bool(self.task.check_success(state)) if done else False
         return done
-

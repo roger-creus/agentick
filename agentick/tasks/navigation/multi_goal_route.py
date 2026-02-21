@@ -109,9 +109,13 @@ class MultiGoalRouteTask(TaskSpec):
         reachable_positions = [p for p in valid_positions if p in reachable]
         if len(reachable_positions) < n_goals:
             # Fallback: clear all interior obstacles to guarantee connectivity
-            grid.terrain[1:size-1, 1:size-1] = CellType.EMPTY
-            reachable_positions = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                                   if (x, y) != agent_pos]
+            grid.terrain[1 : size - 1, 1 : size - 1] = CellType.EMPTY
+            reachable_positions = [
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
+                if (x, y) != agent_pos
+            ]
         rng.shuffle(reachable_positions)
 
         # Place goals spread out
@@ -125,8 +129,7 @@ class MultiGoalRouteTask(TaskSpec):
 
         # Place decoy targets (look like goals but don't count)
         decoy_positions = []
-        remaining = [p for p in reachable_positions[n_goals:]
-                     if p not in set(goal_positions)]
+        remaining = [p for p in reachable_positions[n_goals:] if p not in set(goal_positions)]
         for dp in remaining[:n_decoys]:
             dx, dy = dp
             grid.objects[dy, dx] = ObjectType.TARGET
@@ -189,9 +192,14 @@ class MultiGoalRouteTask(TaskSpec):
         # Approach shaping: guide toward nearest remaining (unvisited) goal
         if "agent" in new_state and "grid" in new_state:
             from agentick.core.types import ObjectType as OT
+
             g = new_state["grid"]
-            unvisited = [(x, y) for y in range(g.height) for x in range(g.width)
-                         if g.objects[y, x] == OT.GOAL]
+            unvisited = [
+                (x, y)
+                for y in range(g.height)
+                for x in range(g.width)
+                if g.objects[y, x] == OT.GOAL
+            ]
             if unvisited:
                 ax, ay = new_state["agent"].position
                 ox, oy = old_state.get("agent_position", (ax, ay))

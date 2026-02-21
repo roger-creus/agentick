@@ -26,55 +26,75 @@ class HerdingTask(TaskSpec):
     capability_tags = ["multi_objective_control"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=9, max_steps=120,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=9,
+            max_steps=120,
             params={
-                "n_sheep": 2, "pen_size": 2,
-                "n_obstacles": 0, "sheep_speed": 3,
+                "n_sheep": 2,
+                "pen_size": 2,
+                "n_obstacles": 0,
+                "sheep_speed": 3,
                 "pen_rand": False,
-                "n_predators": 0, "leader_sheep": 0,
+                "n_predators": 0,
+                "leader_sheep": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=12, max_steps=220,
+            name="medium",
+            grid_size=12,
+            max_steps=220,
             params={
-                "n_sheep": 3, "pen_size": 2,
-                "n_obstacles": 2, "sheep_speed": 2,
+                "n_sheep": 3,
+                "pen_size": 2,
+                "n_obstacles": 2,
+                "sheep_speed": 2,
                 "pen_rand": True,
-                "n_predators": 0, "leader_sheep": 0,
+                "n_predators": 0,
+                "leader_sheep": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=15, max_steps=350,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=15,
+            max_steps=350,
             params={
-                "n_sheep": 4, "pen_size": 3,
-                "n_obstacles": 4, "sheep_speed": 2,
+                "n_sheep": 4,
+                "pen_size": 3,
+                "n_obstacles": 4,
+                "sheep_speed": 2,
                 "pen_rand": True,
-                "n_predators": 1, "leader_sheep": 1,
+                "n_predators": 1,
+                "leader_sheep": 1,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=18, max_steps=600,
+            name="expert",
+            grid_size=18,
+            max_steps=600,
             params={
-                "n_sheep": 5, "pen_size": 3,
-                "n_obstacles": 6, "sheep_speed": 1,
+                "n_sheep": 5,
+                "pen_size": 3,
+                "n_obstacles": 6,
+                "sheep_speed": 1,
                 "pen_rand": True,
-                "n_predators": 2, "leader_sheep": 2,
+                "n_predators": 2,
+                "leader_sheep": 2,
             },
         ),
     }
 
-    _DIRS = [(1,0),(-1,0),(0,1),(0,-1)]
+    _DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size         = self.difficulty_config.grid_size
-        p            = self.difficulty_config.params
-        n_sheep      = p.get("n_sheep", 2)
-        pen_size     = p.get("pen_size", 2)
-        n_obs        = p.get("n_obstacles", 0)
-        pen_rand     = p.get("pen_rand", False)
-        n_predators  = p.get("n_predators", 0)
+        size = self.difficulty_config.grid_size
+        p = self.difficulty_config.params
+        n_sheep = p.get("n_sheep", 2)
+        pen_size = p.get("pen_size", 2)
+        n_obs = p.get("n_obstacles", 0)
+        pen_rand = p.get("pen_rand", False)
+        n_predators = p.get("n_predators", 0)
         leader_sheep = p.get("leader_sheep", 0)
 
         grid = Grid(size, size)
@@ -90,16 +110,16 @@ class HerdingTask(TaskSpec):
                 (size - 1 - pen_size, 1),
                 (1, 1),
             ]
-            pen_origin_x, pen_origin_y = pen_corners[
-                int(rng.integers(0, 4))
-            ]
+            pen_origin_x, pen_origin_y = pen_corners[int(rng.integers(0, 4))]
         else:
             pen_origin_x = size - 1 - pen_size
             pen_origin_y = size - 1 - pen_size
 
         possible_starts = [
-            (1, 1), (1, size - 2),
-            (size - 2, 1), (size - 2, size - 2),
+            (1, 1),
+            (1, size - 2),
+            (size - 2, 1),
+            (size - 2, size - 2),
         ]
         rng.shuffle(possible_starts)
         agent_pos = possible_starts[0]
@@ -113,20 +133,19 @@ class HerdingTask(TaskSpec):
                 pen_origin_x,
                 min(pen_origin_x + pen_size, size - 1),
             ):
-                if (0 < px < size - 1
-                        and 0 < py < size - 1
-                        and (px, py) != agent_pos):
+                if 0 < px < size - 1 and 0 < py < size - 1 and (px, py) != agent_pos:
                     grid.objects[py, px] = ObjectType.TARGET
                     pen_cells.add((px, py))
 
         placed_obs = 0
         obs_candidates = [
-            (x, y) for x in range(2, size - 2)
+            (x, y)
+            for x in range(2, size - 2)
             for y in range(2, size - 2)
             if (x, y) not in pen_cells and (x, y) != agent_pos
         ]
         rng.shuffle(obs_candidates)
-        for ox, oy in obs_candidates[:n_obs * 4]:
+        for ox, oy in obs_candidates[: n_obs * 4]:
             if placed_obs >= n_obs:
                 break
             grid.terrain[oy, ox] = CellType.WALL
@@ -135,19 +154,14 @@ class HerdingTask(TaskSpec):
             else:
                 placed_obs += 1
 
-        reachable = list(
-            grid.flood_fill(agent_pos) - {agent_pos} - pen_cells
-        )
+        reachable = list(grid.flood_fill(agent_pos) - {agent_pos} - pen_cells)
         rng.shuffle(reachable)
         sheep_positions = list(reachable[:n_sheep])
 
         used = {agent_pos} | pen_cells | set(sheep_positions)
         predator_positions = []
         if n_predators > 0:
-            pred_cands = [
-                pos for pos in reachable
-                if pos not in used
-            ]
+            pred_cands = [pos for pos in reachable if pos not in used]
             rng.shuffle(pred_cands)
             for pp in pred_cands[:n_predators]:
                 px, py = pp
@@ -160,33 +174,25 @@ class HerdingTask(TaskSpec):
             leader_indices = list(range(n_leaders))
 
         return grid, {
-            "agent_start":        agent_pos,
-            "goal_positions":     list(pen_cells),
-            "pen_cells":          list(pen_cells),
-            "sheep_positions":    sheep_positions,
+            "agent_start": agent_pos,
+            "goal_positions": list(pen_cells),
+            "pen_cells": list(pen_cells),
+            "sheep_positions": sheep_positions,
             "predator_positions": predator_positions,
-            "leader_indices":     leader_indices,
-            "max_steps":          self.get_max_steps(),
-            "_rng_seed":          int(rng.integers(0, 2**31)),
-            "_sheep_speed":       p.get("sheep_speed", 3),
+            "leader_indices": leader_indices,
+            "max_steps": self.get_max_steps(),
+            "_rng_seed": int(rng.integers(0, 2**31)),
+            "_sheep_speed": p.get("sheep_speed", 3),
         }
 
     # ── Dynamic sheep movement ────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
         self._config = config
-        config["_live_sheep"] = list(
-            config.get("sheep_positions", [])
-        )
-        config["_predators"] = list(
-            config.get("predator_positions", [])
-        )
-        config["_leader_indices"] = list(
-            config.get("leader_indices", [])
-        )
-        config["_sheep_rng"] = np.random.default_rng(
-            config.get("_rng_seed", 0)
-        )
+        config["_live_sheep"] = list(config.get("sheep_positions", []))
+        config["_predators"] = list(config.get("predator_positions", []))
+        config["_leader_indices"] = list(config.get("leader_indices", []))
+        config["_sheep_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
         self._draw_sheep(grid, config["_live_sheep"], draw=True)
         for px, py in config["_predators"]:
             grid.objects[py, px] = ObjectType.ENEMY
@@ -195,7 +201,7 @@ class HerdingTask(TaskSpec):
         if "_live_sheep" not in config:
             return
         sheep = config["_live_sheep"]
-        rng   = config["_sheep_rng"]
+        rng = config["_sheep_rng"]
         speed = config.get("_sheep_speed", 3)
         ax, ay = agent.position
         predators = config.get("_predators", [])
@@ -211,14 +217,15 @@ class HerdingTask(TaskSpec):
         for px_c, py_c in predators:
             if grid.objects[py_c, px_c] == ObjectType.ENEMY:
                 grid.objects[py_c, px_c] = ObjectType.NONE
-            moves = [
-                (px_c + dx, py_c + dy) for dx, dy in self._DIRS
-            ]
+            moves = [(px_c + dx, py_c + dy) for dx, dy in self._DIRS]
             valid = [
-                (x, y) for x, y in moves
-                if (0 < x < grid.width - 1
+                (x, y)
+                for x, y in moves
+                if (
+                    0 < x < grid.width - 1
                     and 0 < y < grid.height - 1
-                    and grid.terrain[y, x] == CellType.EMPTY)
+                    and grid.terrain[y, x] == CellType.EMPTY
+                )
             ]
             if valid:
                 np_pos = valid[int(rng.integers(len(valid)))]
@@ -229,16 +236,13 @@ class HerdingTask(TaskSpec):
         config["_predators"] = new_preds
 
         # Compute leader positions for flock behavior
-        leader_positions = [
-            sheep[i] for i in leaders if i < len(sheep)
-        ]
+        leader_positions = [sheep[i] for i in leaders if i < len(sheep)]
 
         new_sheep = []
         for idx, (sx, sy) in enumerate(sheep):
             dist_agent = abs(sx - ax) + abs(sy - ay)
             dist_pred = min(
-                (abs(sx - px) + abs(sy - py)
-                 for px, py in new_preds),
+                (abs(sx - px) + abs(sy - py) for px, py in new_preds),
                 default=999,
             )
             flee_from = None
@@ -258,46 +262,45 @@ class HerdingTask(TaskSpec):
                 for dx, dy in self._DIRS:
                     nx, ny = sx + dx, sy + dy
                     d = abs(nx - fx) + abs(ny - fy)
-                    if (0 < nx < grid.width - 1
-                            and 0 < ny < grid.height - 1
-                            and grid.terrain[ny, nx] == CellType.EMPTY
-                            and d > best_d):
+                    if (
+                        0 < nx < grid.width - 1
+                        and 0 < ny < grid.height - 1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and d > best_d
+                    ):
                         best_d = d
                         best = (nx, ny)
                 new_sheep.append(best)
-            elif (idx not in leaders and leader_positions
-                    and rng.random() < 0.4):
-                lx, ly = leader_positions[
-                    int(rng.integers(len(leader_positions)))
-                ]
+            elif idx not in leaders and leader_positions and rng.random() < 0.4:
+                lx, ly = leader_positions[int(rng.integers(len(leader_positions)))]
                 best = (sx, sy)
                 best_d = abs(sx - lx) + abs(sy - ly)
                 for dx, dy in self._DIRS:
                     nx, ny = sx + dx, sy + dy
                     d = abs(nx - lx) + abs(ny - ly)
-                    if (0 < nx < grid.width - 1
-                            and 0 < ny < grid.height - 1
-                            and grid.terrain[ny, nx] == CellType.EMPTY
-                            and d < best_d):
+                    if (
+                        0 < nx < grid.width - 1
+                        and 0 < ny < grid.height - 1
+                        and grid.terrain[ny, nx] == CellType.EMPTY
+                        and d < best_d
+                    ):
                         best_d = d
                         best = (nx, ny)
                 new_sheep.append(best)
             else:
                 if rng.random() < 0.3:
-                    moves = [
-                        (sx + dx, sy + dy)
-                        for dx, dy in self._DIRS
-                    ]
+                    moves = [(sx + dx, sy + dy) for dx, dy in self._DIRS]
                     valid = [
-                        (x, y) for x, y in moves
-                        if (0 < x < grid.width - 1
+                        (x, y)
+                        for x, y in moves
+                        if (
+                            0 < x < grid.width - 1
                             and 0 < y < grid.height - 1
-                            and grid.terrain[y, x] == CellType.EMPTY)
+                            and grid.terrain[y, x] == CellType.EMPTY
+                        )
                     ]
                     if valid:
-                        new_sheep.append(
-                            valid[int(rng.integers(len(valid)))]
-                        )
+                        new_sheep.append(valid[int(rng.integers(len(valid)))])
                     else:
                         new_sheep.append((sx, sy))
                 else:
@@ -335,8 +338,8 @@ class HerdingTask(TaskSpec):
             if out_sheep and "agent_position" in new_state:
                 ax, ay = new_state["agent_position"]
                 ox, oy = old_state.get("agent_position", (ax, ay))
-                ns_new = min(abs(ax-sx)+abs(ay-sy) for sx,sy in out_sheep)
-                ns_old = min(abs(ox-sx)+abs(oy-sy) for sx,sy in out_sheep)
+                ns_new = min(abs(ax - sx) + abs(ay - sy) for sx, sy in out_sheep)
+                ns_old = min(abs(ox - sx) + abs(oy - sy) for sx, sy in out_sheep)
                 reward += 0.02 * (ns_old - ns_new)
         if self.check_success(new_state):
             reward += 1.0
@@ -351,5 +354,8 @@ class HerdingTask(TaskSpec):
             return False
         return all(tuple(s) in pen for s in sheep)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

@@ -30,19 +30,27 @@ class TaskInterferenceTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=150,
+            name="easy",
+            grid_size=9,
+            max_steps=150,
             params={"n_coins": 2, "n_gems": 2, "interference": False},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=11, max_steps=250,
+            name="medium",
+            grid_size=11,
+            max_steps=250,
             params={"n_coins": 3, "n_gems": 3, "interference": True},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=400,
+            name="hard",
+            grid_size=13,
+            max_steps=400,
             params={"n_coins": 4, "n_gems": 4, "interference": True},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=600,
+            name="expert",
+            grid_size=15,
+            max_steps=600,
             params={"n_coins": 5, "n_gems": 5, "interference": True},
         ),
     }
@@ -63,8 +71,7 @@ class TaskInterferenceTask(TaskSpec):
         agent_pos = (size // 2, size // 2)
 
         free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if (x, y) != agent_pos
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
         ]
         rng.shuffle(free)
         used = {agent_pos}
@@ -81,11 +88,16 @@ class TaskInterferenceTask(TaskSpec):
         grid.metadata[gem_goal[1], gem_goal[0]] = int(ObjectType.GEM)
         used.add(gem_goal)
 
+        # With interference, each pickup destroys an item of the other type,
+        # so we must place extra items to keep the task solvable.
+        place_coins = n_coins + n_gems if interference else n_coins
+        place_gems = n_gems + n_coins if interference else n_gems
+
         # Place coins scattered
         coin_positions = []
         coin_candidates = [p for p in free if p not in used]
         rng.shuffle(coin_candidates)
-        for p in coin_candidates[:n_coins]:
+        for p in coin_candidates[:place_coins]:
             cx, cy = p
             grid.objects[cy, cx] = ObjectType.COIN
             coin_positions.append(p)
@@ -95,7 +107,7 @@ class TaskInterferenceTask(TaskSpec):
         gem_positions = []
         gem_candidates = [p for p in free if p not in used]
         rng.shuffle(gem_candidates)
-        for p in gem_candidates[:n_gems]:
+        for p in gem_candidates[:place_gems]:
             gx, gy = p
             grid.objects[gy, gx] = ObjectType.GEM
             gem_positions.append(p)
@@ -187,8 +199,9 @@ class TaskInterferenceTask(TaskSpec):
                 config["_coins_delivered"] = config.get("_coins_delivered", 0) + delivered
                 config["_coins_held"] = 0
                 # Check if first objective done
-                if (config.get("_coins_delivered", 0) >= config.get("n_coins", 2)
-                        and not config.get("_first_objective_done", False)):
+                if config.get("_coins_delivered", 0) >= config.get("n_coins", 2) and not config.get(
+                    "_first_objective_done", False
+                ):
                     config["_first_objective_done"] = True
                     self._activate_interference_walls(grid, config)
 
@@ -196,8 +209,9 @@ class TaskInterferenceTask(TaskSpec):
                 delivered = config.get("_gems_held", 0)
                 config["_gems_delivered"] = config.get("_gems_delivered", 0) + delivered
                 config["_gems_held"] = 0
-                if (config.get("_gems_delivered", 0) >= config.get("n_gems", 2)
-                        and not config.get("_first_objective_done", False)):
+                if config.get("_gems_delivered", 0) >= config.get("n_gems", 2) and not config.get(
+                    "_first_objective_done", False
+                ):
                     config["_first_objective_done"] = True
                     self._activate_interference_walls(grid, config)
 
@@ -211,9 +225,7 @@ class TaskInterferenceTask(TaskSpec):
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
         config = new_state.get("config", {})
-        total_delivered = (
-            config.get("_coins_delivered", 0) + config.get("_gems_delivered", 0)
-        )
+        total_delivered = config.get("_coins_delivered", 0) + config.get("_gems_delivered", 0)
         if total_delivered > self._last_delivered:
             reward += 0.3 * (total_delivered - self._last_delivered)
         self._last_delivered = total_delivered
@@ -230,5 +242,8 @@ class TaskInterferenceTask(TaskSpec):
         gems_ok = config.get("_gems_delivered", 0) >= n_gems
         return coins_ok and gems_ok
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

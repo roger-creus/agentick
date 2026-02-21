@@ -555,8 +555,6 @@ def plot_episode_length_distribution(
     return fig
 
 
-
-
 def plot_critical_difference(
     results_dict: dict[str, float],
     critical_difference: float,

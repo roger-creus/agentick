@@ -8,12 +8,11 @@ Usage:
     uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
 """
 
-import json
 from pathlib import Path
 
 import agentick
-from agentick.benchmark.baselines import OracleAgent
-from agentick.data.collector import TrajectoryCollector
+from agentick.data import DataCollector
+from agentick.oracles import get_oracle
 
 
 def main():
@@ -21,81 +20,38 @@ def main():
     print("=" * 80)
 
     # Create environment
-    env = agentick.make("GoToGoal-v0", difficulty="easy", render_mode="state_dict")
+    env = agentick.make("GoToGoal-v0", difficulty="easy", render_mode="language")
 
     # Create oracle agent (uses privileged information for optimal policy)
-    oracle = OracleAgent(env)
+    oracle = get_oracle("GoToGoal-v0", env)
 
-    # Create trajectory collector
-    collector = TrajectoryCollector(
-        buffer_size=100,
-        collect_observations=True,
-    )
-
-    # Collect trajectories from oracle agent
+    # Collect trajectories using the high-level DataCollector
+    collector = DataCollector(env, oracle, record_modalities=["language"])
     print("\nCollecting 10 oracle trajectories...")
+    dataset = collector.collect(num_episodes=10, seeds=range(10))
 
-    for i in range(10):
-        # Start new episode
-        collector.start_episode(metadata={"episode": i, "agent": "oracle"})
-
-        # Reset environment
-        obs, info = env.reset(seed=42 + i)
-
-        done = False
-        steps = 0
-        while not done:
-            # Oracle agent selects optimal action
-            action = oracle.act(obs, info)
-
-            # Take step
-            next_obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-
-            # Record step
-            collector.add_step(obs, action, reward, done, info)
-
-            obs = next_obs
-            steps += 1
-
-            # Safety limit
-            if steps > 500:
-                break
-
-        # Finish episode
-        collector.end_episode()
-
-        # Get last trajectory for stats
-        traj = collector.trajectories[-1]
+    # Print summary
+    print(f"\nCollected {len(dataset.trajectories)} trajectories")
+    for i, traj in enumerate(dataset.trajectories):
+        success = traj.infos[-1].get("success", False) if traj.infos else False
         print(
             f"  Episode {i + 1}: {traj.length} steps, "
-            f"reward={traj.total_reward:.2f}, "
-            f"success={traj.infos[-1].get('success', False) if traj.infos else False}"
+            f"reward={traj.total_reward:.2f}, success={success}"
         )
 
     # Save trajectories
-    output_dir = Path("data/oracle_trajectories")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path("trajectories/oracle_gotogoal/")
+    dataset.save(output_dir)
+    print(f"\nSaved trajectories to {output_dir}")
 
-    trajectories = collector.get_trajectories()
-    for i, traj in enumerate(trajectories):
-        output_file = output_dir / f"trajectory_{i:03d}.json"
-        with open(output_file, "w") as f:
-            json.dump(traj.to_dict(), f, indent=2, default=str)
-
-    print(f"\nSaved {len(trajectories)} trajectories to {output_dir}")
-
-    # Print statistics
-    stats = collector.get_stats()
-    print("\nCollection Statistics:")
-    print(f"  Total episodes: {stats['total_episodes']}")
-    print(f"  Total steps: {stats['total_steps']}")
-    print(f"  Mean reward: {stats['mean_reward']:.2f} ± {stats['std_reward']:.2f}")
-    print(f"  Mean length: {stats['mean_length']:.1f}")
+    # Export to HuggingFace conversation format (for SFT)
+    hf_dir = Path("trajectories/hf_conv/")
+    dataset.export_to_huggingface(hf_dir, format="conversation")
+    print(f"Exported HuggingFace dataset to {hf_dir}")
 
     print("\nNext steps:")
-    print("  1. Run export_to_huggingface.py to convert to HF format")
-    print("  2. Use trajectories for supervised fine-tuning")
+    print("  1. Run sft_with_trl.py to fine-tune a model on this data")
+    print("  2. Or run export_to_huggingface.py for more export options")
 
     env.close()
 

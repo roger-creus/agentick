@@ -67,9 +67,7 @@ class HuggingFaceVLMBackend(ModelBackend):
             self._model = self._model.to(self.device)
 
         self._model.eval()
-        self._processor = AutoProcessor.from_pretrained(
-            self.model_id, trust_remote_code=True
-        )
+        self._processor = AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
 
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:
         """Generate a response using the local VLM."""
@@ -94,9 +92,7 @@ class HuggingFaceVLMBackend(ModelBackend):
                 text=[text_prompt], images=images, return_tensors="pt", truncation=True
             )
         else:
-            inputs = self._processor(
-                text=[text_prompt], return_tensors="pt", truncation=True
-            )
+            inputs = self._processor(text=[text_prompt], return_tensors="pt", truncation=True)
 
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
         input_len = inputs.get("input_ids", torch.tensor([])).shape[-1]
