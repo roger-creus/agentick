@@ -190,6 +190,7 @@ class HerdingTask(TaskSpec):
     def on_env_reset(self, agent, grid, config):
         self._config = config
         config["_live_sheep"] = list(config.get("sheep_positions", []))
+        config["_captured_sheep"] = []  # sheep locked in pen (won't move)
         config["_predators"] = list(config.get("predator_positions", []))
         config["_leader_indices"] = list(config.get("leader_indices", []))
         config["_sheep_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
@@ -206,6 +207,14 @@ class HerdingTask(TaskSpec):
         ax, ay = agent.position
         predators = config.get("_predators", [])
         leaders = config.get("_leader_indices", [])
+        pen = set(map(tuple, config.get("pen_cells", [])))
+        captured = set(map(tuple, config.get("_captured_sheep", [])))
+
+        # Detect newly penned sheep and lock them
+        for s in sheep:
+            if tuple(s) in pen and tuple(s) not in captured:
+                captured.add(tuple(s))
+        config["_captured_sheep"] = list(captured)
 
         if step_count % speed != 0:
             return
@@ -240,6 +249,11 @@ class HerdingTask(TaskSpec):
 
         new_sheep = []
         for idx, (sx, sy) in enumerate(sheep):
+            # Captured sheep stay locked in pen — don't move
+            if (sx, sy) in captured:
+                new_sheep.append((sx, sy))
+                continue
+
             dist_agent = abs(sx - ax) + abs(sy - ay)
             dist_pred = min(
                 (abs(sx - px) + abs(sy - py) for px, py in new_preds),
@@ -310,12 +324,18 @@ class HerdingTask(TaskSpec):
         self._draw_sheep(grid, new_sheep, draw=True)
 
     def _draw_sheep(self, grid, sheep, draw: bool):
-        pen = set(map(tuple, getattr(self, "_config", {}).get("pen_cells", [])))
+        config = getattr(self, "_config", {})
+        pen = set(map(tuple, config.get("pen_cells", [])))
+        captured = set(map(tuple, config.get("_captured_sheep", [])))
         for sx, sy in sheep:
             if 0 <= sx < grid.width and 0 <= sy < grid.height:
                 if draw:
-                    grid.objects[sy, sx] = ObjectType.SHEEP
-                elif grid.objects[sy, sx] == ObjectType.SHEEP:
+                    # Captured sheep in pen: show as GOAL (checkmark visual = locked in)
+                    if (sx, sy) in captured:
+                        grid.objects[sy, sx] = ObjectType.GOAL
+                    else:
+                        grid.objects[sy, sx] = ObjectType.SHEEP
+                elif grid.objects[sy, sx] in (ObjectType.SHEEP, ObjectType.GOAL):
                     # Restore TARGET if this was a pen cell
                     if (sx, sy) in pen:
                         grid.objects[sy, sx] = ObjectType.TARGET

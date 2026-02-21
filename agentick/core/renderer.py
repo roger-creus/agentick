@@ -136,14 +136,38 @@ class ASCIIRenderer:
                     char_grid[y, x] = "D"
                     color_grid[y, x] = "door"
                 elif obj_val == ObjectType.SWITCH:
-                    char_grid[y, x] = "S"
-                    color_grid[y, x] = "key"
+                    meta_val = int(grid.metadata[y, x])
+                    # GraphColoring: show assigned color as digit; 0 = uncolored
+                    _GC_COLORS = {0: "key", 1: "hazard", 2: "agent", 3: "goal", 4: "coin"}
+                    color_grid[y, x] = _GC_COLORS.get(meta_val, "key")
+                    char_grid[y, x] = str(meta_val) if meta_val > 0 else "N"
                 elif obj_val == ObjectType.BOX:
-                    char_grid[y, x] = "B"
+                    meta_val = int(grid.metadata[y, x])
+                    if meta_val != 0:
+                        # Numbered tile (TileSorting): show tile number
+                        char_grid[y, x] = str(meta_val) if meta_val <= 9 else chr(ord("A") + meta_val - 10)
+                    else:
+                        char_grid[y, x] = "B"
                     color_grid[y, x] = "box"
                 elif obj_val == ObjectType.TARGET:
-                    char_grid[y, x] = "T"
-                    color_grid[y, x] = "goal"
+                    meta_val = int(grid.metadata[y, x])
+                    # Typed target: show expected object type character
+                    _TYPED_TARGET_CHARS = {
+                        5: ("B", "box"),    # BOX slot
+                        14: ("d", "gem"),   # GEM slot
+                        15: ("L", "lever"), # LEVER slot
+                        16: ("P", "potion"),# POTION slot
+                        17: ("?", "scroll"),# SCROLL slot
+                        18: ("c", "coin"),  # COIN slot
+                        19: ("O", "orb"),   # ORB slot
+                    }
+                    if meta_val in _TYPED_TARGET_CHARS:
+                        ch, col = _TYPED_TARGET_CHARS[meta_val]
+                        char_grid[y, x] = ch
+                        color_grid[y, x] = col
+                    else:
+                        char_grid[y, x] = "T"
+                        color_grid[y, x] = "goal"
                 elif obj_val == ObjectType.TOOL:
                     char_grid[y, x] = "t"
                     color_grid[y, x] = "key"

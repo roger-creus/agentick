@@ -1,11 +1,24 @@
-"""RecipeAssembly - Collect all ingredients then reach the cooking station.
+"""RecipeAssembly - Craft an item by collecting ingredients in the correct order.
 
 MECHANICS:
-  - Multiple ingredient items (KEY objects) scattered on the grid
-  - Agent must collect ALL ingredients (auto-pickup by stepping on them)
-  - Then reach the GOAL (cooking station)
-  - Wrong order = fine (just need all before goal)
-  - Success = agent has collected all ingredients AND is at GOAL
+  - A RECIPE is shown visually in a dedicated corner zone:
+      sequence of TARGET objects with metadata = expected ingredient type
+      (14=GEM/herb, 17=SCROLL/mushroom, 19=ORB/crystal, 18=COIN/reagent)
+  - Ingredients (GEM, SCROLL, ORB, COIN) scattered on the map
+  - A CRAFTING STATION (GOAL object) in the map
+  - Agent must collect ingredients in the EXACT recipe order:
+      collect step-1 ingredient → go to station → collect step-2 → station → ...
+  - Wrong ingredient type: small penalty, ingredient stays on map
+  - Completing each step lights up the recipe slot (TARGET → GOAL in recipe zone)
+  - Final step: reach GOAL station with last ingredient → SUCCESS
+  - Decoy ingredients: extra items of wrong types to confuse
+  - Difficulty: recipe length, decoys, obstacles, multiple crafting steps
+
+VISIBILITY:
+  - Recipe zone: top-right corner, TARGET objects with typed metadata
+    visible in ALL modalities (pixels, ASCII, language)
+  - Current step indicator: currently-needed ingredient is highlighted
+  - Crafting station: GOAL object, always visible
 """
 
 import numpy as np
@@ -16,46 +29,60 @@ from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
+# Ingredient types used in recipes (ObjectType value → object placed on grid)
+_INGREDIENT_TYPES = [
+    ObjectType.GEM,     # 14 - herb (purple)
+    ObjectType.SCROLL,  # 17 - mushroom (tan)
+    ObjectType.ORB,     # 19 - crystal (pink)
+    ObjectType.COIN,    # 18 - reagent (gold)
+]
+_INGREDIENT_NAMES = {
+    ObjectType.GEM: "herb",
+    ObjectType.SCROLL: "mushroom",
+    ObjectType.ORB: "crystal",
+    ObjectType.COIN: "reagent",
+}
+
 
 @register_task("RecipeAssembly-v0", tags=["compositional_logic", "planning"])
 class RecipeAssemblyTask(TaskSpec):
-    """Collect all ingredients then reach the cooking station."""
+    """Collect ingredients in recipe order, delivering each to crafting station."""
 
     name = "RecipeAssembly-v0"
-    description = "Collect ingredients then reach cooking station"
+    description = "Follow recipe: collect ingredients in correct order at crafting station"
     capability_tags = ["compositional_logic", "planning"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy",
-            grid_size=7,
-            max_steps=100,
-            params={"n_ingredients": 2, "n_decoys": 0, "n_obstacles": 0},
+            grid_size=9,
+            max_steps=120,
+            params={"recipe_length": 2, "n_decoys": 0, "n_obstacles": 0},
         ),
         "medium": DifficultyConfig(
             name="medium",
-            grid_size=10,
-            max_steps=180,
-            params={"n_ingredients": 3, "n_decoys": 2, "n_obstacles": 3},
+            grid_size=11,
+            max_steps=220,
+            params={"recipe_length": 3, "n_decoys": 2, "n_obstacles": 3},
         ),
         "hard": DifficultyConfig(
             name="hard",
-            grid_size=13,
-            max_steps=300,
-            params={"n_ingredients": 4, "n_decoys": 3, "n_obstacles": 5},
+            grid_size=14,
+            max_steps=380,
+            params={"recipe_length": 4, "n_decoys": 3, "n_obstacles": 5},
         ),
         "expert": DifficultyConfig(
             name="expert",
-            grid_size=15,
-            max_steps=480,
-            params={"n_ingredients": 5, "n_decoys": 4, "n_obstacles": 7},
+            grid_size=16,
+            max_steps=600,
+            params={"recipe_length": 5, "n_decoys": 4, "n_obstacles": 7},
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        n = self.difficulty_config.params.get("n_ingredients", 2)
+        recipe_length = self.difficulty_config.params.get("recipe_length", 2)
         n_decoys = self.difficulty_config.params.get("n_decoys", 0)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
@@ -65,137 +92,221 @@ class RecipeAssemblyTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
-        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
+        # Agent starts bottom-left
+        agent_pos = (1, size - 2)
 
+        # Crafting station: center of map
+        station_pos = (size // 2, size // 2)
+        grid.objects[station_pos[1], station_pos[0]] = ObjectType.GOAL
+
+        used = {agent_pos, station_pos}
+
+        # Generate recipe: sequence of ingredient types
+        # Each step uses a different ingredient type (no repeats for clarity)
+        recipe_types = list(rng.choice(len(_INGREDIENT_TYPES), size=recipe_length, replace=True))
+        recipe = [_INGREDIENT_TYPES[i] for i in recipe_types]
+
+        # Recipe zone: top-right corner, one cell per recipe step
+        # Placed as a row of TARGET objects with metadata = ingredient ObjectType int
+        recipe_zone = []
+        rx_start = max(1, size - recipe_length - 1)
+        ry = 1
+        for step_i, ing_type in enumerate(recipe):
+            rx = rx_start + step_i
+            if 0 < rx < size - 1:
+                rpos = (rx, ry)
+                # Place recipe slot: TARGET with metadata = ingredient type int
+                grid.objects[ry, rx] = ObjectType.TARGET
+                grid.metadata[ry, rx] = int(ing_type)
+                recipe_zone.append(rpos)
+                used.add(rpos)
+
+        # Place ingredient objects scattered around (avoid recipe zone and station)
         free = [
-            (x, y)
-            for x in range(1, size - 1)
-            for y in range(1, size - 1)
-            if (x, y) != agent_pos and (x, y) != goal_pos
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+            if (x, y) not in used
         ]
         rng.shuffle(free)
-        ingredient_positions = free[:n]
-        used = {agent_pos, goal_pos} | set(ingredient_positions)
 
-        for ix, iy in ingredient_positions:
-            grid.objects[iy, ix] = ObjectType.KEY
+        ingredient_positions = {}  # ingredient_type → list of positions
+        for ing_type in recipe:
+            for pos in free:
+                if pos not in used:
+                    ix, iy = pos
+                    grid.objects[iy, ix] = ing_type
+                    ingredient_positions.setdefault(ing_type, []).append(pos)
+                    used.add(pos)
+                    break
 
-        # Decoys: SWITCH objects (look different from KEY but add noise)
+        # Decoy ingredients: wrong types scattered around
         decoy_positions = []
-        for p in free[n:]:
-            if len(decoy_positions) >= n_decoys:
-                break
-            if p not in used:
-                dx2, dy2 = p
-                grid.objects[dy2, dx2] = ObjectType.SWITCH
-                decoy_positions.append(p)
-                used.add(p)
+        decoy_types_available = [t for t in _INGREDIENT_TYPES if t not in recipe]
+        if not decoy_types_available:
+            decoy_types_available = _INGREDIENT_TYPES[:]
+        for i in range(n_decoys):
+            for pos in free:
+                if pos not in used:
+                    dx2, dy2 = pos
+                    dt = decoy_types_available[i % len(decoy_types_available)]
+                    grid.objects[dy2, dx2] = dt
+                    decoy_positions.append(pos)
+                    used.add(pos)
+                    break
 
-        # Obstacle walls — flood-fill check
-        wall_positions = []
-        wall_candidates = [p for p in free if p not in used]
-        critical = [agent_pos, goal_pos] + list(ingredient_positions)
-        for p in wall_candidates:
-            if len(wall_positions) >= n_obstacles:
+        # Place interior walls — flood-fill to keep everything reachable
+        critical = [agent_pos, station_pos] + list(ingredient_positions.get(t, [None])[0]
+                                                     for t in recipe
+                                                     if ingredient_positions.get(t))
+        critical = [c for c in critical if c is not None]
+        wall_cands = [p for p in free if p not in used]
+        rng.shuffle(wall_cands)
+        placed_walls = 0
+        for p in wall_cands:
+            if placed_walls >= n_obstacles:
                 break
             wx, wy = p
             grid.terrain[wy, wx] = CellType.WALL
             reachable = grid.flood_fill(agent_pos)
-            if all(q in reachable for q in critical):
-                wall_positions.append(p)
+            if all(c in reachable for c in critical):
+                placed_walls += 1
                 used.add(p)
             else:
                 grid.terrain[wy, wx] = CellType.EMPTY
 
+        # Serialize ingredient positions
+        ing_pos_serialized = {
+            int(k): [list(v2) for v2 in vals]
+            for k, vals in ingredient_positions.items()
+        }
+
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": [goal_pos],
-            "ingredient_positions": ingredient_positions,
+            "goal_positions": [station_pos],
+            "station_pos": station_pos,
+            "recipe": [int(t) for t in recipe],
+            "recipe_zone": recipe_zone,
+            "ingredient_positions": ing_pos_serialized,
             "decoy_positions": decoy_positions,
-            "n_ingredients": n,
+            "recipe_length": recipe_length,
             "max_steps": self.get_max_steps(),
         }
 
-    # ── Auto-collect ingredients ──────────────────────────────────────────────
-    # (Handled by TaskEnv._move_agent → on_agent_moved)
-
     def on_env_reset(self, agent, grid, config):
-        agent.inventory.clear()  # prevent inventory leak between episodes
-        self._last_n_ingredients = 0
+        agent.inventory.clear()
+        config["_step"] = 0           # current recipe step index (0-based)
+        config["_steps_done"] = 0     # number of steps completed
+        config["_at_station"] = False
+        config["_last_penalty"] = False
+        self._last_steps_done = 0
+        self._config = config
+        self._update_recipe_display(grid, config)
+
+    def _update_recipe_display(self, grid, config):
+        """Update recipe zone: completed steps → GOAL, pending → TARGET."""
+        recipe_zone = config.get("recipe_zone", [])
+        steps_done = config.get("_steps_done", 0)
+        recipe = config.get("recipe", [])
+        for i, (rx, ry) in enumerate(recipe_zone):
+            if i < steps_done:
+                grid.objects[ry, rx] = ObjectType.GOAL   # completed step
+            else:
+                grid.objects[ry, rx] = ObjectType.TARGET  # pending step
+                if i < len(recipe):
+                    grid.metadata[ry, rx] = recipe[i]
 
     def on_agent_moved(self, pos, agent, grid):
-        """Auto-pickup ingredient (KEY) when agent steps on it."""
-        from agentick.core.entity import Entity
-
+        """Handle ingredient pickup and crafting station interactions."""
+        config = getattr(self, "_config", {})
         x, y = pos
-        if grid.objects[y, x] == ObjectType.KEY:
-            grid.objects[y, x] = ObjectType.NONE
-            agent.inventory.append(
-                Entity(id=f"ingredient_{x}_{y}", entity_type="ingredient", position=pos)
-            )
+        obj = grid.objects[y, x]
+        step = config.get("_step", 0)
+        recipe = config.get("recipe", [])
+        station_pos = config.get("station_pos", (-1, -1))
+        config["_last_penalty"] = False
 
-    # ── Reward & success ─────────────────────────────────────────────────────
+        # At crafting station: check if holding correct next ingredient
+        if (x, y) == tuple(station_pos) or obj == ObjectType.GOAL:
+            held = [e for e in agent.inventory if e.entity_type == "ingredient"]
+            if held and step < len(recipe):
+                needed = recipe[step]
+                # Find ingredient of the needed type in inventory
+                found = next((e for e in held if e.properties.get("ing_type") == int(needed)), None)
+                if found:
+                    agent.inventory.remove(found)
+                    config["_steps_done"] = config.get("_steps_done", 0) + 1
+                    config["_step"] = step + 1
+                    self._update_recipe_display(grid, config)
+            return
+
+        # Wrong ingredient pickup: penalize
+        if obj in _INGREDIENT_TYPES:
+            # Is this ingredient the currently needed type?
+            needed = recipe[step] if step < len(recipe) else None
+            if needed is not None and obj == needed:
+                # Correct ingredient - pick it up
+                grid.objects[y, x] = ObjectType.NONE
+                from agentick.core.entity import Entity
+                e = Entity(
+                    id=f"ing_{x}_{y}",
+                    entity_type="ingredient",
+                    position=pos,
+                )
+                e.properties["ing_type"] = int(obj)
+                agent.inventory.append(e)
+            else:
+                # Wrong ingredient - small penalty (leave in place)
+                config["_last_penalty"] = True
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
-        if "agent" not in new_state or "config" not in new_state:
-            return reward
-
-        agent = new_state["agent"]
         config = new_state.get("config", {})
-        n_needed = config.get("n_ingredients", 1)
-        n_have = sum(1 for e in agent.inventory if e.entity_type == "ingredient")
 
-        # Reward collecting each ingredient (use instance var to avoid mutable agent ref bug)
-        if n_have > self._last_n_ingredients:
-            reward += 0.3 * (n_have - self._last_n_ingredients)
-        self._last_n_ingredients = n_have
+        if config.get("_last_penalty", False):
+            reward -= 0.1
 
-        # When we have all ingredients: move toward goal
-        if n_have >= n_needed:
-            goal = config.get("goal_positions", [None])[0]
-            if goal and "agent_position" in new_state:
-                ax, ay = new_state["agent_position"]
-                ox, oy = old_state.get("agent_position", (ax, ay))
-                reward += 0.05 * (
-                    abs(ox - goal[0]) + abs(oy - goal[1]) - abs(ax - goal[0]) - abs(ay - goal[1])
-                )
-        else:
-            # Move toward nearest uncollected ingredient
-            from agentick.core.types import ObjectType as OT
+        new_done = config.get("_steps_done", 0)
+        if new_done > self._last_steps_done:
+            reward += 0.5 * (new_done - self._last_steps_done)
+        self._last_steps_done = new_done
 
-            if "grid" in new_state and "agent_position" in new_state:
-                grid = new_state["grid"]
-                ings = [
-                    (x, y)
-                    for y in range(grid.height)
-                    for x in range(grid.width)
-                    if grid.objects[y, x] == OT.KEY
-                ]
-                if ings:
-                    ax, ay = new_state["agent_position"]
-                    ox, oy = old_state.get("agent_position", (ax, ay))
-                    nd_new = min(abs(ax - ix) + abs(ay - iy) for ix, iy in ings)
-                    nd_old = min(abs(ox - ix) + abs(oy - iy) for ix, iy in ings)
-                    reward += 0.02 * (nd_old - nd_new)
+        step = config.get("_step", 0)
+        recipe = config.get("recipe", [])
+        if "agent_position" in new_state and step < len(recipe):
+            ax, ay = new_state["agent_position"]
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            g = new_state.get("grid")
+            if g is not None:
+                needed_type = recipe[step]
+                # If holding the ingredient, go to station; else go to ingredient
+                held = any(
+                    e.properties.get("ing_type") == int(needed_type)
+                    for e in new_state.get("agent", new_state.get("agent", None)).inventory
+                    if hasattr(new_state.get("agent", None), "inventory")
+                ) if "agent" in new_state else False
+                station_pos = config.get("station_pos", (-1, -1))
+                if held:
+                    tx, ty = station_pos
+                else:
+                    # Find nearest ingredient of needed type
+                    ings = [
+                        (xi, yi) for yi in range(g.height) for xi in range(g.width)
+                        if g.objects[yi, xi] == needed_type
+                    ]
+                    if ings:
+                        tx, ty = min(ings, key=lambda q: abs(q[0] - ax) + abs(q[1] - ay))
+                    else:
+                        tx, ty = station_pos
+                reward += 0.03 * (abs(ox - tx) + abs(oy - ty) - abs(ax - tx) - abs(ay - ty))
 
         if self.check_success(new_state):
             reward += 1.0
         return reward
 
     def check_success(self, state):
-        """Agent at goal AND has all ingredients."""
-        if "grid" not in state or "agent" not in state or "config" not in state:
-            return False
-        x, y = state["agent"].position
-        if state["grid"].objects[y, x] != ObjectType.GOAL:
-            return False
+        """All recipe steps completed."""
         config = state.get("config", {})
-        n_needed = config.get("n_ingredients", 1)
-        n_have = sum(1 for e in state["agent"].inventory if e.entity_type == "ingredient")
-        return n_have >= n_needed
+        recipe_length = config.get("recipe_length", 2)
+        return config.get("_steps_done", 0) >= recipe_length
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

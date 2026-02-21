@@ -358,6 +358,15 @@ class TaskEnv(AgentickEnv):
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
         self._try_move_to(new_pos)
 
+    def _execute_action(self, action_type) -> None:
+        """Execute action with task-specific INTERACT hook."""
+        from agentick.core.types import ActionType as AT
+
+        if action_type == AT.INTERACT and hasattr(self.task, "on_agent_interact"):
+            self.task.on_agent_interact(self.agent.position, self.agent, self.grid)
+        else:
+            super()._execute_action(action_type)
+
     def _get_state_for_reward(self) -> dict[str, Any]:
         """Get state snapshot for reward computation (includes full task state)."""
         state = super()._get_state_for_reward()

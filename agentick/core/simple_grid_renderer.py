@@ -56,6 +56,50 @@ META_LIT = 1  # LightsOut: cell is lit (render as bright yellow)
 META_LIGHT_POS = 2  # LightsOut: unlit light position (render as dark gray)
 META_CAGE = 3  # InstructionFollowing: cage border cell
 
+# Object-type metadata on TARGET/BOX cells — typed slot / tile rendering
+# Metadata = ObjectType int → show that object's color/label
+_META_OBJ_COLORS = {
+    5: "#CD853F",  # BOX — tan
+    14: "#9400D3",  # GEM — purple
+    15: "#B48C3C",  # LEVER — brown
+    16: "#00B4B4",  # POTION — teal
+    17: "#D2B48C",  # SCROLL — parchment
+    18: "#FFC800",  # COIN — gold
+    19: "#FF69B4",  # ORB — pink
+}
+_META_OBJ_LABELS = {
+    5: "B",  # BOX
+    14: "d",  # GEM
+    15: "L",  # LEVER
+    16: "P",  # POTION
+    17: "?",  # SCROLL
+    18: "c",  # COIN
+    19: "O",  # ORB
+}
+
+# GraphColoring node colors (metadata 1-4 on SWITCH objects = color assigned)
+_META_GC_COLORS = {
+    0: "#888888",  # uncolored → gray
+    1: "#FF4444",  # color 1 → red
+    2: "#4488FF",  # color 2 → blue
+    3: "#44BB44",  # color 3 → green
+    4: "#FFDD00",  # color 4 → yellow
+}
+
+# ResourceManagement energy stations (RESOURCE object, metadata = energy 0-100)
+def _energy_color(level: int) -> str:
+    """Return hex color for energy level 0-100."""
+    if level >= 80:
+        return "#00DD44"  # bright green
+    elif level >= 60:
+        return "#88DD00"  # yellow-green
+    elif level >= 40:
+        return "#FFDD00"  # yellow
+    elif level >= 20:
+        return "#FF8800"  # orange
+    else:
+        return "#FF2200"  # red / critical
+
 ENTITY_COLORS = {
     "player": "#0044FF",
     "enemy": "#EE1111",
@@ -149,6 +193,10 @@ class SimpleGridRenderer:
                 else:
                     bg = TERRAIN_COLORS.get(cell, TERRAIN_COLORS[CellType.EMPTY])
 
+                # Phase-shift indicator (DistributionShift): terrain changes color
+                obj_here = int(grid.objects[y, x])
+                # (handled below in object rendering via metadata)
+
                 draw.rectangle(
                     [px, py, px + ts - 1, py + ts - 1], fill=bg, outline="#555555", width=1
                 )
@@ -170,6 +218,90 @@ class SimpleGridRenderer:
                     # Draw as entity circle
                     letter, color = CIRCLE_OBJECTS[obj]
                     self._draw_entity(draw, x, y, color, header, letter=letter)
+                elif obj == ObjectType.SWITCH and meta in _META_GC_COLORS:
+                    # GraphColoring: colored node — show with assigned color
+                    node_color = _META_GC_COLORS[meta]
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=node_color,
+                        outline="#000000",
+                        width=2,
+                    )
+                    label = str(meta) if meta > 0 else "N"
+                    text_color = _contrast_text(node_color)
+                    bbox = draw.textbbox((0, 0), label, font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.TARGET and meta in _META_OBJ_LABELS:
+                    # Typed target slot: show expected piece type color + label
+                    slot_color = _META_OBJ_COLORS[meta]
+                    # Draw slot as translucent-ish background (slightly lighter)
+                    m = max(2, ts // 8)
+                    # Outer border = lighter shade, inner = object color
+                    import colorsys
+                    r2, g2, b2 = _hex_to_rgb(slot_color)
+                    light = "#{:02X}{:02X}{:02X}".format(
+                        min(255, r2 + 60), min(255, g2 + 60), min(255, b2 + 60)
+                    )
+                    draw.rectangle(
+                        [px, py, px + ts - 1, py + ts - 1], fill=light, outline=slot_color, width=3
+                    )
+                    label = _META_OBJ_LABELS[meta]
+                    text_color = _contrast_text(light)
+                    bbox = draw.textbbox((0, 0), label, font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.BOX and meta != 0:
+                    # Numbered tile (TileSorting) — show tile number instead of "B"
+                    _, obj_color = OBJECT_LABELS[obj]
+                    # Vary the shade slightly by tile number for more distinction
+                    hue_shift = (meta * 37) % 60  # small hue variation
+                    r2, g2, b2 = _hex_to_rgb(obj_color)
+                    shifted = "#{:02X}{:02X}{:02X}".format(
+                        min(255, r2 + hue_shift - 30),
+                        min(255, g2 + hue_shift - 30),
+                        b2,
+                    )
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=shifted, outline="#000000", width=2,
+                    )
+                    tile_label = str(meta) if meta <= 9 else chr(ord("A") + meta - 10)
+                    text_color = _contrast_text(shifted)
+                    bbox = draw.textbbox((0, 0), tile_label, font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        tile_label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.RESOURCE and 1 <= meta <= 100:
+                    # Energy station (ResourceManagement) — energy level shown as color
+                    station_color = _energy_color(meta)
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=station_color, outline="#000000", width=2,
+                    )
+                    energy_label = str(meta)
+                    text_color = _contrast_text(station_color)
+                    bbox = draw.textbbox((0, 0), energy_label, font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        energy_label, font=self._font_big, fill=text_color,
+                    )
                 elif obj != ObjectType.NONE and obj in OBJECT_LABELS:
                     label, obj_color = OBJECT_LABELS[obj]
                     if label is not None:

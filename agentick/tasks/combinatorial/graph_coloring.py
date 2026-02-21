@@ -1,12 +1,24 @@
-"""GraphColoring - Assign colors to graph nodes such that no adjacent nodes share a color.
+"""GraphColoring - Color graph nodes so no adjacent nodes share a color.
 
 MECHANICS:
-  - N node positions on the grid (SWITCH objects) with adjacency relationships
-  - K color stations placed around the grid (KEY objects with metadata color IDs)
-  - Agent picks up a color token from a station, then visits a node to assign that color
-  - Adjacent nodes (connected by proximity, no wall blocking) must have different colors
-  - Success = all nodes assigned valid colors (no two adjacent nodes share a color)
-  - Tests constraint satisfaction and planning in spatial domains
+  - N node positions on the grid (SWITCH objects)
+  - metadata[y,x] = current color (0=uncolored, 1=red, 2=blue, 3=green, 4=yellow)
+  - Agent moves to a node and uses INTERACT to cycle its color:
+      uncolored(0) → color1(1) → color2(2) → ... → colorN(n_colors) → uncolored(0)
+  - Adjacency: two nodes are adjacent if their Manhattan distance ≤ 4 AND
+    no wall blocks the direct shortest path between them
+  - Cardinal-only adjacency: only horizontal/vertical proximity counts
+  - SUCCESS = all nodes colored with no two adjacent nodes sharing a color
+  - Colors are VISUALLY OBVIOUS in all modalities:
+      Pixels: distinct colored squares (red, blue, green, yellow via _META_GC_COLORS)
+      ASCII: digit 0-4 shown in distinct ANSI colors
+      Language: "Node at (x,y) is colored red", etc.
+
+DIFFICULTY:
+  - easy:   3 nodes, 2 colors, no obstacles, small graph → easy to solve
+  - medium: 5 nodes, 3 colors, 2 obstacles → requires planning
+  - hard:   7 nodes, 3 colors, 4 obstacles → harder graph structure
+  - expert: 9 nodes, 4 colors, 6 obstacles → complex constraint satisfaction
 """
 
 import numpy as np
@@ -20,10 +32,10 @@ from agentick.tasks.registry import register_task
 
 @register_task("GraphColoring-v0", tags=["combinatorial_logic", "constraint_satisfaction"])
 class GraphColoringTask(TaskSpec):
-    """Assign colors to graph nodes so no adjacent nodes share a color."""
+    """Color graph nodes via INTERACT so no adjacent nodes share a color."""
 
     name = "GraphColoring-v0"
-    description = "Color graph nodes with no adjacent same-color"
+    description = "Color all nodes with no adjacent same-color using INTERACT"
     capability_tags = ["combinatorial_logic", "constraint_satisfaction"]
 
     difficulty_configs = {
@@ -36,60 +48,68 @@ class GraphColoringTask(TaskSpec):
         "medium": DifficultyConfig(
             name="medium",
             grid_size=11,
-            max_steps=200,
+            max_steps=220,
             params={"n_nodes": 5, "n_colors": 3, "n_obstacles": 2},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=13,
-            max_steps=350,
+            max_steps=380,
             params={"n_nodes": 7, "n_colors": 3, "n_obstacles": 4},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=15,
-            max_steps=500,
+            max_steps=550,
             params={"n_nodes": 9, "n_colors": 4, "n_obstacles": 6},
         ),
     }
 
     def _compute_adjacency(self, nodes, grid):
-        """Compute adjacency: two nodes are adjacent if BFS distance <= threshold."""
+        """Two nodes adjacent if Manhattan distance ≤ 4 and no wall in between."""
         from collections import deque
 
         adj = {i: set() for i in range(len(nodes))}
-        threshold = max(5, grid.width // 2)
+        threshold = 4
 
         for i in range(len(nodes)):
-            # BFS from node i
-            start = nodes[i]
-            visited = {start: 0}
-            queue = deque([start])
-            while queue:
-                cx, cy = queue.popleft()
-                d = visited[(cx, cy)]
-                if d >= threshold:
-                    continue
-                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                    nx, ny = cx + dx, cy + dy
-                    if (
-                        0 < nx < grid.width - 1
-                        and 0 < ny < grid.height - 1
-                        and (nx, ny) not in visited
-                        and grid.terrain[ny, nx] != CellType.WALL
-                    ):
-                        visited[(nx, ny)] = d + 1
-                        queue.append((nx, ny))
-
             for j in range(i + 1, len(nodes)):
-                if nodes[j] in visited:
-                    adj[i].add(j)
-                    adj[j].add(i)
+                x1, y1 = nodes[i]
+                x2, y2 = nodes[j]
+                d = abs(x1 - x2) + abs(y1 - y2)
+                if d <= threshold:
+                    # Check if path exists (no complete wall blocking)
+                    start = nodes[i]
+                    end = nodes[j]
+                    visited = {start}
+                    queue = deque([start])
+                    found = False
+                    while queue and not found:
+                        cx, cy = queue.popleft()
+                        if (cx, cy) == end:
+                            found = True
+                            break
+                        cd = abs(cx - x1) + abs(cy - y1)
+                        if cd >= threshold + 1:
+                            continue
+                        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                            nx, ny = cx + dx, cy + dy
+                            if (
+                                0 < nx < grid.width - 1
+                                and 0 < ny < grid.height - 1
+                                and (nx, ny) not in visited
+                                and grid.terrain[ny, nx] != CellType.WALL
+                            ):
+                                visited.add((nx, ny))
+                                queue.append((nx, ny))
+                    if found:
+                        adj[i].add(j)
+                        adj[j].add(i)
 
         return adj
 
     def _has_valid_coloring(self, n_nodes, n_colors, adj):
-        """Check if graph can be colored with n_colors (greedy check)."""
+        """Greedy check: can this graph be colored with n_colors?"""
         colors = [-1] * n_nodes
         for i in range(n_nodes):
             used = {colors[j] for j in adj[i] if colors[j] >= 0}
@@ -108,7 +128,7 @@ class GraphColoringTask(TaskSpec):
         n_colors = self.difficulty_config.params.get("n_colors", 2)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
-        for attempt in range(20):
+        for attempt in range(30):
             grid = Grid(size, size)
             grid.terrain[0, :] = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
@@ -119,9 +139,7 @@ class GraphColoringTask(TaskSpec):
 
             # Place obstacles
             interior = [
-                (x, y)
-                for x in range(2, size - 2)
-                for y in range(2, size - 2)
+                (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
                 if (x, y) != agent_pos
             ]
             rng.shuffle(interior)
@@ -135,135 +153,143 @@ class GraphColoringTask(TaskSpec):
                 else:
                     grid.terrain[oy, ox] = CellType.EMPTY
 
-            # Place nodes spread out on the grid
+            # Place nodes spread out
             free = [
-                (x, y)
-                for x in range(2, size - 2)
-                for y in range(2, size - 2)
+                (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
                 if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
             ]
             rng.shuffle(free)
 
-            # Spread nodes by picking well-separated positions
             node_positions = []
             min_dist = max(2, (size - 2) // (n_nodes + 1))
             for pos in free:
                 if len(node_positions) >= n_nodes:
                     break
                 if all(
-                    abs(pos[0] - np[0]) + abs(pos[1] - np[1]) >= min_dist for np in node_positions
+                    abs(pos[0] - np2[0]) + abs(pos[1] - np2[1]) >= min_dist
+                    for np2 in node_positions
                 ):
                     node_positions.append(pos)
 
-            # Fallback: just take first n_nodes positions
             if len(node_positions) < n_nodes:
                 node_positions = free[:n_nodes]
 
             if len(node_positions) < n_nodes:
                 continue
 
-            # Verify all nodes reachable
             reachable = grid.flood_fill(agent_pos)
             if not all(p in reachable for p in node_positions):
                 continue
 
-            # Compute adjacency and verify graph is colorable
             adj = self._compute_adjacency(node_positions, grid)
             if not self._has_valid_coloring(len(node_positions), n_colors, adj):
                 continue
 
-            # Place node markers (SWITCH objects)
+            # Place node markers (SWITCH objects) with metadata=0 (uncolored)
             for nx, ny in node_positions:
                 grid.objects[ny, nx] = ObjectType.SWITCH
+                grid.metadata[ny, nx] = 0  # uncolored
 
-            # Place color stations (KEY objects) — one per color, reachable
-            color_stations = []
-            station_candidates = [
-                p for p in free if p not in set(node_positions) and p in reachable
-            ]
-            rng.shuffle(station_candidates)
-            for c in range(n_colors):
-                if c < len(station_candidates):
-                    sx, sy = station_candidates[c]
-                    grid.objects[sy, sx] = ObjectType.KEY
-                    color_stations.append(station_candidates[c])
-
-            if len(color_stations) < n_colors:
-                continue
-
-            # Serialize adjacency for config
             adj_list = {i: sorted(adj[i]) for i in range(len(node_positions))}
 
             return grid, {
                 "agent_start": agent_pos,
                 "goal_positions": [],
                 "node_positions": node_positions,
-                "color_stations": color_stations,
                 "n_colors": n_colors,
                 "adjacency": adj_list,
                 "max_steps": self.get_max_steps(),
             }
 
-        # Fallback: simple solvable instance
+        # Fallback: simple linear graph
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
         agent_pos = (1, 1)
-        nodes = [(3, 3), (size - 4, size - 4)]
-        for nx, ny in nodes:
-            grid.objects[ny, nx] = ObjectType.SWITCH
-        grid.objects[2, 2] = ObjectType.KEY
-        grid.objects[size - 3, size - 3] = ObjectType.KEY
+        nodes = [(3, 3), (5, 3), (7, 3)] if size > 8 else [(2, 2), (4, 2)]
+        nodes = nodes[:n_nodes]
+        for nx2, ny2 in nodes:
+            if 0 < nx2 < size - 1 and 0 < ny2 < size - 1:
+                grid.objects[ny2, nx2] = ObjectType.SWITCH
+                grid.metadata[ny2, nx2] = 0
+        adj_list = {}
+        for i in range(len(nodes)):
+            adj_list[i] = []
+            if i > 0:
+                adj_list[i].append(i - 1)
+            if i < len(nodes) - 1:
+                adj_list[i].append(i + 1)
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [],
             "node_positions": nodes,
-            "color_stations": [(2, 2), (size - 3, size - 3)],
-            "n_colors": 2,
-            "adjacency": {0: [1], 1: [0]},
+            "n_colors": n_colors,
+            "adjacency": adj_list,
             "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
-        config["_current_color"] = -1  # no color held
-        config["_node_colors"] = {}  # node_idx -> color_id
+        config["_node_colors"] = {}   # node_idx → color (1-based)
         config["_violation"] = False
         self._config = config
         self._last_n_colored = 0
+        # Ensure all nodes start uncolored (metadata=0)
+        for nx, ny in config.get("node_positions", []):
+            if grid.objects[ny, nx] == ObjectType.SWITCH:
+                grid.metadata[ny, nx] = 0
 
-    def on_agent_moved(self, pos, agent, grid):
+    def on_agent_interact(self, pos, agent, grid):
+        """Cycle color of node at agent position via INTERACT."""
         config = getattr(self, "_config", {})
         x, y = pos
         nodes = config.get("node_positions", [])
-        stations = config.get("color_stations", [])
+        n_colors = config.get("n_colors", 2)
 
-        # Pick up color from station
-        if (x, y) in stations:
-            color_idx = stations.index((x, y))
-            config["_current_color"] = color_idx
-            # Don't remove station — can be revisited for different assignments
+        if (x, y) not in nodes:
+            return
 
-        # Assign color to node
-        if (x, y) in nodes and config.get("_current_color", -1) >= 0:
-            node_idx = nodes.index((x, y))
-            color = config["_current_color"]
-            node_colors = config.get("_node_colors", {})
+        node_idx = nodes.index((x, y))
+        current_meta = int(grid.metadata[y, x])
+        # Cycle: 0 → 1 → 2 → ... → n_colors → 0
+        new_color = (current_meta + 1) % (n_colors + 1)
+        grid.metadata[y, x] = new_color
 
-            # Check adjacency constraint
-            adj = config.get("adjacency", {})
-            neighbors = adj.get(node_idx, adj.get(str(node_idx), []))
+        # Update node_colors dict
+        node_colors = config.get("_node_colors", {})
+        if new_color == 0:
+            node_colors.pop(node_idx, None)  # uncolored
+        else:
+            node_colors[node_idx] = new_color - 1  # 0-based color stored internally
+        config["_node_colors"] = node_colors
+
+        # Check for violations
+        adj = config.get("adjacency", {})
+        neighbors = adj.get(node_idx, adj.get(str(node_idx), []))
+        config["_violation"] = False  # re-check all violations
+        self._check_all_violations(config, nodes, grid)
+
+    def _check_all_violations(self, config, nodes, grid):
+        """Recheck all adjacency constraints."""
+        adj = config.get("adjacency", {})
+        for i in range(len(nodes)):
+            nx, ny = nodes[i]
+            ci = int(grid.metadata[ny, nx])
+            if ci == 0:
+                continue  # uncolored
+            neighbors = adj.get(i, adj.get(str(i), []))
             for nb in neighbors:
-                nb_color = node_colors.get(nb, node_colors.get(str(nb), -1))
-                if nb_color == color:
+                nb = int(nb)
+                if nb >= len(nodes):
+                    continue
+                bx, by = nodes[nb]
+                cj = int(grid.metadata[by, bx])
+                if cj == 0:
+                    continue
+                if ci == cj:
                     config["_violation"] = True
-
-            node_colors[node_idx] = color
-            config["_node_colors"] = node_colors
-
-            # Mark node as colored (remove SWITCH)
-            grid.objects[y, x] = ObjectType.NONE
+                    return
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
@@ -272,28 +298,19 @@ class GraphColoringTask(TaskSpec):
         n_colored = len(node_colors)
 
         if config.get("_violation", False):
-            reward -= 0.3
+            reward -= 0.2
 
-        if n_colored > self._last_n_colored:
-            if not config.get("_violation", False):
-                reward += 0.3 * (n_colored - self._last_n_colored)
+        if n_colored > self._last_n_colored and not config.get("_violation", False):
+            reward += 0.4 * (n_colored - self._last_n_colored)
         self._last_n_colored = n_colored
 
-        # Approach shaping toward nearest uncolored node (or color station if no color)
-        if "grid" in new_state and "agent_position" in new_state:
+        # Approach nearest uncolored node
+        if "agent_position" in new_state:
             ax, ay = new_state["agent_position"]
             ox, oy = old_state.get("agent_position", (ax, ay))
             nodes = config.get("node_positions", [])
-            uncolored = [n for i, n in enumerate(nodes) if i not in node_colors]
-
-            if config.get("_current_color", -1) < 0:
-                # Guide toward nearest color station
-                stations = config.get("color_stations", [])
-                if stations:
-                    d_new = min(abs(ax - sx) + abs(ay - sy) for sx, sy in stations)
-                    d_old = min(abs(ox - sx) + abs(oy - sy) for sx, sy in stations)
-                    reward += 0.05 * (d_old - d_new)
-            elif uncolored:
+            uncolored = [nodes[i] for i in range(len(nodes)) if i not in node_colors]
+            if uncolored:
                 d_new = min(abs(ax - nx) + abs(ay - ny) for nx, ny in uncolored)
                 d_old = min(abs(ox - nx) + abs(oy - ny) for nx, ny in uncolored)
                 reward += 0.05 * (d_old - d_new)
@@ -308,17 +325,17 @@ class GraphColoringTask(TaskSpec):
             return False
         nodes = config.get("node_positions", [])
         node_colors = config.get("_node_colors", {})
-        # All nodes must be colored
         if len(node_colors) < len(nodes):
             return False
         # Verify no adjacency violations
         adj = config.get("adjacency", {})
         for i in range(len(nodes)):
             neighbors = adj.get(i, adj.get(str(i), []))
+            ci = node_colors.get(i, node_colors.get(str(i), -1))
             for nb in neighbors:
-                c_i = node_colors.get(i, node_colors.get(str(i), -1))
-                c_nb = node_colors.get(nb, node_colors.get(str(nb), -1))
-                if c_i == c_nb:
+                nb = int(nb)
+                cj = node_colors.get(nb, node_colors.get(str(nb), -1))
+                if ci == cj and ci >= 0:
                     return False
         return True
 

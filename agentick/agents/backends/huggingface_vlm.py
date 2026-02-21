@@ -19,7 +19,11 @@ class HuggingFaceVLMBackend(ModelBackend):
         device: str = "auto",
         dtype: str = "bfloat16",
         max_new_tokens: int = 50,
-        temperature: float = 0.0,
+        temperature: float = 0.7,
+        top_p: float = 0.8,
+        top_k: int = 20,
+        min_p: float = 0.0,
+        enable_thinking: bool = False,
     ):
         self.name = f"hf-vlm/{model_id.split('/')[-1]}"
         self.model_id = model_id
@@ -27,6 +31,10 @@ class HuggingFaceVLMBackend(ModelBackend):
         self.dtype = dtype
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.min_p = min_p
+        self.enable_thinking = enable_thinking
 
         self._model = None
         self._processor = None
@@ -79,10 +87,19 @@ class HuggingFaceVLMBackend(ModelBackend):
         # Convert messages to Qwen VL format
         qwen_messages = self._convert_messages(messages)
 
-        # Use processor to build inputs
-        text_prompt = self._processor.apply_chat_template(
-            qwen_messages, tokenize=False, add_generation_prompt=True
-        )
+        # Use processor to build inputs.
+        # Pass enable_thinking=False for Qwen3-VL to suppress <think>...</think> output.
+        try:
+            text_prompt = self._processor.apply_chat_template(
+                qwen_messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=self.enable_thinking,
+            )
+        except TypeError:
+            text_prompt = self._processor.apply_chat_template(
+                qwen_messages, tokenize=False, add_generation_prompt=True
+            )
 
         # Collect images from messages
         images = self._extract_images(messages)
@@ -103,6 +120,10 @@ class HuggingFaceVLMBackend(ModelBackend):
         }
         if self.temperature > 0:
             gen_kwargs["temperature"] = self.temperature
+            gen_kwargs["top_p"] = self.top_p
+            gen_kwargs["top_k"] = self.top_k
+            if self.min_p > 0:
+                gen_kwargs["min_p"] = self.min_p
         else:
             gen_kwargs["temperature"] = None
             gen_kwargs["top_p"] = None

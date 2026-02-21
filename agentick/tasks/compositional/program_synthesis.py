@@ -144,15 +144,20 @@ class ProgramSynthesisTask(TaskSpec):
         tests = input_positions[n_examples : n_examples + n_tests]
 
         # Place examples: SCROLL for input, GEM for output (visible answer)
+        # Use metadata to mark pair IDs so renderers can show pair connections
         example_info = []
-        for inp, out in examples:
+        for pair_id, (inp, out) in enumerate(examples, start=1):
             ix, iy = inp
             ox, oy = out
             grid.objects[iy, ix] = ObjectType.SCROLL
             grid.objects[oy, ox] = ObjectType.GEM
-            example_info.append({"input": list(inp), "output": list(out)})
+            # Mark with pair ID in metadata so visual shows pairing
+            grid.metadata[iy, ix] = pair_id
+            grid.metadata[oy, ox] = pair_id
+            example_info.append({"input": list(inp), "output": list(out), "pair_id": pair_id})
 
         # Place tests: SCROLL for input, TARGET for expected output position
+        # Use metadata = 18 (COIN value) to distinguish test TARGET from generic ones
         test_info = []
         test_targets = []
         for inp, out in tests:
@@ -160,6 +165,8 @@ class ProgramSynthesisTask(TaskSpec):
             ox, oy = out
             grid.objects[iy, ix] = ObjectType.SCROLL
             grid.objects[oy, ox] = ObjectType.TARGET  # where ORB should go
+            grid.metadata[iy, ix] = 0  # test input: no pair ID (agent must figure out)
+            grid.metadata[oy, ox] = 19  # test target: use ORB marker color (expected ORB there)
             test_info.append({"input": list(inp), "output": list(out)})
             test_targets.append(out)
 

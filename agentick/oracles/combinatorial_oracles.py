@@ -11,12 +11,11 @@ from agentick.oracles.registry import register_oracle
 
 @register_oracle("GraphColoring-v0")
 class GraphColoringOracle(OracleAgent):
-    """Assign colors to graph nodes so no adjacent nodes share a color.
+    """Color graph nodes via INTERACT so no adjacent nodes share a color.
 
-    Strategy: compute a valid greedy coloring, then cycle:
-    pick up color from station → visit node → repeat.
-    Takes ONE step at a time to avoid accidentally walking through
-    wrong color stations.
+    Redesigned mechanic: no color stations. Agent walks to a node,
+    then uses INTERACT (action 8) to cycle its color until it matches
+    the target coloring. Greedy coloring computed from config adjacency.
     """
 
     def __init__(self, env):
@@ -43,7 +42,7 @@ class GraphColoringOracle(OracleAgent):
                 nb = int(nb)
                 if nb in colors:
                     used.add(colors[nb])
-            c = 0
+            c = 1  # colors are 1-based in new design (0 = uncolored)
             while c in used:
                 c += 1
             colors[i] = c
@@ -57,89 +56,44 @@ class GraphColoringOracle(OracleAgent):
             self._compute_coloring()
 
         nodes = config.get("node_positions", [])
-        stations = config.get("color_stations", [])
-        node_colors = config.get("_node_colors", {})
-        current_color = config.get("_current_color", -1)
+        n_colors = config.get("n_colors", 2)
         ax, ay = self.api.agent_position
+        grid = self.api.grid
 
-        # Find next uncolored node
-        target_node = None
-        target_color = None
-        for i in range(len(nodes)):
-            if i not in node_colors and str(i) not in node_colors:
-                target_node = i
-                target_color = self._coloring.get(i, 0)
-                break
+        # Find the next node that needs color adjustment
+        for i, (nx, ny) in enumerate(nodes):
+            target_color = self._coloring.get(i, 1)  # 1-based target color
+            current_color = int(grid.metadata[ny, nx])  # 0=uncolored, 1-N=colors
 
-        if target_node is None:
-            self.action_queue = [0]
-            return
+            if current_color == target_color:
+                continue  # already correct
 
-        # Build avoidance sets
-        station_set = set(tuple(s) for s in stations)
-        node_set = set(tuple(n) for n in nodes)
-        target_pos = tuple(nodes[target_node])
-
-        if current_color == target_color:
-            # Go to the node, avoiding all stations AND other nodes
-            # (walking on a node with a color assigns it — we only want our target)
-            avoid = (station_set | node_set) - {target_pos, (ax, ay)}
-
-            path = self.api.bfs_path_positions(
-                (ax, ay),
-                target_pos,
-                avoid=avoid,
-            )
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
-            # Try avoiding just stations (not nodes)
-            avoid2 = station_set - {(ax, ay)}
-            path = self.api.bfs_path_positions(
-                (ax, ay),
-                target_pos,
-                avoid=avoid2,
-            )
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
-            self.action_queue = self.api.move_toward(*target_pos)
-        else:
-            # Go pick up the right color from station
-            if target_color < len(stations):
-                sx, sy = stations[target_color]
-                # Avoid other stations AND all nodes (don't accidentally color them)
-                avoid = (station_set | node_set) - {(sx, sy), (ax, ay)}
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    (sx, sy),
-                    avoid=avoid,
-                )
+            # Navigate to this node
+            if (ax, ay) == (nx, ny):
+                # We're at the node — INTERACT to cycle color
+                # INTERACT action = 8
+                interact_action = 8
+                # We may need multiple INTERACTs to reach target_color
+                # From current_color, cycles: current → (current+1)%(n_colors+1)
+                # Count how many cycles needed
+                cycles_needed = (target_color - current_color) % (n_colors + 1)
+                if cycles_needed == 0:
+                    cycles_needed = n_colors + 1  # full cycle
+                self.action_queue = [interact_action] * cycles_needed
+                return
+            else:
+                # Navigate to node
+                path = self.api.bfs_path_positions((ax, ay), (nx, ny))
                 if path:
                     actions = self.api.positions_to_actions(path)
                     if actions:
                         self.action_queue = [actions[0]]
                         return
-                # Fallback: avoid only other stations
-                avoid2 = station_set - {(sx, sy), (ax, ay)}
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    (sx, sy),
-                    avoid=avoid2,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                self.action_queue = self.api.move_toward(sx, sy)
-            elif stations:
-                sx, sy = stations[0]
-                self.action_queue = self.api.move_to(sx, sy)
+                self.action_queue = self.api.move_toward(nx, ny)
+                return
+
+        # All nodes correctly colored
+        self.action_queue = [0]
 
 
 @register_oracle("LightsOut-v0")
@@ -167,10 +121,16 @@ class LightsOutOracle(OracleAgent):
         self._adjacent_toggle = config.get("adjacent_toggle", False)
         self._light_positions = set()
         self._all_light_positions = set()
+        # Initially lit positions
         for p in config.get("light_positions", []):
             self._light_positions.add(tuple(p))
             self._all_light_positions.add(tuple(p))
+        # Decoy positions (also part of toggle grid)
         for p in config.get("decoy_positions", []):
+            self._all_light_positions.add(tuple(p))
+        # ALL puzzle cells (structured grid) — in adjacent toggle mode,
+        # every puzzle cell can be toggled by stepping near it
+        for p in config.get("puzzle_cells", []):
             self._all_light_positions.add(tuple(p))
         super().reset(obs, info)
 

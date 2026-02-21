@@ -260,6 +260,10 @@ class SFTAgent:
         use_lora: bool = True,
         device: str = "auto",
         max_new_tokens: int = 32,
+        temperature: float = 0.7,
+        top_p: float = 0.8,
+        top_k: int = 20,
+        min_p: float = 0.0,
     ) -> None:
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -267,6 +271,10 @@ class SFTAgent:
             raise ImportError("transformers required: pip install transformers")
 
         self.max_new_tokens = max_new_tokens
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.min_p = min_p
         self.last_reasoning: str | None = None
 
         # Load tokenizer
@@ -335,13 +343,24 @@ class SFTAgent:
             truncation=True,
         ).to(self.model.device)
 
+        gen_kwargs: dict[str, Any] = {
+            "max_new_tokens": self.max_new_tokens,
+            "do_sample": self.temperature > 0,
+            "pad_token_id": self.tokenizer.pad_token_id,
+        }
+        if self.temperature > 0:
+            gen_kwargs["temperature"] = self.temperature
+            gen_kwargs["top_p"] = self.top_p
+            gen_kwargs["top_k"] = self.top_k
+            if self.min_p > 0:
+                gen_kwargs["min_p"] = self.min_p
+        else:
+            gen_kwargs["temperature"] = None
+            gen_kwargs["top_p"] = None
+            gen_kwargs["top_k"] = None
+
         with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=False,
-                pad_token_id=self.tokenizer.pad_token_id,
-            )
+            outputs = self.model.generate(**inputs, **gen_kwargs)
 
         # Decode only the generated tokens
         generated = outputs[0][inputs["input_ids"].shape[1] :]

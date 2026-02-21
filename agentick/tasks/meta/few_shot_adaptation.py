@@ -77,11 +77,11 @@ class FewShotAdaptationTask(TaskSpec):
         "easy": DifficultyConfig(
             name="easy",
             grid_size=7,
-            max_steps=80,
+            max_steps=100,
             params={
                 "k_demos": 2,
                 "n_candidates": 2,
-                "reveal_steps": 5,
+                "reveal_steps": 12,  # longer reveal so demo goal is clearly visible
                 "n_obstacles": 0,
                 "n_guards": 0,
             },
@@ -89,11 +89,11 @@ class FewShotAdaptationTask(TaskSpec):
         "medium": DifficultyConfig(
             name="medium",
             grid_size=9,
-            max_steps=150,
+            max_steps=180,
             params={
                 "k_demos": 2,
                 "n_candidates": 3,
-                "reveal_steps": 3,
+                "reveal_steps": 8,  # agent has 8 steps to observe demo goal
                 "n_obstacles": 4,
                 "n_guards": 0,
             },
@@ -101,11 +101,11 @@ class FewShotAdaptationTask(TaskSpec):
         "hard": DifficultyConfig(
             name="hard",
             grid_size=11,
-            max_steps=250,
+            max_steps=280,
             params={
                 "k_demos": 3,
                 "n_candidates": 3,
-                "reveal_steps": 2,
+                "reveal_steps": 5,
                 "n_obstacles": 6,
                 "n_guards": 1,
             },
@@ -113,11 +113,11 @@ class FewShotAdaptationTask(TaskSpec):
         "expert": DifficultyConfig(
             name="expert",
             grid_size=13,
-            max_steps=350,
+            max_steps=400,
             params={
                 "k_demos": 3,
                 "n_candidates": 4,
-                "reveal_steps": 1,
+                "reveal_steps": 3,
                 "n_obstacles": 8,
                 "n_guards": 2,
             },

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentick.core.types import CellType
+from agentick.core.types import ActionType, CellType
 from agentick.oracles.base import OracleAgent
 from agentick.oracles.registry import register_oracle
 
@@ -78,12 +78,58 @@ class DeceptiveRewardOracle(OracleAgent):
 
 @register_oracle("DistributionShift-v0")
 class DistributionShiftOracle(OracleAgent):
-    """Navigate to current goal, re-planning each step for rule shifts."""
+    """Phase 1: collect coins; Phase 2: navigate to current goal after shift.
+
+    In Phase 1, no goal exists (blocked by BLOCKER). Collects coins for reward.
+    After the first shift, the real GOAL appears and oracle navigates to it.
+    Re-plans each step to handle terrain changes and action remaps.
+
+    Crucially, when an action remap is active (e.g. hard difficulty swaps lr+ud),
+    the oracle applies the remap to its planned action integers before queuing them.
+    Since the remap is self-inverse (left<->right, up<->down), applying it to the
+    planned actions causes the env's remap to restore the intended movement.
+    """
+
+    def _apply_remap(self, actions: list[int]) -> list[int]:
+        """Apply the current action remap to a list of action integers.
+
+        The env applies _action_remap at step time, so we pre-apply the same
+        remap so the env's remap cancels it out — net result is intended movement.
+        The remap is self-inverse (e.g. left<->right), so applying it once
+        before the env applies it once yields the original intended action.
+        """
+        config = self.api.task_config
+        remap = config.get("_action_remap", {})
+        if not remap:
+            return actions
+        # Build int->int remap table from ActionType->ActionType dict
+        int_remap = {int(k): int(v) for k, v in remap.items()}
+        return [int_remap.get(a, a) for a in actions]
 
     def plan(self):
+        config = self.api.task_config
+        shifted = config.get("_shifted", 0)
+
+        if shifted == 0:
+            # Phase 1: no goal yet, collect coins
+            coins = self.api.get_entities_of_type("coin")
+            if coins:
+                nearest = min(coins, key=lambda c: c.distance)
+                raw = self.api.move_to(*nearest.position)
+                self.action_queue = self._apply_remap(raw)
+                return
+            # No coins or already collected — wait near center
+            self.action_queue = [0]
+            return
+
+        # Phase 2+: navigate to current GOAL using full BFS path (not just one step)
         goal = self.api.get_nearest("goal")
         if goal:
-            self.action_queue = self.api.move_toward(*goal.position)
+            raw = self.api.move_to(*goal.position)
+            if not raw:
+                # Fallback to single-step if move_to fails
+                raw = self.api.move_toward(*goal.position)
+            self.action_queue = self._apply_remap(raw)
 
 
 @register_oracle("NoisyObservation-v0")

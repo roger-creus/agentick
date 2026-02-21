@@ -41,11 +41,15 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         "api_key_env",
         "max_tokens",
         "temperature",
+        "top_p",
+        "top_k",
+        "min_p",
         "max_retries",
         "device",
         "dtype",
         "quantization",
         "max_new_tokens",
+        "enable_thinking",
     ):
         if key in hp:
             backend_kwargs[key] = hp[key]
