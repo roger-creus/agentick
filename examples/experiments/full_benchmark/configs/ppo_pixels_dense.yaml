@@ -1,5 +1,5 @@
-name: ppo-pixels-dense-300k
-description: "PPO CnnPolicy from pixels, dense rewards, 300k steps, all tasks x all difficulties"
+name: ppo-pixels-dense-1M
+description: "PPO CnnPolicy from pixels, dense rewards, 1M steps, all tasks x all difficulties"
 agent:
   type: ppo
   hyperparameters:
@@ -18,7 +18,7 @@ tasks: "full"
 difficulties: [easy, medium, hard, expert]
 reward_mode: dense
 training:
-  total_timesteps: 300000
+  total_timesteps: 1000000
   n_envs: 8
   eval_frequency: 10000
   n_eval_episodes: 10
