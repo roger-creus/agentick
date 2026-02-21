@@ -712,11 +712,21 @@ class ExperimentRunner:
         difficulty: str = "unknown",
     ) -> dict[str, Any]:
         """Run a single episode."""
+        is_agent = self.agent is not None
+
+        if is_agent:
+            print(
+                f"\n{'='*60}\n"
+                f"  Episode: {task_name} | {difficulty} | "
+                f"seed={seed} (#{seed_idx}) ep={ep_idx}\n"
+                f"{'='*60}"
+            )
+
         obs, info = env.reset(seed=seed)
         self._inject_secondary_obs(env, info)
 
         # Reset agent state at episode start
-        if self.agent is not None:
+        if is_agent:
             self.agent.reset()
 
         # Collect frames for video recording
@@ -743,7 +753,7 @@ class ExperimentRunner:
 
         while not (terminated or truncated):
             # Get action from agent or fall back to random
-            if self.agent is not None:
+            if is_agent:
                 action = self.agent.act(obs, info)
             else:
                 action = env.action_space.sample()
@@ -761,6 +771,26 @@ class ExperimentRunner:
             total_reward += reward
             step_count += 1
 
+            # Per-step agent progress
+            if is_agent and self.agent.call_log:
+                last = self.agent.call_log[-1]
+                obs_preview = last["observation"][:120].replace("\n", " | ")
+                resp_preview = last["response"][:100].replace("\n", " ")
+                reasoning_line = ""
+                if last.get("reasoning"):
+                    r = last["reasoning"][:100].replace("\n", " ")
+                    reasoning_line = f"    Reasoning: {r}...\n"
+                print(
+                    f"  Step {step_count}: "
+                    f"{last['action_name']} (={last['parsed_action']}) "
+                    f"-> r={reward:.2f}  "
+                    f"({last['latency']:.2f}s, "
+                    f"{last['input_tokens']}+{last['output_tokens']} tok)\n"
+                    f"    Obs: {obs_preview}...\n"
+                    f"{reasoning_line}"
+                    f"    Raw: {resp_preview}"
+                )
+
             if self.config.record_trajectories or self.agent is not None:
                 step_data = {
                     "step": step_count,
@@ -774,6 +804,18 @@ class ExperimentRunner:
         trajectory["total_reward"] = float(total_reward)
         trajectory["episode_length"] = int(step_count)
         trajectory["success"] = bool(info.get("success", False))
+
+        if is_agent:
+            status = "SUCCESS" if trajectory["success"] else "FAIL"
+            ep_latency = sum(e["latency"] for e in self.agent.call_log)
+            ep_tokens = sum(
+                e["input_tokens"] + e["output_tokens"] for e in self.agent.call_log
+            )
+            print(
+                f"  --- {status} | {step_count} steps | "
+                f"reward={total_reward:.2f} | "
+                f"{ep_latency:.1f}s | {ep_tokens} tokens"
+            )
 
         # Save episode data
         if self.config.record_trajectories:
