@@ -32,35 +32,51 @@ class SequenceMemoryTask(TaskSpec):
     capability_tags = ["memory", "pattern_recognition"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={
-                "n_targets": 3, "show_steps": 4,
-                "n_distractors": 0, "n_obstacles": 0,
+                "n_targets": 3,
+                "show_steps": 4,
+                "n_distractors": 0,
+                "n_obstacles": 0,
                 "shuffle": False,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=180,
+            name="medium",
+            grid_size=10,
+            max_steps=180,
             params={
-                "n_targets": 4, "show_steps": 3,
-                "n_distractors": 2, "n_obstacles": 4,
+                "n_targets": 4,
+                "show_steps": 3,
+                "n_distractors": 2,
+                "n_obstacles": 4,
                 "shuffle": False,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=300,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=300,
             params={
-                "n_targets": 5, "show_steps": 2,
-                "n_distractors": 3, "n_obstacles": 6,
+                "n_targets": 5,
+                "show_steps": 2,
+                "n_distractors": 3,
+                "n_obstacles": 6,
                 "shuffle": True,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=450,
+            name="expert",
+            grid_size=15,
+            max_steps=450,
             params={
-                "n_targets": 6, "show_steps": 1,
-                "n_distractors": 4, "n_obstacles": 8,
+                "n_targets": 6,
+                "show_steps": 1,
+                "n_distractors": 4,
+                "n_obstacles": 8,
                 "shuffle": True,
             },
         ),
@@ -70,16 +86,16 @@ class SequenceMemoryTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n           = p.get("n_targets", 3)
-        show_steps  = p.get("show_steps", 4)
-        n_dist      = p.get("n_distractors", 0)
-        n_obs       = p.get("n_obstacles", 0)
-        shuffle     = p.get("shuffle", False)
+        n = p.get("n_targets", 3)
+        show_steps = p.get("show_steps", 4)
+        n_dist = p.get("n_distractors", 0)
+        n_obs = p.get("n_obstacles", 0)
+        shuffle = p.get("shuffle", False)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         # Randomize agent start corner
@@ -89,12 +105,11 @@ class SequenceMemoryTask(TaskSpec):
 
         # Add obstacles
         interior = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if (x, y) != agent_pos
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
         ]
         rng.shuffle(interior)
         placed = 0
-        for wx, wy in interior[:n_obs * 3]:
+        for wx, wy in interior[: n_obs * 3]:
             grid.terrain[wy, wx] = CellType.WALL
             if len(grid.flood_fill(agent_pos)) < n + n_dist + 2:
                 grid.terrain[wy, wx] = CellType.EMPTY
@@ -105,8 +120,8 @@ class SequenceMemoryTask(TaskSpec):
 
         reachable = list(grid.flood_fill(agent_pos) - {agent_pos})
         rng.shuffle(reachable)
-        targets     = reachable[:n]
-        distractors = reachable[n:n + n_dist]
+        targets = reachable[:n]
+        distractors = reachable[n : n + n_dist]
 
         # No objects placed at start — show phase will reveal them
         # (targets and distractors are placed dynamically)
@@ -115,15 +130,15 @@ class SequenceMemoryTask(TaskSpec):
         total_show_steps = n * show_steps
 
         return grid, {
-            "agent_start":    agent_pos,
+            "agent_start": agent_pos,
             "goal_positions": targets,
-            "sequence":       targets,
-            "distractors":    distractors,
-            "show_steps":     show_steps,
+            "sequence": targets,
+            "distractors": distractors,
+            "show_steps": show_steps,
             "total_show_steps": total_show_steps,
-            "shuffle":        shuffle,
-            "_rng_seed":      int(rng.integers(0, 2**31)),
-            "max_steps":      self.get_max_steps(),
+            "shuffle": shuffle,
+            "_rng_seed": int(rng.integers(0, 2**31)),
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
@@ -151,7 +166,6 @@ class SequenceMemoryTask(TaskSpec):
 
         seq = config.get("sequence", [])
         show_steps = config.get("show_steps", 4)
-        total_show = config.get("total_show_steps", len(seq) * show_steps)
 
         show_step = config.get("_show_step", 0) + 1
         config["_show_step"] = show_step
@@ -227,8 +241,9 @@ class SequenceMemoryTask(TaskSpec):
         config = new_state.get("config", {})
 
         # Penalty for wrong visit
-        if (config.get("_wrong_visit", False)
-                and not old_state.get("config", {}).get("_wrong_visit", False)):
+        if config.get("_wrong_visit", False) and not old_state.get("config", {}).get(
+            "_wrong_visit", False
+        ):
             reward -= 0.3
 
         # Progress reward
@@ -246,8 +261,7 @@ class SequenceMemoryTask(TaskSpec):
                 ax, ay = new_state["agent"].position
                 ox, oy = old_state.get("agent_position", (ax, ay))
                 reward += 0.05 * (
-                    (abs(ox - tgt[0]) + abs(oy - tgt[1]))
-                    - (abs(ax - tgt[0]) + abs(ay - tgt[1]))
+                    (abs(ox - tgt[0]) + abs(oy - tgt[1])) - (abs(ax - tgt[0]) + abs(ay - tgt[1]))
                 )
 
         if self.check_success(new_state):
@@ -262,5 +276,8 @@ class SequenceMemoryTask(TaskSpec):
         sequence = config.get("sequence", [])
         return len(sequence) > 0 and progress >= len(sequence)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

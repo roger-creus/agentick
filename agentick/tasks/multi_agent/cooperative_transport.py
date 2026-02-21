@@ -27,19 +27,27 @@ class CooperativeTransportTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={"n_obstacles": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=200,
+            name="medium",
+            grid_size=10,
+            max_steps=200,
             params={"n_obstacles": 2},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=350,
+            name="hard",
+            grid_size=13,
+            max_steps=350,
             params={"n_obstacles": 4},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500,
+            name="expert",
+            grid_size=15,
+            max_steps=500,
             params={"n_obstacles": 6},
         ),
     }
@@ -73,18 +81,20 @@ class CooperativeTransportTask(TaskSpec):
             if target_pos == box_pos:
                 continue
 
-            # Agent on one side of box, NPC on opposite side
-            # (Both positioned to push box toward target)
+            # Agent behind box (opposite of push direction)
+            # NPC starts beside the box (perpendicular axis) so it doesn't
+            # block the push path between box and target.
             push_dx = 1 if tx > box_pos[0] else (-1 if tx < box_pos[0] else 0)
             push_dy = 1 if ty > box_pos[1] else (-1 if ty < box_pos[1] else 0)
 
-            # Agent behind box (opposite of push direction)
             if push_dx != 0:
                 agent_pos = (box_pos[0] - push_dx, box_pos[1])
-                npc_pos = (box_pos[0] + push_dx + push_dx, box_pos[1])
+                # NPC beside box on perpendicular axis (not blocking push path)
+                npc_pos = (box_pos[0], box_pos[1] + (1 if rng.random() > 0.5 else -1))
             else:
                 agent_pos = (box_pos[0], box_pos[1] - push_dy)
-                npc_pos = (box_pos[0], box_pos[1] + push_dy + push_dy)
+                # NPC beside box on perpendicular axis
+                npc_pos = (box_pos[0] + (1 if rng.random() > 0.5 else -1), box_pos[1])
 
             # Clamp positions
             agent_pos = (
@@ -105,7 +115,9 @@ class CooperativeTransportTask(TaskSpec):
             # Place obstacles
             placed_obs = 0
             obs_candidates = [
-                (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
                 if (x, y) not in set(positions)
             ]
             rng.shuffle(obs_candidates)
@@ -150,9 +162,12 @@ class CooperativeTransportTask(TaskSpec):
         grid.objects[mid, mid] = ObjectType.BOX
         grid.objects[size - 2, mid] = ObjectType.TARGET
         return grid, {
-            "agent_start": agent_pos, "goal_positions": [target_pos],
-            "box_pos": list(box_pos), "npc_pos": list(npc_pos),
-            "target_pos": list(target_pos), "max_steps": self.get_max_steps(),
+            "agent_start": agent_pos,
+            "goal_positions": [target_pos],
+            "box_pos": list(box_pos),
+            "npc_pos": list(npc_pos),
+            "target_pos": list(target_pos),
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
@@ -263,10 +278,14 @@ class CooperativeTransportTask(TaskSpec):
             best, best_d = (nx, ny), abs(nx - ideal_x) + abs(ny - ideal_y)
             for dx, dy in self._DIRS:
                 cx, cy = nx + dx, ny + dy
-                if (0 < cx < grid.width - 1 and 0 < cy < grid.height - 1
-                        and grid.terrain[cy, cx] == CellType.EMPTY
-                        and (cx, cy) != (bx, by) and (cx, cy) != (ax, ay)
-                        and grid.objects[cy, cx] in (ObjectType.NONE, ObjectType.TARGET)):
+                if (
+                    0 < cx < grid.width - 1
+                    and 0 < cy < grid.height - 1
+                    and grid.terrain[cy, cx] == CellType.EMPTY
+                    and (cx, cy) != (bx, by)
+                    and (cx, cy) != (ax, ay)
+                    and grid.objects[cy, cx] in (ObjectType.NONE, ObjectType.TARGET)
+                ):
                     d = abs(cx - ideal_x) + abs(cy - ideal_y)
                     if d < best_d:
                         best_d, best = d, (cx, cy)

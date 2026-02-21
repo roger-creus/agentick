@@ -54,8 +54,7 @@ class HuggingFaceAgent:
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError:
             raise ImportError(
-                "HuggingFace transformers not installed. "
-                "Install with: uv sync --extra llm"
+                "HuggingFace transformers not installed. Install with: uv sync --extra llm"
             )
 
         # Load tokenizer

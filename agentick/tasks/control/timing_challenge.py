@@ -26,50 +26,70 @@ class TimingChallengeTask(TaskSpec):
     capability_tags = ["motor_control", "temporal_reasoning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=60,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=60,
             params={
-                "patrol_len": 3, "n_gaps": 1,
-                "n_blockers": 1, "gap_rand": False,
-                "blocker_speed_var": 0, "n_safe_spots": 0,
+                "patrol_len": 3,
+                "n_gaps": 1,
+                "n_blockers": 1,
+                "gap_rand": False,
+                "blocker_speed_var": 0,
+                "n_safe_spots": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=9, max_steps=120,
+            name="medium",
+            grid_size=9,
+            max_steps=120,
             params={
-                "patrol_len": 4, "n_gaps": 1,
-                "n_blockers": 2, "gap_rand": True,
-                "blocker_speed_var": 0, "n_safe_spots": 0,
+                "patrol_len": 4,
+                "n_gaps": 1,
+                "n_blockers": 2,
+                "gap_rand": True,
+                "blocker_speed_var": 0,
+                "n_safe_spots": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=11, max_steps=200,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=11,
+            max_steps=200,
             params={
-                "patrol_len": 5, "n_gaps": 2,
-                "n_blockers": 2, "gap_rand": True,
-                "blocker_speed_var": 1, "n_safe_spots": 1,
+                "patrol_len": 5,
+                "n_gaps": 2,
+                "n_blockers": 2,
+                "gap_rand": True,
+                "blocker_speed_var": 1,
+                "n_safe_spots": 1,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=13, max_steps=300,
+            name="expert",
+            grid_size=13,
+            max_steps=300,
             params={
-                "patrol_len": 6, "n_gaps": 2,
-                "n_blockers": 3, "gap_rand": True,
-                "blocker_speed_var": 2, "n_safe_spots": 2,
+                "patrol_len": 6,
+                "n_gaps": 2,
+                "n_blockers": 3,
+                "gap_rand": True,
+                "blocker_speed_var": 2,
+                "n_safe_spots": 2,
             },
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size             = self.difficulty_config.grid_size
-        p                = self.difficulty_config.params
-        patrol_len       = p.get("patrol_len", 3)
-        n_gaps           = p.get("n_gaps", 1)
-        n_blockers       = p.get("n_blockers", 1)
-        gap_rand         = p.get("gap_rand", False)
+        size = self.difficulty_config.grid_size
+        p = self.difficulty_config.params
+        patrol_len = p.get("patrol_len", 3)
+        n_gaps = p.get("n_gaps", 1)
+        n_blockers = p.get("n_blockers", 1)
+        gap_rand = p.get("gap_rand", False)
         blocker_speed_var = p.get("blocker_speed_var", 0)
-        n_safe_spots     = p.get("n_safe_spots", 0)
+        n_safe_spots = p.get("n_safe_spots", 0)
 
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
@@ -114,9 +134,11 @@ class TimingChallengeTask(TaskSpec):
                 for dx in [-1, 1]:
                     sx = gc + dx
                     sy = mid_row - 1
-                    if (1 <= sx < size - 1
-                            and 1 <= sy < size - 1
-                            and grid.terrain[sy, sx] == CellType.WALL):
+                    if (
+                        1 <= sx < size - 1
+                        and 1 <= sy < size - 1
+                        and grid.terrain[sy, sx] == CellType.WALL
+                    ):
                         safe_cands.append((sx, sy))
             rng.shuffle(safe_cands)
             for sp in safe_cands[:n_safe_spots]:
@@ -132,37 +154,37 @@ class TimingChallengeTask(TaskSpec):
                 start_x = int(rng.integers(ps, pe + 1))
                 speed = 1
                 if blocker_speed_var > 0:
-                    speed = 1 + int(
-                        rng.integers(0, blocker_speed_var + 1)
-                    )
-                blocker_specs.append({
-                    "x": start_x, "row": mid_row,
-                    "dir": 1, "p0": ps, "p1": pe,
-                    "gap": gc, "speed": speed,
-                })
+                    speed = 1 + int(rng.integers(0, blocker_speed_var + 1))
+                blocker_specs.append(
+                    {
+                        "x": start_x,
+                        "row": mid_row,
+                        "dir": 1,
+                        "p0": ps,
+                        "p1": pe,
+                        "gap": gc,
+                        "speed": speed,
+                    }
+                )
 
         return grid, {
-            "agent_start":    agent_pos,
+            "agent_start": agent_pos,
             "goal_positions": [goal_pos],
-            "mid_row":        mid_row,
-            "gap_cols":       gap_cols,
-            "gap_col":        gap_cols[0],
-            "patrol_start": (
-                blocker_specs[0]["p0"] if blocker_specs else 1
-            ),
-            "patrol_end": (
-                blocker_specs[0]["p1"] if blocker_specs else 3
-            ),
+            "mid_row": mid_row,
+            "gap_cols": gap_cols,
+            "gap_col": gap_cols[0],
+            "patrol_start": (blocker_specs[0]["p0"] if blocker_specs else 1),
+            "patrol_end": (blocker_specs[0]["p1"] if blocker_specs else 3),
             "_blocker_specs": blocker_specs,
             "safe_positions": safe_positions,
-            "max_steps":      self.get_max_steps(),
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
         config["_collision"] = False
         specs = config.get("_blocker_specs", [])
         for i, s in enumerate(specs):
-            config[f"_bx_{i}"]  = s["x"]
+            config[f"_bx_{i}"] = s["x"]
             config[f"_bdir_{i}"] = s["dir"]
             if grid.terrain[s["row"], s["x"]] == CellType.EMPTY:
                 grid.objects[s["row"], s["x"]] = ObjectType.BLOCKER
@@ -175,7 +197,7 @@ class TimingChallengeTask(TaskSpec):
             if step_count % speed != 0:
                 continue
             bx = config.get(f"_bx_{i}", s["x"])
-            d  = config.get(f"_bdir_{i}", 1)
+            d = config.get(f"_bdir_{i}", 1)
             by = s["row"]
             p0, p1 = s["p0"], s["p1"]
             if grid.objects[by, bx] == ObjectType.BLOCKER:
@@ -238,5 +260,8 @@ class TimingChallengeTask(TaskSpec):
     def validate_instance(self, grid, config):
         return True
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return -0.5
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return -0.5

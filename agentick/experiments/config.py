@@ -230,7 +230,6 @@ class ExperimentConfig(BaseModel):
 
         return errors
 
-
     def get_primary_render_mode(self) -> str | None:
         """Get the primary render mode, preferring agent observation modes."""
         if self.agent.type in ("llm", "vlm"):

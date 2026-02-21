@@ -32,19 +32,27 @@ class SwitchCircuitTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=7, max_steps=80,
+            name="easy",
+            grid_size=7,
+            max_steps=80,
             params={"n_switches": 2, "n_inverters": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=9, max_steps=150,
+            name="medium",
+            grid_size=9,
+            max_steps=150,
             params={"n_switches": 3, "n_inverters": 0},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=11, max_steps=250,
+            name="hard",
+            grid_size=11,
+            max_steps=250,
             params={"n_switches": 4, "n_inverters": 1},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=13, max_steps=400,
+            name="expert",
+            grid_size=13,
+            max_steps=400,
             params={"n_switches": 5, "n_inverters": 2},
         ),
     }
@@ -102,10 +110,24 @@ class SwitchCircuitTask(TaskSpec):
                 chamber_cells.add((wx, wy))
         chamber_cells.add(gate_pos)
 
+        # Also exclude cells adjacent to the gate — placing a switch on
+        # the only walkable neighbor of the gate makes the goal unreachable
+        # without toggling the switch off when walking through it.
+        gate_neighbors = set()
+        gx, gy = gate_pos
+        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+            nbr = (gx + dx, gy + dy)
+            if nbr not in chamber_cells:
+                gate_neighbors.add(nbr)
+
         # Place switches
         free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if (x, y) != agent_pos and (x, y) not in chamber_cells
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos
+            and (x, y) not in chamber_cells
+            and (x, y) not in gate_neighbors
             and grid.terrain[y, x] == CellType.EMPTY
         ]
         rng.shuffle(free)
@@ -125,35 +147,83 @@ class SwitchCircuitTask(TaskSpec):
             # Place obstacle cluster near (but not on) the switch
             effect_cells = []
             candidates = [
-                (sx + dx, sy + dy) for dx in range(-2, 3) for dy in range(-2, 3)
+                (sx + dx, sy + dy)
+                for dx in range(-2, 3)
+                for dy in range(-2, 3)
                 if abs(dx) + abs(dy) == 2  # distance 2 from switch
             ]
             for ex, ey in candidates:
-                if (1 <= ex < size - 1 and 1 <= ey < size - 1
-                        and (ex, ey) not in chamber_cells
-                        and (ex, ey) not in set(switch_positions)
-                        and (ex, ey) != agent_pos
-                        and grid.terrain[ey, ex] == CellType.EMPTY
-                        and grid.objects[ey, ex] == ObjectType.NONE):
+                if (
+                    1 <= ex < size - 1
+                    and 1 <= ey < size - 1
+                    and (ex, ey) not in chamber_cells
+                    and (ex, ey) not in set(switch_positions)
+                    and (ex, ey) != agent_pos
+                    and grid.terrain[ey, ex] == CellType.EMPTY
+                    and grid.objects[ey, ex] == ObjectType.NONE
+                ):
                     grid.terrain[ey, ex] = effect_type
                     effect_cells.append((ex, ey))
                     if len(effect_cells) >= 2:
                         break
 
-            switch_effects.append({
-                "cells": [list(c) for c in effect_cells],
-                "original_type": int(effect_type),
-            })
+            switch_effects.append(
+                {
+                    "cells": [list(c) for c in effect_cells],
+                    "original_type": int(effect_type),
+                }
+            )
 
-        # Verify agent can reach first switch
-        reachable = grid.flood_fill(agent_pos)
-        if switch_positions and switch_positions[0] not in reachable:
-            # Remove obstacles blocking path
-            for y in range(1, size - 1):
-                for x in range(1, size - 1):
-                    if (grid.terrain[y, x] in (CellType.HAZARD, CellType.WATER)
-                            and (x, y) not in chamber_cells):
-                        grid.terrain[y, x] = CellType.EMPTY
+        # Verify agent can reach ALL switches via dependency order.
+        # Effect cells (WALL/HAZARD/WATER) placed near switches can block
+        # the path to those same switches. Remove blocking effect cells and
+        # update switch_effects to keep them consistent.
+        effect_cell_set = {}
+        for i, eff in enumerate(switch_effects):
+            for cell in eff["cells"]:
+                effect_cell_set[tuple(cell)] = i
+
+        # Iteratively verify reachability: start from agent, activate
+        # switches in dependency order, clearing their effects as we go.
+        activated = set()
+        changed = True
+        while changed:
+            changed = False
+            reachable = grid.flood_fill(agent_pos)
+            for i, spos in enumerate(switch_positions):
+                if i in activated:
+                    continue
+                prereqs = deps.get(i, [])
+                if not all(p in activated for p in prereqs):
+                    continue
+                if spos in reachable:
+                    activated.add(i)
+                    # Simulate activation: clear this switch's effect cells
+                    # so later switches can be reached through them
+                    for cell in switch_effects[i]["cells"]:
+                        cx, cy = cell
+                        if grid.terrain[cy, cx] != CellType.EMPTY:
+                            grid.terrain[cy, cx] = CellType.EMPTY
+                    changed = True
+
+        # If any switch is still unreachable, remove blocking effect cells
+        if len(activated) < n:
+            for i, spos in enumerate(switch_positions):
+                if i in activated:
+                    continue
+                # Remove all non-chamber effect cells to open paths
+                for j, eff in enumerate(switch_effects):
+                    removed = []
+                    for cell in eff["cells"]:
+                        cx, cy = cell
+                        if (cell[0], cell[1]) not in chamber_cells:
+                            if grid.terrain[cy, cx] != CellType.EMPTY:
+                                grid.terrain[cy, cx] = CellType.EMPTY
+                                removed.append(cell)
+                    # Remove cleared cells from effects so they are not
+                    # restored when the switch toggles
+                    if removed:
+                        eff["cells"] = [c for c in eff["cells"] if c not in removed]
 
         deps_serialized = {i: sorted(deps[i]) for i in range(n)}
 
@@ -300,5 +370,8 @@ class SwitchCircuitTask(TaskSpec):
     def validate_instance(self, grid, config):
         return True
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

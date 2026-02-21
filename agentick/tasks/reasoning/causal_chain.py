@@ -31,19 +31,27 @@ class CausalChainTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=100,
+            name="easy",
+            grid_size=9,
+            max_steps=100,
             params={"n_switches": 2, "n_decoys": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=11, max_steps=180,
+            name="medium",
+            grid_size=11,
+            max_steps=180,
             params={"n_switches": 3, "n_decoys": 1},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=280,
+            name="hard",
+            grid_size=13,
+            max_steps=280,
             params={"n_switches": 4, "n_decoys": 2},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=420,
+            name="expert",
+            grid_size=15,
+            max_steps=420,
             params={"n_switches": 5, "n_decoys": 3},
         ),
     }
@@ -56,9 +64,9 @@ class CausalChainTask(TaskSpec):
 
         for attempt in range(20):
             grid = Grid(size, size)
-            grid.terrain[0, :]  = CellType.WALL
+            grid.terrain[0, :] = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
-            grid.terrain[:, 0]  = CellType.WALL
+            grid.terrain[:, 0] = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
 
             agent_pos = (1, 1)
@@ -97,10 +105,10 @@ class CausalChainTask(TaskSpec):
                 zone_right = max(zone_left, zone_right)
 
                 zone_cells = [
-                    (x, y) for x in range(zone_left, zone_right + 1)
+                    (x, y)
+                    for x in range(zone_left, zone_right + 1)
                     for y in range(1, size - 1)
-                    if grid.terrain[y, x] == CellType.EMPTY
-                    and (x, y) != agent_pos
+                    if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
                 ]
                 if zone_cells:
                     pos = zone_cells[int(rng.integers(len(zone_cells)))]
@@ -112,7 +120,8 @@ class CausalChainTask(TaskSpec):
             # Place goal in the last zone
             last_barrier = barriers[-1][0] if barriers else 1
             goal_zone_cells = [
-                (x, y) for x in range(last_barrier + 1, size - 1)
+                (x, y)
+                for x in range(last_barrier + 1, size - 1)
                 for y in range(1, size - 1)
                 if grid.terrain[y, x] == CellType.EMPTY
             ]
@@ -135,9 +144,9 @@ class CausalChainTask(TaskSpec):
         else:
             # Fallback: simple layout
             grid = Grid(size, size)
-            grid.terrain[0, :]  = CellType.WALL
+            grid.terrain[0, :] = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
-            grid.terrain[:, 0]  = CellType.WALL
+            grid.terrain[:, 0] = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
             agent_pos = (1, 1)
             goal_pos = (size - 2, size - 2)
@@ -151,9 +160,10 @@ class CausalChainTask(TaskSpec):
         # Place decoy levers (stepping on them adds a wall near the agent)
         all_used = {agent_pos, goal_pos} | set(switch_positions)
         all_free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-            if grid.terrain[y, x] == CellType.EMPTY
-            and (x, y) not in all_used
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY and (x, y) not in all_used
         ]
         rng.shuffle(all_free)
         decoy_positions = all_free[:n_decoys]
@@ -161,13 +171,13 @@ class CausalChainTask(TaskSpec):
             grid.objects[dy, dx] = ObjectType.LEVER
 
         return grid, {
-            "agent_start":      agent_pos,
-            "goal_positions":   [goal_pos],
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
             "switch_positions": switch_positions,
-            "switch_effects":   [list(e) for e in switch_effects],
-            "decoy_positions":  decoy_positions,
-            "n_switches":       n,
-            "max_steps":        self.get_max_steps(),
+            "switch_effects": [list(e) for e in switch_effects],
+            "decoy_positions": decoy_positions,
+            "n_switches": n,
+            "max_steps": self.get_max_steps(),
         }
 
     # ── Hooks ────────────────────────────────────────────────────────────────
@@ -261,5 +271,8 @@ class CausalChainTask(TaskSpec):
     def validate_instance(self, grid, config):
         return True  # barriers are dynamic
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

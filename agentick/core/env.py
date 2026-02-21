@@ -93,7 +93,9 @@ class AgentickEnv(gym.Env):
         # Renderer — for rgb_array_2d use isometric renderer (Lux AI style)
         effective_mode = "rgb_array" if render_mode == "rgb_array_2d" else render_mode
         use_isometric = render_mode == "rgb_array_2d"  # Isometric by default for 2D mode
-        self.renderer = create_renderer(effective_mode, fast_mode=fast_mode, use_isometric=use_isometric)
+        self.renderer = create_renderer(
+            effective_mode, fast_mode=fast_mode, use_isometric=use_isometric
+        )
 
         # Episode state
         self.step_count = 0
@@ -143,6 +145,7 @@ class AgentickEnv(gym.Env):
         elif self.render_mode in ("rgb_array", "rgb_array_2d", "human"):
             # Pixel observations — 2D tile-based
             from agentick.core.simple_grid_renderer import SimpleGridRenderer
+
             tile_size = 32
             tile_size = ((tile_size + 15) // 16) * 16  # FFMPEG alignment
             h = self.grid.height * tile_size + SimpleGridRenderer.HEADER_H
@@ -471,4 +474,3 @@ class AgentickEnv(gym.Env):
             "inventory_size": len(self.agent.inventory),
             "grid_hash": hash(self.grid),
         }
-

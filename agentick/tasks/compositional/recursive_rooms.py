@@ -33,18 +33,10 @@ class RecursiveRoomsTask(TaskSpec):
     capability_tags = ["hierarchical_planning", "composition", "navigation"]
 
     difficulty_configs = {
-        "easy": DifficultyConfig(
-            name="easy", grid_size=15, max_steps=200, params={"depth": 2}
-        ),
-        "medium": DifficultyConfig(
-            name="medium", grid_size=21, max_steps=400, params={"depth": 3}
-        ),
-        "hard": DifficultyConfig(
-            name="hard", grid_size=27, max_steps=600, params={"depth": 4}
-        ),
-        "expert": DifficultyConfig(
-            name="expert", grid_size=33, max_steps=900, params={"depth": 5}
-        ),
+        "easy": DifficultyConfig(name="easy", grid_size=15, max_steps=200, params={"depth": 2}),
+        "medium": DifficultyConfig(name="medium", grid_size=21, max_steps=400, params={"depth": 3}),
+        "hard": DifficultyConfig(name="hard", grid_size=27, max_steps=600, params={"depth": 4}),
+        "expert": DifficultyConfig(name="expert", grid_size=33, max_steps=900, params={"depth": 5}),
     }
 
     def _subdivide(self, grid, x1, y1, x2, y2, depth, rng, doorways):
@@ -87,10 +79,10 @@ class RecursiveRoomsTask(TaskSpec):
 
         # Define 4 quadrants
         quads = [
-            (x1, y1, mid_x - 1, mid_y - 1),         # top-left
-            (mid_x + 1, y1, x2, mid_y - 1),          # top-right
-            (x1, mid_y + 1, mid_x - 1, y2),          # bottom-left
-            (mid_x + 1, mid_y + 1, x2, y2),          # bottom-right
+            (x1, y1, mid_x - 1, mid_y - 1),  # top-left
+            (mid_x + 1, y1, x2, mid_y - 1),  # top-right
+            (x1, mid_y + 1, mid_x - 1, y2),  # bottom-left
+            (mid_x + 1, mid_y + 1, x2, y2),  # bottom-right
         ]
 
         # Create doorways: 3 of 4 wall segments get a doorway
@@ -131,9 +123,7 @@ class RecursiveRoomsTask(TaskSpec):
         for qi, (qx1, qy1, qx2, qy2) in enumerate(quads):
             if qx2 - qx1 < 2 or qy2 - qy1 < 2:
                 continue
-            result = self._subdivide(
-                grid, qx1, qy1, qx2, qy2, depth - 1, rng, doorways
-            )
+            result = self._subdivide(grid, qx1, qy1, qx2, qy2, depth - 1, rng, doorways)
             if qi == target_quad:
                 deepest = result
 
@@ -156,7 +146,6 @@ class RecursiveRoomsTask(TaskSpec):
         return True
 
     def generate(self, seed):
-        rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         depth = self.difficulty_config.params.get("depth", 2)
 
@@ -201,13 +190,13 @@ class RecursiveRoomsTask(TaskSpec):
                 continue
             rx1, ry1, rx2, ry2 = deepest_room
             goal_candidates = [
-                (x, y) for x in range(rx1, rx2 + 1) for y in range(ry1, ry2 + 1)
+                (x, y)
+                for x in range(rx1, rx2 + 1)
+                for y in range(ry1, ry2 + 1)
                 if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
             ]
             if goal_candidates:
-                goal_pos = goal_candidates[
-                    int(attempt_rng.integers(len(goal_candidates)))
-                ]
+                goal_pos = goal_candidates[int(attempt_rng.integers(len(goal_candidates)))]
             else:
                 # Fallback: farthest reachable cell
                 reachable = grid.flood_fill(agent_pos)

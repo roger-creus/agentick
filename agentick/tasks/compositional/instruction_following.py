@@ -20,7 +20,7 @@ from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
-_DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+_DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 
 @register_task("InstructionFollowing-v0", tags=["language", "grounding", "instruction"])
@@ -36,59 +36,77 @@ class InstructionFollowingTask(TaskSpec):
         # n_guards: patrolling NPCs
         # multi_step: require visiting intermediate zones first
         # n_conditionals: zones that only count if a switch is hit
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=80,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=80,
             params={
-                "n_zones": 2, "n_distractors": 0,
+                "n_zones": 2,
+                "n_distractors": 0,
                 "n_guards": 0,
-                "multi_step": False, "n_conditionals": 0,
+                "multi_step": False,
+                "n_conditionals": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=150,
+            name="medium",
+            grid_size=10,
+            max_steps=150,
             params={
-                "n_zones": 3, "n_distractors": 1,
+                "n_zones": 3,
+                "n_distractors": 1,
                 "n_guards": 0,
-                "multi_step": False, "n_conditionals": 0,
+                "multi_step": False,
+                "n_conditionals": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=220,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=220,
             params={
-                "n_zones": 4, "n_distractors": 2,
+                "n_zones": 4,
+                "n_distractors": 2,
                 "n_guards": 1,
-                "multi_step": True, "n_conditionals": 1,
+                "multi_step": True,
+                "n_conditionals": 1,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=320,
+            name="expert",
+            grid_size=15,
+            max_steps=320,
             params={
-                "n_zones": 5, "n_distractors": 3,
+                "n_zones": 5,
+                "n_distractors": 3,
                 "n_guards": 2,
-                "multi_step": True, "n_conditionals": 2,
+                "multi_step": True,
+                "n_conditionals": 2,
             },
         ),
     }
 
-    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size          = self.difficulty_config.grid_size
-        n             = self.difficulty_config.params.get("n_zones", 2)
+        size = self.difficulty_config.grid_size
+        n = self.difficulty_config.params.get("n_zones", 2)
         n_distractors = self.difficulty_config.params.get("n_distractors", 0)
-        n_guards      = self.difficulty_config.params.get("n_guards", 0)
-        multi_step    = self.difficulty_config.params.get(
-            "multi_step", False,
+        n_guards = self.difficulty_config.params.get("n_guards", 0)
+        multi_step = self.difficulty_config.params.get(
+            "multi_step",
+            False,
         )
         n_conditionals = self.difficulty_config.params.get(
-            "n_conditionals", 0,
+            "n_conditionals",
+            0,
         )
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
@@ -97,14 +115,18 @@ class InstructionFollowingTask(TaskSpec):
         lo = max(2, size // 3)
         hi = max(lo + 1, size - 1 - size // 3)
         quadrant_centers = [
-            (lo,  lo), (hi,  lo), (lo,  hi), (hi,  hi), (size//2, size//2),
+            (lo, lo),
+            (hi, lo),
+            (lo, hi),
+            (hi, hi),
+            (size // 2, size // 2),
         ]
         for i in range(n):
             zx, zy = quadrant_centers[i % len(quadrant_centers)]
-            zx = max(1, min(size-2, zx))
-            zy = max(1, min(size-2, zy))
+            zx = max(1, min(size - 2, zx))
+            zy = max(1, min(size - 2, zy))
             if (zx, zy) == agent_pos:
-                zx = min(size-2, zx + 1)
+                zx = min(size - 2, zx + 1)
             zone_positions.append((zx, zy))
 
         instruction = int(rng.integers(0, n))
@@ -118,8 +140,9 @@ class InstructionFollowingTask(TaskSpec):
                 grid.objects[zy, zx] = ObjectType.TARGET
 
         # Distractors: extra TARGET cells not in zone_positions (visual noise)
-        free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                if (x, y) not in used]
+        free = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) not in used
+        ]
         rng.shuffle(free)
         distractor_positions = []
         for p in free[:n_distractors]:
@@ -131,9 +154,7 @@ class InstructionFollowingTask(TaskSpec):
         # Conditional switches: the agent must step on these
         # SWITCH cells before the true goal becomes "active"
         # (only at hard/expert with n_conditionals > 0)
-        cond_free = [
-            p for p in free[n_distractors:] if p not in used
-        ]
+        cond_free = [p for p in free[n_distractors:] if p not in used]
         rng.shuffle(cond_free)
         conditional_positions = []
         for p in cond_free:
@@ -149,17 +170,15 @@ class InstructionFollowingTask(TaskSpec):
         # Pick from non-instruction zones as waypoints
         waypoint_zones = []
         if multi_step and n > 2:
-            others = [
-                zone_positions[i]
-                for i in range(n)
-                if i != instruction
-            ]
+            others = [zone_positions[i] for i in range(n) if i != instruction]
             n_wp = min(len(others), max(1, n // 2))
             waypoint_zones = others[:n_wp]
 
         # Guards: NPC objects placed at distance from agent
         guard_pool = [
-            p for p in free[n_distractors:] if p not in used
+            p
+            for p in free[n_distractors:]
+            if p not in used
             and abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]) > 2
             and p != true_goal
         ]
@@ -192,10 +211,7 @@ class InstructionFollowingTask(TaskSpec):
             "_conditional_positions": conditional_positions,
             "_waypoint_zones": waypoint_zones,
             "_guard_positions": guard_positions,
-            "_guard_dirs": [
-                int(rng.integers(0, 4))
-                for _ in guard_positions
-            ],
+            "_guard_dirs": [int(rng.integers(0, 4)) for _ in guard_positions],
             "_guard_seed": int(rng.integers(0, 2**31)),
             "_cage_pos": (cage_cx, 0),
             "max_steps": self.get_max_steps(),
@@ -234,8 +250,12 @@ class InstructionFollowingTask(TaskSpec):
                 (x, y),
             )
 
+        # Stepping on a non-waypoint TARGET zone is a wrong-zone penalty.
+        # Waypoint zones (multi_step) are TARGET cells the agent must visit,
+        # so they should NOT trigger the wrong-zone flag.
+        wp_set = {tuple(w) for w in wp_zones}
         if grid.objects[y, x] == ObjectType.TARGET and (
-            (x, y) != tuple(true_goal or ())
+            (x, y) != tuple(true_goal or ()) and (x, y) not in wp_set
         ):
             config["_wrong_zone"] = True
         if grid.objects[y, x] == ObjectType.NPC:
@@ -244,8 +264,8 @@ class InstructionFollowingTask(TaskSpec):
     def on_env_step(self, agent, grid, config, step_count):
         """Move guards and check NPC-onto-agent collision."""
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         ax, ay = agent.position
         if not guards or rng is None:
             return
@@ -254,13 +274,24 @@ class InstructionFollowingTask(TaskSpec):
                 grid.objects[gy, gx] = ObjectType.NONE
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
-            d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
-            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                    and grid.terrain[ny, nx] == CellType.EMPTY
-                    and grid.objects[ny, nx] not in (ObjectType.GOAL, ObjectType.TARGET)):
+            d = dirs[i]
+            dx, dy = self._DIRS[d]
+            nx, ny = gx + dx, gy + dy
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and grid.terrain[ny, nx] == CellType.EMPTY
+                and grid.objects[ny, nx]
+                not in (
+                    ObjectType.GOAL,
+                    ObjectType.TARGET,
+                    ObjectType.SWITCH,
+                )
+            ):
                 new_g.append((nx, ny))
             else:
-                d = int(rng.integers(0, 4)); new_g.append((gx, gy))
+                d = int(rng.integers(0, 4))
+                new_g.append((gx, gy))
             new_d.append(d)
             if new_g[-1] == (ax, ay):
                 config["_guard_collision"] = True
@@ -285,9 +316,9 @@ class InstructionFollowingTask(TaskSpec):
         goal = config.get("goal_positions", [None])[0]
         if goal and "agent" in new_state:
             ax, ay = new_state["agent"].position
-            ox, oy = old_state.get('agent_position', new_state['agent'].position)
-            old_d = abs(ox-goal[0]) + abs(oy-goal[1])
-            new_d = abs(ax-goal[0]) + abs(ay-goal[1])
+            ox, oy = old_state.get("agent_position", new_state["agent"].position)
+            old_d = abs(ox - goal[0]) + abs(oy - goal[1])
+            new_d = abs(ax - goal[0]) + abs(ay - goal[1])
             reward += 0.05 * (old_d - new_d)
         if self.check_success(new_state):
             reward += 1.0
@@ -334,5 +365,8 @@ class InstructionFollowingTask(TaskSpec):
         reachable = grid.flood_fill(agent_start)
         return goal in reachable
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

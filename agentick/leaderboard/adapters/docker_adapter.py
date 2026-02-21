@@ -53,7 +53,9 @@ class DockerAgent:
         try:
             import docker
         except ImportError:
-            raise ImportError("docker package not installed. Install with: uv sync --extra leaderboard")
+            raise ImportError(
+                "docker package not installed. Install with: uv sync --extra leaderboard"
+            )
 
         client = docker.from_env()
 

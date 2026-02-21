@@ -30,35 +30,43 @@ class PackingPuzzleTask(TaskSpec):
     capability_tags = ["spatial_reasoning", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=100,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
             params={"n_pieces": 2, "n_types": 2, "n_distractors": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=9, max_steps=180,
+            name="medium",
+            grid_size=9,
+            max_steps=180,
             params={"n_pieces": 3, "n_types": 2, "n_distractors": 1},
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=11, max_steps=300,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=11,
+            max_steps=300,
             params={"n_pieces": 4, "n_types": 3, "n_distractors": 1},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=13, max_steps=500,
+            name="expert",
+            grid_size=13,
+            max_steps=500,
             params={"n_pieces": 5, "n_types": 4, "n_distractors": 2},
         ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size          = self.difficulty_config.grid_size
-        n             = self.difficulty_config.params.get("n_pieces", 2)
-        n_types       = min(self.difficulty_config.params.get("n_types", 2), len(_PIECE_TYPES))
+        size = self.difficulty_config.grid_size
+        n = self.difficulty_config.params.get("n_pieces", 2)
+        n_types = min(self.difficulty_config.params.get("n_types", 2), len(_PIECE_TYPES))
         n_distractors = self.difficulty_config.params.get("n_distractors", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
@@ -81,7 +89,9 @@ class PackingPuzzleTask(TaskSpec):
 
         # Interior cells for pieces (not on border, not on target row)
         interior = [
-            (x, y) for x in range(2, size - 2) for y in range(2, target_row - 1)
+            (x, y)
+            for x in range(2, size - 2)
+            for y in range(2, target_row - 1)
             if (x, y) != agent_pos
         ]
         rng.shuffle(interior)
@@ -133,9 +143,13 @@ class PackingPuzzleTask(TaskSpec):
     def on_env_reset(self, agent, grid, config):
         self._config = config
         self._last_matched = 0
+        # Remember original target slots so they survive being overwritten
+        self._target_slots: dict[tuple[int, int], int] = {}
+        for tx, ty in config.get("target_positions", []):
+            self._target_slots[(tx, ty)] = int(grid.metadata[ty, tx])
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
-        """Sokoban push: agent walks into piece → push it forward one cell."""
+        """Sokoban push: agent walks into piece -> push it forward one cell."""
         x, y = pos
         obj = grid.objects[y, x]
         if obj not in _PIECE_TYPES:
@@ -160,7 +174,13 @@ class PackingPuzzleTask(TaskSpec):
 
         # Push the piece
         piece_type = obj
-        grid.objects[y, x] = ObjectType.NONE
+
+        # Restore target underneath the source cell if it was a target slot
+        if (x, y) in self._target_slots:
+            grid.objects[y, x] = ObjectType.TARGET
+            grid.metadata[y, x] = self._target_slots[(x, y)]
+        else:
+            grid.objects[y, x] = ObjectType.NONE
 
         if dest_obj == ObjectType.TARGET:
             expected = int(grid.metadata[nby, nbx])
@@ -170,6 +190,14 @@ class PackingPuzzleTask(TaskSpec):
                 grid.metadata[nby, nbx] = 0
             else:
                 # Wrong type: piece sits on top but doesn't match
+                grid.objects[nby, nbx] = piece_type
+        elif (nbx, nby) in self._target_slots:
+            # Landing on a previously-overwritten target slot
+            expected = self._target_slots[(nbx, nby)]
+            if int(piece_type) == expected:
+                grid.objects[nby, nbx] = ObjectType.GOAL
+                grid.metadata[nby, nbx] = 0
+            else:
                 grid.objects[nby, nbx] = piece_type
         else:
             grid.objects[nby, nbx] = piece_type
@@ -209,5 +237,8 @@ class PackingPuzzleTask(TaskSpec):
         matched = self._count_matched(state["grid"], config)
         return matched >= n
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

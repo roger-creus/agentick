@@ -30,17 +30,17 @@ class ObjectType(IntEnum):
     TOOL = 7
     RESOURCE = 8
     BREADCRUMB = 9
-    NPC = 10        # neutral/allied NPC (rendered as cyan circle)
-    ENEMY = 11      # enemy / adversary (rendered as red circle)
-    SHEEP = 12      # herding target (rendered as white circle)
-    BLOCKER = 13    # moving obstacle / blocker (rendered as orange square)
+    NPC = 10  # neutral/allied NPC (rendered as cyan circle)
+    ENEMY = 11  # enemy / adversary (rendered as red circle)
+    SHEEP = 12  # herding target (rendered as white circle)
+    BLOCKER = 13  # moving obstacle / blocker (rendered as orange square)
     # New object types for task differentiation
-    GEM = 14        # collectible gem/crystal (purple diamond)
-    LEVER = 15      # physical lever/button (different from switch)
-    POTION = 16     # consumable potion/flask (teal)
-    SCROLL = 17     # readable scroll/book (parchment)
-    COIN = 18       # collectible coin/token (gold circle)
-    ORB = 19        # magical orb (glowing pink)
+    GEM = 14  # collectible gem/crystal (purple diamond)
+    LEVER = 15  # physical lever/button (different from switch)
+    POTION = 16  # consumable potion/flask (teal)
+    SCROLL = 17  # readable scroll/book (parchment)
+    COIN = 18  # collectible coin/token (gold circle)
+    ORB = 19  # magical orb (glowing pink)
 
 
 class AgentType(IntEnum):

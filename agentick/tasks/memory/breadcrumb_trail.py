@@ -28,11 +28,11 @@ from agentick.tasks.registry import register_task
 # Visual encoding: use different ObjectTypes to show breadcrumb "size"
 # The agent sees visually distinct markers for each position in sequence
 CRUMB_TYPES = [
-    ObjectType.KEY,        # crumb 1 = smallest (KEY icon)
-    ObjectType.BREADCRUMB, # crumb 2
-    ObjectType.TARGET,     # crumb 3
-    ObjectType.SWITCH,     # crumb 4
-    ObjectType.BLOCKER,    # crumb 5 (largest)
+    ObjectType.KEY,  # crumb 1 = smallest (KEY icon)
+    ObjectType.BREADCRUMB,  # crumb 2
+    ObjectType.TARGET,  # crumb 3
+    ObjectType.SWITCH,  # crumb 4
+    ObjectType.BLOCKER,  # crumb 5 (largest)
 ]
 
 
@@ -45,10 +45,30 @@ class BreadcrumbTrailTask(TaskSpec):
     capability_tags = ["long_horizon", "memory"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=9,  max_steps=100, params={"n_crumbs": 3, "fade_steps": 20, "n_obstacles": 0, "n_false_crumbs": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=11, max_steps=150, params={"n_crumbs": 4, "fade_steps": 15, "n_obstacles": 3, "n_false_crumbs": 1}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=200, params={"n_crumbs": 5, "fade_steps": 10, "n_obstacles": 5, "n_false_crumbs": 2}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=300, params={"n_crumbs": 6, "fade_steps": 6, "n_obstacles": 8, "n_false_crumbs": 3}),
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=9,
+            max_steps=100,
+            params={"n_crumbs": 3, "fade_steps": 20, "n_obstacles": 0, "n_false_crumbs": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium",
+            grid_size=11,
+            max_steps=150,
+            params={"n_crumbs": 4, "fade_steps": 15, "n_obstacles": 3, "n_false_crumbs": 1},
+        ),
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=200,
+            params={"n_crumbs": 5, "fade_steps": 10, "n_obstacles": 5, "n_false_crumbs": 2},
+        ),
+        "expert": DifficultyConfig(
+            name="expert",
+            grid_size=15,
+            max_steps=300,
+            params={"n_crumbs": 6, "fade_steps": 6, "n_obstacles": 8, "n_false_crumbs": 3},
+        ),
     }
 
     def generate(self, seed):
@@ -61,9 +81,9 @@ class BreadcrumbTrailTask(TaskSpec):
 
         # OPEN ARENA — no internal walls, only border walls
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         # Agent at random position in the arena
@@ -73,8 +93,7 @@ class BreadcrumbTrailTask(TaskSpec):
         agent_pos = interior[0]
         # Goal in a different quadrant from agent
         goal_candidates = [
-            (x, y) for x, y in interior
-            if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > size // 2
+            (x, y) for x, y in interior if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > size // 2
         ]
         if not goal_candidates:
             goal_candidates = interior[1:]
@@ -89,7 +108,7 @@ class BreadcrumbTrailTask(TaskSpec):
         for pos in candidates:
             if len(crumb_positions) >= n_crumbs:
                 break
-            if all(abs(pos[0]-cp[0]) + abs(pos[1]-cp[1]) >= 2 for cp in crumb_positions):
+            if all(abs(pos[0] - cp[0]) + abs(pos[1] - cp[1]) >= 2 for cp in crumb_positions):
                 crumb_positions.append(pos)
                 used.add(pos)
 
@@ -122,8 +141,9 @@ class BreadcrumbTrailTask(TaskSpec):
                 grid.terrain[wy, wx] = CellType.EMPTY
 
         # Place false crumbs (look like real crumbs but aren't in the sequence)
-        false_candidates = [p for p in candidates if p not in used
-                           and grid.terrain[p[1], p[0]] == CellType.EMPTY]
+        false_candidates = [
+            p for p in candidates if p not in used and grid.terrain[p[1], p[0]] == CellType.EMPTY
+        ]
         false_crumb_positions = []
         for fp in false_candidates[:n_false_crumbs]:
             fx, fy = fp
@@ -137,19 +157,19 @@ class BreadcrumbTrailTask(TaskSpec):
         # (goal cell is empty until all crumbs collected)
 
         return grid, {
-            "agent_start":     agent_pos,
-            "goal_positions":  [goal_pos],
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
             "crumb_positions": crumb_positions,  # ordered list
-            "n_crumbs":        n_crumbs,
-            "fade_steps":      fade,
-            "max_steps":       self.get_max_steps(),
+            "n_crumbs": n_crumbs,
+            "fade_steps": fade,
+            "max_steps": self.get_max_steps(),
         }
 
     # ── Hooks ────────────────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
         """Initialize per-episode tracking. Goal starts LOCKED."""
-        config["_next_crumb"] = 0        # index of next crumb to collect
+        config["_next_crumb"] = 0  # index of next crumb to collect
         config["_all_collected"] = False
         config["_faded"] = False
         self._config = config
@@ -248,5 +268,8 @@ class BreadcrumbTrailTask(TaskSpec):
         """Open arena — always reachable."""
         return True
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

@@ -27,36 +27,56 @@ class ChaseEvadeTask(TaskSpec):
     capability_tags = ["reactive_control", "prediction"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=40,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=40,
             params={
-                "n_enemies": 1, "chase_prob": 0.60,
-                "n_obstacles": 0, "enemy_speed": 1,
-                "n_powerups": 1, "survival_steps": 30,
+                "n_enemies": 1,
+                "chase_prob": 0.60,
+                "n_obstacles": 0,
+                "enemy_speed": 1,
+                "n_powerups": 1,
+                "survival_steps": 30,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=10, max_steps=80,
+            name="medium",
+            grid_size=10,
+            max_steps=80,
             params={
-                "n_enemies": 2, "chase_prob": 0.75,
-                "n_obstacles": 3, "enemy_speed": 1,
-                "n_powerups": 1, "survival_steps": 60,
+                "n_enemies": 2,
+                "chase_prob": 0.75,
+                "n_obstacles": 3,
+                "enemy_speed": 1,
+                "n_powerups": 1,
+                "survival_steps": 60,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=13, max_steps=140,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=140,
             params={
-                "n_enemies": 3, "chase_prob": 0.90,
-                "n_obstacles": 5, "enemy_speed": 1,
-                "n_powerups": 2, "survival_steps": 100,
+                "n_enemies": 3,
+                "chase_prob": 0.90,
+                "n_obstacles": 5,
+                "enemy_speed": 1,
+                "n_powerups": 2,
+                "survival_steps": 100,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=220,
+            name="expert",
+            grid_size=15,
+            max_steps=220,
             params={
-                "n_enemies": 4, "chase_prob": 1.00,
-                "n_obstacles": 7, "enemy_speed": 2,
-                "n_powerups": 2, "survival_steps": 160,
+                "n_enemies": 5,
+                "chase_prob": 1.00,
+                "n_obstacles": 7,
+                "enemy_speed": 1,
+                "n_powerups": 2,
+                "survival_steps": 160,
             },
         ),
     }
@@ -67,17 +87,17 @@ class ChaseEvadeTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n_enemies    = p.get("n_enemies", 1)
-        chase_prob   = p.get("chase_prob", 0.6)
-        n_obstacles  = p.get("n_obstacles", 0)
-        enemy_speed  = p.get("enemy_speed", 1)
-        n_powerups   = p.get("n_powerups", 0)
-        survival     = p.get("survival_steps", 30)
+        n_enemies = p.get("n_enemies", 1)
+        chase_prob = p.get("chase_prob", 0.6)
+        n_obstacles = p.get("n_obstacles", 0)
+        enemy_speed = p.get("enemy_speed", 1)
+        n_powerups = p.get("n_powerups", 0)
+        survival = p.get("survival_steps", 30)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         # Agent starts center-ish
@@ -85,7 +105,8 @@ class ChaseEvadeTask(TaskSpec):
 
         # Place obstacles
         interior = [
-            (x, y) for x in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
             for y in range(1, size - 1)
             if abs(x - agent_pos[0]) + abs(y - agent_pos[1]) > 2
         ]
@@ -96,7 +117,8 @@ class ChaseEvadeTask(TaskSpec):
 
         # Place enemies far from agent (corners and edges)
         walkable = [
-            (x, y) for x in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
             for y in range(1, size - 1)
             if grid.terrain[y, x] == CellType.EMPTY
             and (x, y) != agent_pos
@@ -104,10 +126,10 @@ class ChaseEvadeTask(TaskSpec):
         ]
         if len(walkable) < n_enemies:
             walkable = [
-                (x, y) for x in range(1, size - 1)
+                (x, y)
+                for x in range(1, size - 1)
                 for y in range(1, size - 1)
-                if grid.terrain[y, x] == CellType.EMPTY
-                and (x, y) != agent_pos
+                if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
             ]
         rng.shuffle(walkable)
         enemy_positions = walkable[:n_enemies]
@@ -129,7 +151,8 @@ class ChaseEvadeTask(TaskSpec):
         used = {agent_pos} | set(enemy_positions)
         powerup_positions = []
         pw_candidates = [
-            (x, y) for x in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
             for y in range(1, size - 1)
             if grid.terrain[y, x] == CellType.EMPTY and (x, y) not in used
         ]
@@ -140,21 +163,23 @@ class ChaseEvadeTask(TaskSpec):
             powerup_positions.append(pp)
 
         return grid, {
-            "agent_start":       agent_pos,
-            "goal_positions":    [],
-            "chase_prob":        chase_prob,
-            "enemy_speed":       enemy_speed,
-            "survival_steps":    survival,
+            "agent_start": agent_pos,
+            "goal_positions": [],
+            "chase_prob": chase_prob,
+            "enemy_speed": enemy_speed,
+            "survival_steps": survival,
             "powerup_positions": powerup_positions,
-            "_rng_seed":         int(rng.integers(0, 2**31)),
-            "max_steps":         self.get_max_steps(),
+            "_rng_seed": int(rng.integers(0, 2**31)),
+            "max_steps": self.get_max_steps(),
         }
 
     # ── Hooks ─────────────────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
         config["_enemies"] = [
-            (x, y) for y in range(grid.height) for x in range(grid.width)
+            (x, y)
+            for y in range(grid.height)
+            for x in range(grid.width)
             if grid.objects[y, x] == ObjectType.ENEMY
         ]
         config["_evade_rng"] = np.random.default_rng(config.get("_rng_seed", 0))
@@ -181,10 +206,12 @@ class ChaseEvadeTask(TaskSpec):
             best, best_d = (ex, ey), abs(ex - ax) + abs(ey - ay)
             for dx, dy in self._DIRS:
                 nx, ny = ex + dx, ey + dy
-                if (0 < nx < grid.width - 1
-                        and 0 < ny < grid.height - 1
-                        and grid.terrain[ny, nx] == CellType.EMPTY
-                        and grid.objects[ny, nx] != ObjectType.ENEMY):
+                if (
+                    0 < nx < grid.width - 1
+                    and 0 < ny < grid.height - 1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] != ObjectType.ENEMY
+                ):
                     d = abs(nx - ax) + abs(ny - ay)
                     if d < best_d:
                         best_d, best = d, (nx, ny)
@@ -192,11 +219,14 @@ class ChaseEvadeTask(TaskSpec):
         # Random move
         moves = [(ex + dx, ey + dy) for dx, dy in self._DIRS]
         valid = [
-            (x, y) for x, y in moves
-            if (0 < x < grid.width - 1
+            (x, y)
+            for x, y in moves
+            if (
+                0 < x < grid.width - 1
                 and 0 < y < grid.height - 1
                 and grid.terrain[y, x] == CellType.EMPTY
-                and grid.objects[y, x] != ObjectType.ENEMY)
+                and grid.objects[y, x] != ObjectType.ENEMY
+            )
         ]
         if valid:
             return valid[int(rng.integers(len(valid)))]
@@ -282,5 +312,8 @@ class ChaseEvadeTask(TaskSpec):
             return True
         return self.check_success(state)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

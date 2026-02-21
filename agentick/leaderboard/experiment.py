@@ -152,7 +152,9 @@ class ExperimentRunner:
 
                     # Save interaction trace for sample episode
                     if self.config.record_traces and seed == 0 and episode == 0:
-                        trace.append(f"Episode ended: total_reward={total_reward:.2f}, steps={steps}")
+                        trace.append(
+                            f"Episode ended: total_reward={total_reward:.2f}, steps={steps}"
+                        )
                         trace.append(f"Success: {info.get('success', False)}")
 
                         trace_dir = self.output_dir / "traces"

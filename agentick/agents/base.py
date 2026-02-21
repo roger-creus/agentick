@@ -45,8 +45,9 @@ class BaseAgent:
         return self._name
 
     def reset(self) -> None:
-        """Reset per-episode state (harness history, etc.)."""
+        """Reset per-episode state (harness history, call log)."""
         self.harness.reset()
+        self.call_log = []
 
     def act(self, observation: Any, info: dict[str, Any]) -> int:
         """Select an action given observation and info dict.
@@ -63,9 +64,7 @@ class BaseAgent:
         # Extract observation text and image flag from last user message
         user_content = messages[-1]["content"]
         if isinstance(user_content, list):
-            obs_text = "\n".join(
-                b["text"] for b in user_content if b.get("type") == "text"
-            )
+            obs_text = "\n".join(b["text"] for b in user_content if b.get("type") == "text")
             has_image = any(b.get("type") == "image" for b in user_content)
         else:
             obs_text = user_content
@@ -73,9 +72,7 @@ class BaseAgent:
 
         # Store system prompt once on first call
         if not self.call_log:
-            self._system_prompt = (
-                messages[0]["content"] if messages[0]["role"] == "system" else ""
-            )
+            self._system_prompt = messages[0]["content"] if messages[0]["role"] == "system" else ""
 
         # Generate
         start = time.time()

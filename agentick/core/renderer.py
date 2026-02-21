@@ -13,12 +13,11 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 import numpy as np
-import pygame
 
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.language import AdvancedLanguageRenderer, LanguageConfig
-from agentick.core.types import COLORS, CellType, Direction, ObjectType
+from agentick.core.types import CellType, Direction, ObjectType
 
 # Set pygame to headless by default
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -435,11 +434,9 @@ def create_renderer(
             perspective=perspective,
         )
     elif mode in ("rgb_array", "rgb_array_2d", "human"):
-        # Check for rendering mode override
-        use_3d = kwargs.pop("use_3d", False)
-        
         # Simple 2D grid renderer (clean, functional, publication-ready)
         from agentick.core.simple_grid_renderer import SimpleGridRenderer
+
         return SimpleGridRenderer(tile_size=tile_size)
     elif mode == "state_dict":
         return StateDictRenderer(fast_mode=fast_mode)
@@ -449,4 +446,4 @@ def create_renderer(
 
 # Backward compatibility aliases
 LanguageRenderer = EnhancedLanguageRenderer
-from agentick.core.simple_grid_renderer import SimpleGridRenderer as PixelRenderer
+from agentick.core.simple_grid_renderer import SimpleGridRenderer as PixelRenderer  # noqa: E402, F401, I001, N812

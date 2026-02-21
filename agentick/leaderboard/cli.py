@@ -66,8 +66,8 @@ def cmd_verify(args):
 
 def cmd_list_tasks(args):
     """List all registered tasks."""
-    capability = getattr(args, 'capability', None)
-    difficulty = getattr(args, 'difficulty', None)
+    capability = getattr(args, "capability", None)
+    difficulty = getattr(args, "difficulty", None)
 
     tasks = list_tasks(capability=capability, difficulty=difficulty)
 
@@ -110,28 +110,29 @@ def cmd_info(args):
     print(f"{'=' * 80}")
 
     # Description
-    if hasattr(task_class, 'description'):
+    if hasattr(task_class, "description"):
         print(f"\nDescription:\n  {task_class.description}")
 
     # Capabilities
-    if hasattr(task_class, 'capability_tags'):
+    if hasattr(task_class, "capability_tags"):
         print(f"\nCapabilities: {', '.join(task_class.capability_tags)}")
 
     # Difficulties
-    if hasattr(task_class, 'difficulty_configs'):
-        difficulties = ', '.join(task_class.difficulty_configs.keys())
+    if hasattr(task_class, "difficulty_configs"):
+        difficulties = ", ".join(task_class.difficulty_configs.keys())
         print(f"Difficulty Levels: {difficulties}")
 
     # Create a test instance to show spaces
     try:
         import agentick
+
         test_env = agentick.make(task_class.name, difficulty="easy")
 
         print(f"\nObservation Space: {test_env.observation_space}")
         print(f"Action Space: {test_env.action_space}")
 
         # Action meanings if available
-        if hasattr(test_env, 'get_action_meanings'):
+        if hasattr(test_env, "get_action_meanings"):
             meanings = test_env.get_action_meanings()
             print("\nActions:")
             for i, meaning in enumerate(meanings):
@@ -142,7 +143,7 @@ def cmd_info(args):
         print(f"\nCould not create test environment: {e}")
 
     # Baselines if available
-    if hasattr(task_class, 'baselines'):
+    if hasattr(task_class, "baselines"):
         print("\nBaseline Scores:")
         for baseline_name, score in task_class.baselines.items():
             print(f"  {baseline_name}: {score:.2f}")

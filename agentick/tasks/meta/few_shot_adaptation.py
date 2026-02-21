@@ -22,8 +22,7 @@ from agentick.tasks.registry import register_task
 
 # Hidden rules: given target positions, return the index of the correct target
 def _rule_closest_corner(targets, grid, agent_start):
-    corners = [(1, 1), (grid.width - 2, 1), (1, grid.height - 2),
-               (grid.width - 2, grid.height - 2)]
+    corners = [(1, 1), (grid.width - 2, 1), (1, grid.height - 2), (grid.width - 2, grid.height - 2)]
     best_i, best_d = 0, float("inf")
     for i, (tx, ty) in enumerate(targets):
         d = min(abs(tx - cx) + abs(ty - cy) for cx, cy in corners)
@@ -75,32 +74,52 @@ class FewShotAdaptationTask(TaskSpec):
     capability_tags = ["meta_learning", "adaptation", "few_shot"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=7, max_steps=80,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=80,
             params={
-                "k_demos": 2, "n_candidates": 2,
-                "reveal_steps": 5, "n_obstacles": 0, "n_guards": 0,
+                "k_demos": 2,
+                "n_candidates": 2,
+                "reveal_steps": 5,
+                "n_obstacles": 0,
+                "n_guards": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=9, max_steps=150,
+            name="medium",
+            grid_size=9,
+            max_steps=150,
             params={
-                "k_demos": 2, "n_candidates": 3,
-                "reveal_steps": 3, "n_obstacles": 4, "n_guards": 0,
+                "k_demos": 2,
+                "n_candidates": 3,
+                "reveal_steps": 3,
+                "n_obstacles": 4,
+                "n_guards": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=11, max_steps=250,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=11,
+            max_steps=250,
             params={
-                "k_demos": 3, "n_candidates": 3,
-                "reveal_steps": 2, "n_obstacles": 6, "n_guards": 1,
+                "k_demos": 3,
+                "n_candidates": 3,
+                "reveal_steps": 2,
+                "n_obstacles": 6,
+                "n_guards": 1,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=13, max_steps=350,
+            name="expert",
+            grid_size=13,
+            max_steps=350,
             params={
-                "k_demos": 3, "n_candidates": 4,
-                "reveal_steps": 1, "n_obstacles": 8, "n_guards": 2,
+                "k_demos": 3,
+                "n_candidates": 4,
+                "reveal_steps": 1,
+                "n_obstacles": 8,
+                "n_guards": 2,
             },
         ),
     }
@@ -111,16 +130,16 @@ class FewShotAdaptationTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        k_demos     = p.get("k_demos", 2)
-        n_cand      = p.get("n_candidates", 2)
-        reveal      = p.get("reveal_steps", 5)
-        n_obs       = p.get("n_obstacles", 0)
-        n_guards    = p.get("n_guards", 0)
+        k_demos = p.get("k_demos", 2)
+        n_cand = p.get("n_candidates", 2)
+        reveal = p.get("reveal_steps", 5)
+        n_obs = p.get("n_obstacles", 0)
+        n_guards = p.get("n_guards", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
@@ -128,11 +147,12 @@ class FewShotAdaptationTask(TaskSpec):
         agent_pos = corners[0]
 
         # Add obstacles
-        interior = [(x, y) for x in range(1, size - 1) for y in range(1, size - 1)
-                    if (x, y) != agent_pos]
+        interior = [
+            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+        ]
         rng.shuffle(interior)
         placed = 0
-        for wx, wy in interior[:n_obs * 3]:
+        for wx, wy in interior[: n_obs * 3]:
             grid.terrain[wy, wx] = CellType.WALL
             if len(grid.flood_fill(agent_pos)) < n_cand * (k_demos + 1) + 3:
                 grid.terrain[wy, wx] = CellType.EMPTY
@@ -166,11 +186,13 @@ class FewShotAdaptationTask(TaskSpec):
 
             # Determine correct target by the hidden rule
             correct_idx = rule_fn(trial_targets, grid, agent_pos)
-            trials.append({
-                "targets": trial_targets,
-                "correct_idx": correct_idx,
-                "is_test": trial_i == n_total_trials - 1,
-            })
+            trials.append(
+                {
+                    "targets": trial_targets,
+                    "correct_idx": correct_idx,
+                    "is_test": trial_i == n_total_trials - 1,
+                }
+            )
 
         # The final goal (test trial correct target)
         test_trial = trials[-1]
@@ -190,18 +212,18 @@ class FewShotAdaptationTask(TaskSpec):
                 grid.objects[ty, tx] = ObjectType.TARGET
 
         return grid, {
-            "agent_start":   agent_pos,
+            "agent_start": agent_pos,
             "goal_positions": [true_goal],
-            "true_goal":     tuple(true_goal),
-            "trials":        trials,
-            "k_demos":       k_demos,
-            "reveal_steps":  reveal,
-            "rule_name":     rule_name,
-            "n_guards":      n_guards,
+            "true_goal": tuple(true_goal),
+            "trials": trials,
+            "k_demos": k_demos,
+            "reveal_steps": reveal,
+            "rule_name": rule_name,
+            "n_guards": n_guards,
             "_guard_positions": guard_positions,
-            "_guard_dirs":   [int(rng.integers(0, 4)) for _ in guard_positions],
-            "_guard_seed":   int(rng.integers(0, 2**31)),
-            "max_steps":     self.get_max_steps(),
+            "_guard_dirs": [int(rng.integers(0, 4)) for _ in guard_positions],
+            "_guard_seed": int(rng.integers(0, 2**31)),
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
@@ -233,12 +255,19 @@ class FewShotAdaptationTask(TaskSpec):
         trial = trials[current]
         is_test = trial.get("is_test", False)
 
-        if grid.objects[y, x] == ObjectType.GOAL:
+        # Check if agent is at the correct target position for this trial
+        correct_idx = trial.get("correct_idx", 0)
+        trial_targets = trial.get("targets", [])
+        at_correct = correct_idx < len(trial_targets) and (x, y) == tuple(
+            trial_targets[correct_idx]
+        )
+        obj_here = grid.objects[y, x]
+
+        if obj_here == ObjectType.GOAL or (at_correct and not is_test):
             if is_test:
                 config["_goal_reached"] = True
             else:
-                # Demo trial: agent reached the correct target (observing the rule)
-                # Clear this trial's objects and advance
+                # Demo trial: agent reached the correct target
                 self._clear_trial_objects(grid, trial)
                 config["_current_trial"] = current + 1
                 config["_trial_step"] = 0
@@ -249,16 +278,18 @@ class FewShotAdaptationTask(TaskSpec):
                     next_trial = trials[next_trial_idx]
                     for i, (tx, ty) in enumerate(next_trial["targets"]):
                         if next_trial.get("is_test", False):
-                            # Test trial: all shown as TARGET (no GOAL hint)
                             grid.objects[ty, tx] = ObjectType.TARGET
                         elif i == next_trial["correct_idx"]:
                             grid.objects[ty, tx] = ObjectType.GOAL
                         else:
                             grid.objects[ty, tx] = ObjectType.TARGET
 
-        elif grid.objects[y, x] == ObjectType.TARGET and is_test:
-            # Test trial: agent picked wrong target (failure but continue)
-            grid.objects[y, x] = ObjectType.NONE
+        elif obj_here == ObjectType.TARGET:
+            if is_test:
+                if at_correct:
+                    config["_goal_reached"] = True
+                else:
+                    grid.objects[y, x] = ObjectType.NONE
 
     def _clear_trial_objects(self, grid, trial):
         for tx, ty in trial.get("targets", []):
@@ -284,8 +315,8 @@ class FewShotAdaptationTask(TaskSpec):
 
         # Move guards
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         ax, ay = agent.position
         if guards and rng is not None:
             for gx, gy in guards:
@@ -296,9 +327,12 @@ class FewShotAdaptationTask(TaskSpec):
                 d = dirs[i]
                 dx, dy = self._DIRS[d]
                 nx, ny = gx + dx, gy + dy
-                if (0 < nx < grid.width - 1 and 0 < ny < grid.height - 1
-                        and grid.terrain[ny, nx] == CellType.EMPTY
-                        and grid.objects[ny, nx] == ObjectType.NONE):
+                if (
+                    0 < nx < grid.width - 1
+                    and 0 < ny < grid.height - 1
+                    and grid.terrain[ny, nx] == CellType.EMPTY
+                    and grid.objects[ny, nx] == ObjectType.NONE
+                ):
                     new_guards.append((nx, ny))
                 else:
                     d = int(rng.integers(0, 4))
@@ -318,8 +352,9 @@ class FewShotAdaptationTask(TaskSpec):
             return -1.0
         reward = -0.01
 
-        if config.get("_goal_reached", False) and not old_state.get(
-                "config", {}).get("_goal_reached", False):
+        if config.get("_goal_reached", False) and not old_state.get("config", {}).get(
+            "_goal_reached", False
+        ):
             reward += 1.0
         elif "agent" in new_state:
             # Shape toward current trial's targets
@@ -347,5 +382,8 @@ class FewShotAdaptationTask(TaskSpec):
             return False
         return bool(state.get("config", {}).get("_goal_reached", False))
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

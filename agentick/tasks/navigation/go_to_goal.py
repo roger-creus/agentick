@@ -32,8 +32,10 @@ class GoToGoalTask(TaskSpec):
             grid_size=5,
             max_steps=20,
             params={
-                "wall_density": 0.0, "n_guards": 0,
-                "n_hazards": 0, "n_decoys": 0,
+                "wall_density": 0.0,
+                "n_guards": 0,
+                "n_hazards": 0,
+                "n_decoys": 0,
             },
         ),
         "medium": DifficultyConfig(
@@ -41,8 +43,10 @@ class GoToGoalTask(TaskSpec):
             grid_size=10,
             max_steps=50,
             params={
-                "wall_density": 0.12, "n_guards": 1,
-                "n_hazards": 0, "n_decoys": 0,
+                "wall_density": 0.12,
+                "n_guards": 1,
+                "n_hazards": 0,
+                "n_decoys": 0,
             },
         ),
         "hard": DifficultyConfig(
@@ -50,8 +54,10 @@ class GoToGoalTask(TaskSpec):
             grid_size=15,
             max_steps=100,
             params={
-                "wall_density": 0.20, "n_guards": 2,
-                "n_hazards": 4, "n_decoys": 2,
+                "wall_density": 0.20,
+                "n_guards": 2,
+                "n_hazards": 4,
+                "n_decoys": 2,
             },
         ),
         "expert": DifficultyConfig(
@@ -59,8 +65,10 @@ class GoToGoalTask(TaskSpec):
             grid_size=20,
             max_steps=200,
             params={
-                "wall_density": 0.25, "n_guards": 3,
-                "n_hazards": 8, "n_decoys": 4,
+                "wall_density": 0.25,
+                "n_guards": 3,
+                "n_hazards": 8,
+                "n_decoys": 4,
             },
         ),
     }
@@ -147,28 +155,37 @@ class GoToGoalTask(TaskSpec):
 
                 # Place hazard terrain cells (agent loses if stepped on)
                 n_hazards = self.difficulty_config.params.get("n_hazards", 0)
-                hazard_candidates = [p for p in reachable_positions
-                                     if p != goal_pos and p not in (optimal_path or [])]
+                hazard_candidates = [
+                    p
+                    for p in reachable_positions
+                    if p != goal_pos and p not in (optimal_path or [])
+                ]
                 rng.shuffle(hazard_candidates)
                 for hx, hy in hazard_candidates[:n_hazards]:
                     grid.terrain[hy, hx] = CellType.HAZARD
 
                 # Place decoy goals (look like goal but aren't)
                 n_decoys = self.difficulty_config.params.get("n_decoys", 0)
-                decoy_candidates = [p for p in reachable_positions
-                                    if p != goal_pos
-                                    and grid.terrain[p[1], p[0]] == CellType.EMPTY
-                                    and p not in (optimal_path or [])]
+                decoy_candidates = [
+                    p
+                    for p in reachable_positions
+                    if p != goal_pos
+                    and grid.terrain[p[1], p[0]] == CellType.EMPTY
+                    and p not in (optimal_path or [])
+                ]
                 rng.shuffle(decoy_candidates)
                 for dx, dy in decoy_candidates[:n_decoys]:
                     grid.objects[dy, dx] = ObjectType.TARGET
 
                 # Place guard NPCs on reachable empty cells
                 n_guards = self.difficulty_config.params.get("n_guards", 0)
-                guard_candidates = [p for p in reachable_positions
-                                    if p != goal_pos
-                                    and grid.terrain[p[1], p[0]] == CellType.EMPTY
-                                    and abs(p[0]-agent_pos[0])+abs(p[1]-agent_pos[1]) > 2]
+                guard_candidates = [
+                    p
+                    for p in reachable_positions
+                    if p != goal_pos
+                    and grid.terrain[p[1], p[0]] == CellType.EMPTY
+                    and abs(p[0] - agent_pos[0]) + abs(p[1] - agent_pos[1]) > 2
+                ]
                 rng.shuffle(guard_candidates)
                 guard_positions = guard_candidates[:n_guards]
                 for gx, gy in guard_positions:
@@ -208,12 +225,12 @@ class GoToGoalTask(TaskSpec):
 
         return grid, config
 
-    _DIRS = [(0,-1),(0,1),(-1,0),(1,0)]
+    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     def on_env_reset(self, agent, grid, config):
         config["_guard_collision"] = False
-        config["_hazard_hit"]      = False
-        config["_guard_rng"]       = np.random.default_rng(config.get("_guard_seed", 0))
+        config["_hazard_hit"] = False
+        config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
         self._config = config
 
     def on_agent_moved(self, pos, agent, grid):
@@ -226,26 +243,37 @@ class GoToGoalTask(TaskSpec):
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
-        dirs   = config.get("_guard_dirs", [])
-        rng    = config.get("_guard_rng")
+        dirs = config.get("_guard_dirs", [])
+        rng = config.get("_guard_rng")
         ax, ay = agent.position
-        if not guards or rng is None: return
+        if not guards or rng is None:
+            return
         for gx, gy in guards:
-            if grid.objects[gy, gx] == ObjectType.NPC: grid.objects[gy, gx] = ObjectType.NONE
+            if grid.objects[gy, gx] == ObjectType.NPC:
+                grid.objects[gy, gx] = ObjectType.NONE
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
-            d = dirs[i]; dx, dy = self._DIRS[d]; nx, ny = gx+dx, gy+dy
-            if (0 < nx < grid.width-1 and 0 < ny < grid.height-1
-                    and grid.terrain[ny, nx] == CellType.EMPTY
-                    and grid.objects[ny, nx] != ObjectType.GOAL):
+            d = dirs[i]
+            dx, dy = self._DIRS[d]
+            nx, ny = gx + dx, gy + dy
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and grid.terrain[ny, nx] == CellType.EMPTY
+                and grid.objects[ny, nx] != ObjectType.GOAL
+            ):
                 new_g.append((nx, ny))
             else:
-                d = int(rng.integers(0, 4)); new_g.append((gx, gy))
+                d = int(rng.integers(0, 4))
+                new_g.append((gx, gy))
             new_d.append(d)
-            if (new_g[-1][0], new_g[-1][1]) == (ax, ay): config["_guard_collision"] = True
-        config["_guard_positions"] = new_g; config["_guard_dirs"] = new_d
+            if (new_g[-1][0], new_g[-1][1]) == (ax, ay):
+                config["_guard_collision"] = True
+        config["_guard_positions"] = new_g
+        config["_guard_dirs"] = new_d
         for gx, gy in new_g:
-            if grid.terrain[gy, gx] == CellType.EMPTY: grid.objects[gy, gx] = ObjectType.NPC
+            if grid.terrain[gy, gx] == CellType.EMPTY:
+                grid.objects[gy, gx] = ObjectType.NPC
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         """Distance-based shaping reward with success bonus."""
@@ -268,13 +296,16 @@ class GoToGoalTask(TaskSpec):
 
     def check_done(self, state):
         config = state.get("config", {})
-        if config.get("_guard_collision", False) or config.get("_hazard_hit", False): return True
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
+            return True
         return self.check_success(state)
 
     def check_success(self, state):
         config = state.get("config", {})
-        if config.get("_guard_collision", False) or config.get("_hazard_hit", False): return False
-        if "grid" not in state or "agent" not in state: return False
+        if config.get("_guard_collision", False) or config.get("_hazard_hit", False):
+            return False
+        if "grid" not in state or "agent" not in state:
+            return False
         x, y = state["agent"].position
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 

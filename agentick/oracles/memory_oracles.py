@@ -1,0 +1,285 @@
+"""Oracle bots for memory tasks."""
+
+from __future__ import annotations
+
+from agentick.core.types import CellType, ObjectType
+from agentick.oracles.base import OracleAgent
+from agentick.oracles.registry import register_oracle
+
+
+@register_oracle("KeyDoorPuzzle-v0")
+class KeyDoorPuzzleOracle(OracleAgent):
+    """Collect keys to unlock doors, then reach goal.
+
+    Strategy: find nearest REACHABLE key -> pick up -> find nearest door ->
+    walk through. When searching for keys, avoid door cells (impassable
+    without a key). At hard+, avoids NPC guards with prediction.
+    """
+
+    def _get_door_positions(self):
+        """Return set of all DOOR object positions on the grid."""
+        grid = self.api.grid
+        doors = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if grid.objects[y, x] == ObjectType.DOOR:
+                    doors.add((x, y))
+        return doors
+
+    def _get_guard_avoidance(self):
+        """Return (wide_avoid, exact_avoid) sets for guard positions.
+
+        wide_avoid includes guard positions + adjacent cells + predicted positions.
+        exact_avoid includes only current guard positions (no prediction).
+        """
+        avoid_wide = set()
+        avoid_exact = set()
+        grid = self.api.grid
+        config = self.api.task_config
+        guards = config.get("_guard_positions", [])
+        dirs = config.get("_guard_dirs", [])
+
+        for i, (gx, gy) in enumerate(guards):
+            avoid_exact.add((gx, gy))
+            avoid_wide.add((gx, gy))
+            for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                avoid_wide.add((gx + dx, gy + dy))
+            # Predict next position (guard moves in current direction)
+            if i < len(dirs):
+                d = dirs[i]
+                ddx, ddy = [(0, -1), (0, 1), (-1, 0), (1, 0)][d]
+                nx, ny = gx + ddx, gy + ddy
+                if (
+                    0 < nx < grid.width - 1
+                    and 0 < ny < grid.height - 1
+                    and int(grid.terrain[ny, nx]) == int(CellType.EMPTY)
+                ):
+                    avoid_wide.add((nx, ny))
+                    for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                        avoid_wide.add((nx + dx, ny + dy))
+
+        # Also include NPC entities from grid scan
+        for e in self.api.get_entities():
+            if e.entity_type in ("npc", "enemy"):
+                avoid_exact.add(e.position)
+                avoid_wide.add(e.position)
+                for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                    avoid_wide.add((e.position[0] + dx, e.position[1] + dy))
+
+        return avoid_wide, avoid_exact
+
+    def plan(self):
+        ax, ay = self.api.agent_position
+        avoid_wide, avoid_exact = self._get_guard_avoidance()
+
+        # If carrying a key, head to nearest door
+        if self.api.has_in_inventory("key"):
+            doors = self.api.get_entities_of_type("door")
+            if doors:
+                nearest_door = min(doors, key=lambda d: d.distance)
+                dp = nearest_door.position
+                for avoid in [avoid_wide - {dp}, avoid_exact - {dp}, set()]:
+                    path = self.api.bfs_path_positions(
+                        (ax, ay),
+                        dp,
+                        extra_passable={dp},
+                        avoid=avoid,
+                    )
+                    if path:
+                        actions = self.api.positions_to_actions(path)
+                        if actions:
+                            self.action_queue = [actions[0]]
+                            return
+                self.action_queue = self.api.move_toward(*dp)
+                return
+
+        # Look for keys — avoid doors (impassable without a key)
+        door_cells = self._get_door_positions()
+        keys = self.api.get_entities_of_type("key")
+        if keys:
+            # Try each key, sorted by distance, picking the nearest reachable one
+            # Always avoid doors (can't enter without a key)
+            sorted_keys = sorted(keys, key=lambda k: k.distance)
+            for key_ent in sorted_keys:
+                kp = key_ent.position
+                base_avoid = door_cells - {kp}
+                for avoid in [
+                    (avoid_wide | base_avoid) - {kp},
+                    (avoid_exact | base_avoid) - {kp},
+                    base_avoid - {kp},
+                ]:
+                    path = self.api.bfs_path_positions(
+                        (ax, ay),
+                        kp,
+                        avoid=avoid,
+                    )
+                    if path:
+                        actions = self.api.positions_to_actions(path)
+                        if actions:
+                            self.action_queue = [actions[0]]
+                            return
+            # No key reachable avoiding doors -- try without door avoidance
+            # (in case a key IS behind a door that we need to find another key for)
+            for key_ent in sorted_keys:
+                kp = key_ent.position
+                for avoid in [avoid_wide - {kp}, avoid_exact - {kp}, set()]:
+                    path = self.api.bfs_path_positions(
+                        (ax, ay),
+                        kp,
+                        avoid=avoid,
+                    )
+                    if path:
+                        actions = self.api.positions_to_actions(path)
+                        if actions:
+                            self.action_queue = [actions[0]]
+                            return
+            # Fallback
+            self.action_queue = self.api.move_toward(*sorted_keys[0].position)
+            return
+
+        # No keys, no doors - head to goal (through opened door positions)
+        goal = self.api.get_nearest("goal")
+        if goal:
+            gp = goal.position
+            for avoid in [avoid_wide - {gp}, avoid_exact - {gp}, set()]:
+                path = self.api.bfs_path_positions(
+                    (ax, ay),
+                    gp,
+                    avoid=avoid,
+                )
+                if path:
+                    actions = self.api.positions_to_actions(path)
+                    if actions:
+                        self.action_queue = [actions[0]]
+                        return
+            self.action_queue = self.api.move_toward(*gp)
+
+
+@register_oracle("SequenceMemory-v0")
+class SequenceMemoryOracle(OracleAgent):
+    """Privileged access: read sequence from config, visit in order."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        self._sequence = []
+        self._progress = 0
+
+    def reset(self, obs, info):
+        self._sequence = list(self.api.task_config.get("sequence", []))
+        self._progress = 0
+        super().reset(obs, info)
+
+    def plan(self):
+        config = self.api.task_config
+        phase = config.get("_phase", "show")
+
+        if phase == "show":
+            self.action_queue = [0]
+            return
+
+        progress = config.get("_seq_progress", 0)
+        if progress < len(self._sequence):
+            target = self._sequence[progress]
+            self.action_queue = self.api.move_to(*target)
+
+
+@register_oracle("BreadcrumbTrail-v0")
+class BreadcrumbTrailOracle(OracleAgent):
+    """Visit crumbs in order, then go to goal."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        self._crumbs = []
+
+    def reset(self, obs, info):
+        self._crumbs = list(self.api.task_config.get("crumb_positions", []))
+        super().reset(obs, info)
+
+    def plan(self):
+        config = self.api.task_config
+        next_idx = config.get("_next_crumb", 0)
+        all_collected = config.get("_all_collected", False)
+
+        if not all_collected and next_idx < len(self._crumbs):
+            target = self._crumbs[next_idx]
+            self.action_queue = self.api.move_to(*target)
+        else:
+            goal = self.api.get_nearest("goal")
+            if goal:
+                self.action_queue = self.api.move_to(*goal.position)
+
+
+@register_oracle("BacktrackPuzzle-v0")
+class BacktrackPuzzleOracle(OracleAgent):
+    """Activate all switches, then go to goal."""
+
+    def plan(self):
+        config = self.api.task_config
+        all_activated = config.get("_all_activated", False)
+
+        if not all_activated:
+            switches = self.api.get_entities_of_type("switch")
+            if switches:
+                nearest = min(switches, key=lambda s: s.distance)
+                self.action_queue = self.api.move_to(*nearest.position)
+                return
+
+        goal = self.api.get_nearest("goal")
+        if goal:
+            self.action_queue = self.api.move_to(*goal.position)
+
+
+@register_oracle("DelayedGratification-v0")
+class DelayedGratificationOracle(OracleAgent):
+    """Go directly to goal, avoiding decoy KEY objects and HAZARD terrain.
+
+    Decoys are KEY objects - stepping on them ends the episode.
+    HAZARD terrain is also fatal.
+    Custom BFS that avoids both KEY cells and HAZARD cells.
+    """
+
+    def plan(self):
+        goal = self.api.get_nearest("goal")
+        if not goal:
+            return
+
+        grid = self.api.grid
+        ax, ay = self.api.agent_position
+        gx, gy = goal.position
+
+        # Build avoid set: all KEY positions + HAZARD terrain
+        avoid = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if grid.objects[y, x] == ObjectType.KEY:
+                    avoid.add((x, y))
+                if int(grid.terrain[y, x]) == int(CellType.HAZARD):
+                    avoid.add((x, y))
+
+        path = self.api.bfs_path_positions(
+            (ax, ay),
+            (gx, gy),
+            avoid=avoid,
+        )
+        if path:
+            self.action_queue = self.api.positions_to_actions(path)
+            return
+
+        # Fallback: avoid only KEYs (walk through hazards if needed)
+        key_avoid = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if grid.objects[y, x] == ObjectType.KEY:
+                    key_avoid.add((x, y))
+
+        path = self.api.bfs_path_positions(
+            (ax, ay),
+            (gx, gy),
+            avoid=key_avoid,
+        )
+        if path:
+            self.action_queue = self.api.positions_to_actions(path)
+            return
+
+        # Last fallback: direct path (might hit decoy but better than nothing)
+        self.action_queue = self.api.move_to(gx, gy)

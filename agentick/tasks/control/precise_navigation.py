@@ -27,28 +27,40 @@ class PreciseNavigationTask(TaskSpec):
     capability_tags = ["motor_control", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=9, max_steps=100,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=9,
+            max_steps=100,
             params={
-                "n_waypoints": 2, "n_moving_waypoints": 0,
+                "n_waypoints": 2,
+                "n_moving_waypoints": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=12, max_steps=180,
+            name="medium",
+            grid_size=12,
+            max_steps=180,
             params={
-                "n_waypoints": 3, "n_moving_waypoints": 0,
+                "n_waypoints": 3,
+                "n_moving_waypoints": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=15, max_steps=300,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=15,
+            max_steps=300,
             params={
-                "n_waypoints": 4, "n_moving_waypoints": 1,
+                "n_waypoints": 4,
+                "n_moving_waypoints": 1,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=18, max_steps=500,
+            name="expert",
+            grid_size=18,
+            max_steps=500,
             params={
-                "n_waypoints": 5, "n_moving_waypoints": 2,
+                "n_waypoints": 5,
+                "n_moving_waypoints": 2,
             },
         ),
     }
@@ -57,9 +69,9 @@ class PreciseNavigationTask(TaskSpec):
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size   = self.difficulty_config.grid_size
-        n_wp   = self.difficulty_config.params.get("n_waypoints", 2)
-        n_mwp  = self.difficulty_config.params.get("n_moving_waypoints", 0)
+        size = self.difficulty_config.grid_size
+        n_wp = self.difficulty_config.params.get("n_waypoints", 2)
+        n_mwp = self.difficulty_config.params.get("n_moving_waypoints", 0)
 
         grid = Grid(size, size)
 
@@ -68,9 +80,9 @@ class PreciseNavigationTask(TaskSpec):
             for x in range(size):
                 grid.terrain[y, x] = CellType.HAZARD
         # Border is walls
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         # Carve narrow corridors using randomized DFS maze
@@ -87,9 +99,7 @@ class PreciseNavigationTask(TaskSpec):
             moved = False
             for dx, dy in dirs:
                 nx, ny = cx + dx, cy + dy
-                if (1 <= nx < size - 1
-                        and 1 <= ny < size - 1
-                        and (nx, ny) not in visited):
+                if 1 <= nx < size - 1 and 1 <= ny < size - 1 and (nx, ny) not in visited:
                     # Carve path cell and connecting cell
                     grid.terrain[cy + dy // 2, cx + dx // 2] = CellType.EMPTY
                     grid.terrain[ny, nx] = CellType.EMPTY
@@ -104,10 +114,10 @@ class PreciseNavigationTask(TaskSpec):
 
         # Collect all empty cells for placing objects
         empties = [
-            (x, y) for y in range(1, size - 1)
+            (x, y)
+            for y in range(1, size - 1)
             for x in range(1, size - 1)
-            if grid.terrain[y, x] == CellType.EMPTY
-            and (x, y) != agent_pos
+            if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
         ]
         rng.shuffle(empties)
 
@@ -124,12 +134,12 @@ class PreciseNavigationTask(TaskSpec):
         moving_wp_indices = list(range(len(waypoints) - n_mw, len(waypoints)))
 
         return grid, {
-            "agent_start":       agent_pos,
-            "goal_positions":    [goal_pos],
-            "waypoints":         waypoints,
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "waypoints": waypoints,
             "moving_wp_indices": moving_wp_indices,
-            "_rng_seed":         int(rng.integers(0, 2**31)),
-            "max_steps":         self.get_max_steps(),
+            "_rng_seed": int(rng.integers(0, 2**31)),
+            "max_steps": self.get_max_steps(),
         }
 
     # ── Hooks ────────────────────────────────────────────────────────────────
@@ -183,12 +193,15 @@ class PreciseNavigationTask(TaskSpec):
                 wx, wy = wp
                 moves = [(wx + dx, wy + dy) for dx, dy in self._DIRS]
                 valid = [
-                    (nx, ny) for nx, ny in moves
-                    if (1 <= nx < grid.width - 1
+                    (nx, ny)
+                    for nx, ny in moves
+                    if (
+                        1 <= nx < grid.width - 1
                         and 1 <= ny < grid.height - 1
                         and grid.terrain[ny, nx] == CellType.EMPTY
                         and grid.objects[ny, nx] == ObjectType.NONE
-                        and (nx, ny) not in remaining)
+                        and (nx, ny) not in remaining
+                    )
                 ]
                 if valid:
                     new_pos = valid[int(rng.integers(len(valid)))]
@@ -259,5 +272,8 @@ class PreciseNavigationTask(TaskSpec):
             return True
         return self.check_success(state)
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

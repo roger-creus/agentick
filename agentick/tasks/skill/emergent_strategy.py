@@ -34,36 +34,52 @@ class EmergentStrategyTask(TaskSpec):
     # Key bonus: 0.2 per key, goal: 1.0
     # Optimal = 1.0 + n_keys * 0.2 (collect all keys + reach goal)
     difficulty_configs = {
-        "easy":   DifficultyConfig(
-            name="easy", grid_size=9, max_steps=80,
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=9,
+            max_steps=80,
             params={
-                "n_keys": 2, "barrier_closes": 25,
+                "n_keys": 2,
+                "barrier_closes": 25,
                 "key_bonus": 0.2,
-                "n_barriers": 1, "barrier_warning": 0,
+                "n_barriers": 1,
+                "barrier_warning": 0,
             },
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=12, max_steps=150,
+            name="medium",
+            grid_size=12,
+            max_steps=150,
             params={
-                "n_keys": 3, "barrier_closes": 35,
+                "n_keys": 3,
+                "barrier_closes": 35,
                 "key_bonus": 0.2,
-                "n_barriers": 1, "barrier_warning": 0,
+                "n_barriers": 1,
+                "barrier_warning": 0,
             },
         ),
-        "hard":   DifficultyConfig(
-            name="hard", grid_size=15, max_steps=250,
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=15,
+            max_steps=250,
             params={
-                "n_keys": 4, "barrier_closes": 45,
+                "n_keys": 4,
+                "barrier_closes": 45,
                 "key_bonus": 0.2,
-                "n_barriers": 2, "barrier_warning": 3,
+                "n_barriers": 2,
+                "barrier_warning": 3,
             },
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=18, max_steps=400,
+            name="expert",
+            grid_size=18,
+            max_steps=400,
             params={
-                "n_keys": 5, "barrier_closes": 55,
+                "n_keys": 5,
+                "barrier_closes": 55,
                 "key_bonus": 0.2,
-                "n_barriers": 3, "barrier_warning": 5,
+                "n_barriers": 3,
+                "barrier_warning": 5,
             },
         ),
     }
@@ -72,16 +88,16 @@ class EmergentStrategyTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params
-        n_keys          = p.get("n_keys", 2)
-        barrier_closes  = p.get("barrier_closes", 25)
-        key_bonus       = p.get("key_bonus", 0.2)
-        n_barriers      = p.get("n_barriers", 1)
+        n_keys = p.get("n_keys", 2)
+        barrier_closes = p.get("barrier_closes", 25)
+        key_bonus = p.get("key_bonus", 0.2)
+        n_barriers = p.get("n_barriers", 1)
         barrier_warning = p.get("barrier_warning", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         interior = size - 2
@@ -104,46 +120,45 @@ class EmergentStrategyTask(TaskSpec):
         last_barrier = barrier_rows[-1]
         goal_pos = (
             int(rng.integers(1, size - 1)),
-            int(rng.integers(
-                min(last_barrier + 1, size - 2), size - 1
-            )),
+            int(rng.integers(min(last_barrier + 1, size - 2), size - 1)),
         )
 
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
         top_side = [
-            (x, y) for x in range(1, size - 1)
+            (x, y)
+            for x in range(1, size - 1)
             for y in range(1, first_barrier)
             if (x, y) != agent_pos
         ]
         rng.shuffle(top_side)
-        key_positions = top_side[:min(n_keys, len(top_side))]
+        key_positions = top_side[: min(n_keys, len(top_side))]
         for kx, ky in key_positions:
             grid.objects[ky, kx] = ObjectType.KEY
 
         return grid, {
-            "agent_start":         agent_pos,
-            "goal_positions":      [goal_pos],
-            "key_positions":       key_positions,
-            "n_keys":              n_keys,
-            "barrier_row":         barrier_rows[0],
-            "barrier_rows":        barrier_rows,
+            "agent_start": agent_pos,
+            "goal_positions": [goal_pos],
+            "key_positions": key_positions,
+            "n_keys": n_keys,
+            "barrier_row": barrier_rows[0],
+            "barrier_rows": barrier_rows,
             "barrier_close_times": barrier_close_times,
-            "barrier_closes":      barrier_closes,
-            "barrier_warning":     barrier_warning,
-            "key_bonus":           key_bonus,
-            "max_steps":           self.get_max_steps(),
+            "barrier_closes": barrier_closes,
+            "barrier_warning": barrier_warning,
+            "key_bonus": key_bonus,
+            "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
         config["_keys_collected"] = 0
         config["_barrier_closed"] = False
-        config["_hit_barrier"]    = False
+        config["_hit_barrier"] = False
         rows = config.get("barrier_rows", [config.get("barrier_row")])
         config["_barriers_closed"] = [False] * len(rows)
         config["_barriers_warned"] = [False] * len(rows)
         self._last_keys = 0
-        self._config    = config
+        self._config = config
         for kx, ky in config.get("key_positions", []):
             grid.objects[ky, kx] = ObjectType.KEY
         for row in rows:
@@ -177,9 +192,7 @@ class EmergentStrategyTask(TaskSpec):
         closed_flags = config.get("_barriers_closed", [False] * len(rows))
         warned_flags = config.get("_barriers_warned", [False] * len(rows))
 
-        for idx, (row, closes_at) in enumerate(
-            zip(rows, close_times)
-        ):
+        for idx, (row, closes_at) in enumerate(zip(rows, close_times)):
             if warning > 0 and not warned_flags[idx]:
                 if step_count >= closes_at - warning:
                     for x in range(1, grid.width - 1):
@@ -207,7 +220,9 @@ class EmergentStrategyTask(TaskSpec):
         if config.get("_hit_barrier", False):
             return -0.5
         new_k = config.get("_keys_collected", 0)
-        old_k = old_state.get("config", {}).get("_keys_collected", 0) if "config" in old_state else 0
+        old_k = (
+            old_state.get("config", {}).get("_keys_collected", 0) if "config" in old_state else 0
+        )
         reward = 0.0
         if new_k > old_k:
             reward += config.get("key_bonus", 0.2) * (new_k - old_k)
@@ -230,18 +245,24 @@ class EmergentStrategyTask(TaskSpec):
             ox, oy = old_state.get("agent_position", (ax, ay))
             n_keys_needed = config.get("n_keys", 2)
             if new_k < n_keys_needed and "grid" in new_state:
-                keys = [(x, y) for y2 in range(new_state["grid"].height)
-                        for x in range(new_state["grid"].width)
-                        if new_state["grid"].objects[y2, x] == ObjectType.KEY
-                        for y in [y2]]
+                keys = [
+                    (x, y)
+                    for y2 in range(new_state["grid"].height)
+                    for x in range(new_state["grid"].width)
+                    if new_state["grid"].objects[y2, x] == ObjectType.KEY
+                    for y in [y2]
+                ]
                 if keys:
-                    d_new = min(abs(ax-kx)+abs(ay-ky) for kx, ky in keys)
-                    d_old = min(abs(ox-kx)+abs(oy-ky) for kx, ky in keys)
+                    d_new = min(abs(ax - kx) + abs(ay - ky) for kx, ky in keys)
+                    d_old = min(abs(ox - kx) + abs(oy - ky) for kx, ky in keys)
                     reward += 0.05 * (d_old - d_new)
             else:
                 goal = config.get("goal_positions", [None])[0]
                 if goal:
-                    reward += 0.05 * ((abs(ox-goal[0])+abs(oy-goal[1])) - (abs(ax-goal[0])+abs(ay-goal[1])))
+                    reward += 0.05 * (
+                        (abs(ox - goal[0]) + abs(oy - goal[1]))
+                        - (abs(ax - goal[0]) + abs(ay - goal[1]))
+                    )
 
         if self.check_success(new_state):
             reward += 1.0
@@ -266,4 +287,5 @@ class EmergentStrategyTask(TaskSpec):
         p = self.difficulty_configs[d].params
         return 1.0 + p.get("n_keys", 2) * p.get("key_bonus", 0.2)
 
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

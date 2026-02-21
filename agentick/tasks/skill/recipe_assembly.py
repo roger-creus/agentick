@@ -26,31 +26,55 @@ class RecipeAssemblyTask(TaskSpec):
     capability_tags = ["compositional_logic", "planning"]
 
     difficulty_configs = {
-        "easy":   DifficultyConfig(name="easy",   grid_size=7,  max_steps=100, params={"n_ingredients": 2, "n_decoys": 0, "n_obstacles": 0}),
-        "medium": DifficultyConfig(name="medium",  grid_size=10, max_steps=180, params={"n_ingredients": 3, "n_decoys": 2, "n_obstacles": 3}),
-        "hard":   DifficultyConfig(name="hard",    grid_size=13, max_steps=300, params={"n_ingredients": 4, "n_decoys": 3, "n_obstacles": 5}),
-        "expert": DifficultyConfig(name="expert",  grid_size=15, max_steps=480, params={"n_ingredients": 5, "n_decoys": 4, "n_obstacles": 7}),
+        "easy": DifficultyConfig(
+            name="easy",
+            grid_size=7,
+            max_steps=100,
+            params={"n_ingredients": 2, "n_decoys": 0, "n_obstacles": 0},
+        ),
+        "medium": DifficultyConfig(
+            name="medium",
+            grid_size=10,
+            max_steps=180,
+            params={"n_ingredients": 3, "n_decoys": 2, "n_obstacles": 3},
+        ),
+        "hard": DifficultyConfig(
+            name="hard",
+            grid_size=13,
+            max_steps=300,
+            params={"n_ingredients": 4, "n_decoys": 3, "n_obstacles": 5},
+        ),
+        "expert": DifficultyConfig(
+            name="expert",
+            grid_size=15,
+            max_steps=480,
+            params={"n_ingredients": 5, "n_decoys": 4, "n_obstacles": 7},
+        ),
     }
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
-        size        = self.difficulty_config.grid_size
-        n           = self.difficulty_config.params.get("n_ingredients", 2)
-        n_decoys    = self.difficulty_config.params.get("n_decoys", 0)
+        size = self.difficulty_config.grid_size
+        n = self.difficulty_config.params.get("n_ingredients", 2)
+        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
         grid = Grid(size, size)
-        grid.terrain[0, :]  = CellType.WALL
+        grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0]  = CellType.WALL
+        grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
-        goal_pos  = (size-2, size-2)
+        goal_pos = (size - 2, size - 2)
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        free = [(x, y) for x in range(1, size-1) for y in range(1, size-1)
-                if (x, y) != agent_pos and (x, y) != goal_pos]
+        free = [
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos and (x, y) != goal_pos
+        ]
         rng.shuffle(free)
         ingredient_positions = free[:n]
         used = {agent_pos, goal_pos} | set(ingredient_positions)
@@ -104,6 +128,7 @@ class RecipeAssemblyTask(TaskSpec):
     def on_agent_moved(self, pos, agent, grid):
         """Auto-pickup ingredient (KEY) when agent steps on it."""
         from agentick.core.entity import Entity
+
         x, y = pos
         if grid.objects[y, x] == ObjectType.KEY:
             grid.objects[y, x] = ObjectType.NONE
@@ -134,19 +159,26 @@ class RecipeAssemblyTask(TaskSpec):
             if goal and "agent_position" in new_state:
                 ax, ay = new_state["agent_position"]
                 ox, oy = old_state.get("agent_position", (ax, ay))
-                reward += 0.05 * (abs(ox-goal[0])+abs(oy-goal[1]) - abs(ax-goal[0])-abs(ay-goal[1]))
+                reward += 0.05 * (
+                    abs(ox - goal[0]) + abs(oy - goal[1]) - abs(ax - goal[0]) - abs(ay - goal[1])
+                )
         else:
             # Move toward nearest uncollected ingredient
             from agentick.core.types import ObjectType as OT
+
             if "grid" in new_state and "agent_position" in new_state:
                 grid = new_state["grid"]
-                ings = [(x,y) for y in range(grid.height) for x in range(grid.width)
-                        if grid.objects[y,x] == OT.KEY]
+                ings = [
+                    (x, y)
+                    for y in range(grid.height)
+                    for x in range(grid.width)
+                    if grid.objects[y, x] == OT.KEY
+                ]
                 if ings:
                     ax, ay = new_state["agent_position"]
                     ox, oy = old_state.get("agent_position", (ax, ay))
-                    nd_new = min(abs(ax-ix)+abs(ay-iy) for ix,iy in ings)
-                    nd_old = min(abs(ox-ix)+abs(oy-iy) for ix,iy in ings)
+                    nd_new = min(abs(ax - ix) + abs(ay - iy) for ix, iy in ings)
+                    nd_old = min(abs(ox - ix) + abs(oy - iy) for ix, iy in ings)
                     reward += 0.02 * (nd_old - nd_new)
 
         if self.check_success(new_state):
@@ -165,5 +197,8 @@ class RecipeAssemblyTask(TaskSpec):
         n_have = sum(1 for e in state["agent"].inventory if e.entity_type == "ingredient")
         return n_have >= n_needed
 
-    def get_optimal_return(self, difficulty=None): return 1.0
-    def get_random_baseline(self, difficulty=None): return 0.0
+    def get_optimal_return(self, difficulty=None):
+        return 1.0
+
+    def get_random_baseline(self, difficulty=None):
+        return 0.0

@@ -28,19 +28,27 @@ class GraphColoringTask(TaskSpec):
 
     difficulty_configs = {
         "easy": DifficultyConfig(
-            name="easy", grid_size=9, max_steps=120,
+            name="easy",
+            grid_size=9,
+            max_steps=120,
             params={"n_nodes": 3, "n_colors": 2, "n_obstacles": 0},
         ),
         "medium": DifficultyConfig(
-            name="medium", grid_size=11, max_steps=200,
+            name="medium",
+            grid_size=11,
+            max_steps=200,
             params={"n_nodes": 5, "n_colors": 3, "n_obstacles": 2},
         ),
         "hard": DifficultyConfig(
-            name="hard", grid_size=13, max_steps=350,
+            name="hard",
+            grid_size=13,
+            max_steps=350,
             params={"n_nodes": 7, "n_colors": 3, "n_obstacles": 4},
         ),
         "expert": DifficultyConfig(
-            name="expert", grid_size=15, max_steps=500,
+            name="expert",
+            grid_size=15,
+            max_steps=500,
             params={"n_nodes": 9, "n_colors": 4, "n_obstacles": 6},
         ),
     }
@@ -48,6 +56,7 @@ class GraphColoringTask(TaskSpec):
     def _compute_adjacency(self, nodes, grid):
         """Compute adjacency: two nodes are adjacent if BFS distance <= threshold."""
         from collections import deque
+
         adj = {i: set() for i in range(len(nodes))}
         threshold = max(5, grid.width // 2)
 
@@ -63,9 +72,12 @@ class GraphColoringTask(TaskSpec):
                     continue
                 for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                     nx, ny = cx + dx, cy + dy
-                    if (0 < nx < grid.width - 1 and 0 < ny < grid.height - 1
-                            and (nx, ny) not in visited
-                            and grid.terrain[ny, nx] != CellType.WALL):
+                    if (
+                        0 < nx < grid.width - 1
+                        and 0 < ny < grid.height - 1
+                        and (nx, ny) not in visited
+                        and grid.terrain[ny, nx] != CellType.WALL
+                    ):
                         visited[(nx, ny)] = d + 1
                         queue.append((nx, ny))
 
@@ -107,7 +119,9 @@ class GraphColoringTask(TaskSpec):
 
             # Place obstacles
             interior = [
-                (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
+                (x, y)
+                for x in range(2, size - 2)
+                for y in range(2, size - 2)
                 if (x, y) != agent_pos
             ]
             rng.shuffle(interior)
@@ -123,7 +137,9 @@ class GraphColoringTask(TaskSpec):
 
             # Place nodes spread out on the grid
             free = [
-                (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
+                (x, y)
+                for x in range(2, size - 2)
+                for y in range(2, size - 2)
                 if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
             ]
             rng.shuffle(free)
@@ -135,8 +151,7 @@ class GraphColoringTask(TaskSpec):
                 if len(node_positions) >= n_nodes:
                     break
                 if all(
-                    abs(pos[0] - np[0]) + abs(pos[1] - np[1]) >= min_dist
-                    for np in node_positions
+                    abs(pos[0] - np[0]) + abs(pos[1] - np[1]) >= min_dist for np in node_positions
                 ):
                     node_positions.append(pos)
 
@@ -164,8 +179,7 @@ class GraphColoringTask(TaskSpec):
             # Place color stations (KEY objects) — one per color, reachable
             color_stations = []
             station_candidates = [
-                p for p in free
-                if p not in set(node_positions) and p in reachable
+                p for p in free if p not in set(node_positions) and p in reachable
             ]
             rng.shuffle(station_candidates)
             for c in range(n_colors):
@@ -214,7 +228,7 @@ class GraphColoringTask(TaskSpec):
 
     def on_env_reset(self, agent, grid, config):
         config["_current_color"] = -1  # no color held
-        config["_node_colors"] = {}    # node_idx -> color_id
+        config["_node_colors"] = {}  # node_idx -> color_id
         config["_violation"] = False
         self._config = config
         self._last_n_colored = 0
