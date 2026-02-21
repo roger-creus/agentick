@@ -7,6 +7,7 @@ from typing import Any
 
 from agentick.agents.backends.base import BackendResponse, ModelBackend
 from agentick.agents.harness import HarnessPreset
+from agentick.core.types import ActionType
 from agentick.leaderboard.adapters.prompt_templates import parse_action_from_text
 
 
@@ -32,6 +33,7 @@ class BaseAgent:
 
         # Tracking
         self.call_log: list[dict[str, Any]] = []
+        self._system_prompt: str = ""
         self.total_tokens: int = 0
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
@@ -58,6 +60,23 @@ class BaseAgent:
         # Build messages
         messages = self.harness.build_messages(observation, info_with_modes, self.observation_modes)
 
+        # Extract observation text and image flag from last user message
+        user_content = messages[-1]["content"]
+        if isinstance(user_content, list):
+            obs_text = "\n".join(
+                b["text"] for b in user_content if b.get("type") == "text"
+            )
+            has_image = any(b.get("type") == "image" for b in user_content)
+        else:
+            obs_text = user_content
+            has_image = False
+
+        # Store system prompt once on first call
+        if not self.call_log:
+            self._system_prompt = (
+                messages[0]["content"] if messages[0]["role"] == "system" else ""
+            )
+
         # Generate
         start = time.time()
         response: BackendResponse = self.backend.generate(messages)
@@ -66,6 +85,19 @@ class BaseAgent:
         # Parse action
         valid_actions = info.get("valid_actions", list(range(8)))
         action = parse_action_from_text(response.text, valid_actions)
+
+        # Extract reasoning for CoT harness
+        reasoning = None
+        if "ACTION:" in response.text:
+            parts = response.text.rsplit("ACTION:", 1)
+            if parts[0].strip():
+                reasoning = parts[0].strip()
+
+        # Action name from ActionType enum
+        try:
+            action_name = ActionType(action).name
+        except ValueError:
+            action_name = f"ACTION_{action}"
 
         # Record
         self.total_calls += 1
@@ -77,8 +109,12 @@ class BaseAgent:
         self.call_log.append(
             {
                 "step": info.get("step", 0),
+                "observation": obs_text,
+                "has_image": has_image,
                 "response": response.text,
-                "action": action,
+                "reasoning": reasoning,
+                "parsed_action": action,
+                "action_name": action_name,
                 "input_tokens": response.input_tokens,
                 "output_tokens": response.output_tokens,
                 "latency": latency,
