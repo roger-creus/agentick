@@ -25,7 +25,7 @@ CONFIGS=(
     "${CONFIG_DIR}/qwen3_4b_ascii_nonmarkov.yaml"
     "${CONFIG_DIR}/qwen3_4b_ascii_reasoner.yaml"
 
-    # --- Qwen3-30B-A3B-Instruct (LLM, MoE) ---
+    # --- Qwen3-30B-A3B-Instruct-FP8 (LLM, MoE) ---
     "${CONFIG_DIR}/qwen3_30b_a3b_lang_markov.yaml"
     "${CONFIG_DIR}/qwen3_30b_a3b_lang_nonmarkov.yaml"
     "${CONFIG_DIR}/qwen3_30b_a3b_lang_reasoner.yaml"
