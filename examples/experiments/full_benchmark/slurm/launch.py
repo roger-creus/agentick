@@ -227,11 +227,27 @@ def generate_sbatch_script(
     conda_env: str,
     env_exports: str,
     project_root: str,
-    config_path: str,
+    config_display: str,
     profile_name: str,
     runner_command: str,
+    inline_config_yaml: str | None = None,
 ) -> str:
     gres_line = f"#SBATCH --gres={gres}" if gres else ""
+
+    if inline_config_yaml:
+        # Embed config YAML directly in the script so it's self-contained.
+        # The heredoc writes a temp file that the runner reads.
+        inline_config_block = (
+            "_AGENTICK_CFG=$(mktemp /tmp/agentick_cfg_XXXXXX.yaml)\n"
+            f"cat > \"$_AGENTICK_CFG\" <<'__AGENTICK_CONFIG_EOF__'\n"
+            f"{inline_config_yaml}"
+            "__AGENTICK_CONFIG_EOF__"
+        )
+        cleanup_block = 'rm -f "$_AGENTICK_CFG"'
+    else:
+        inline_config_block = "# Using config file directly (no inline config)"
+        cleanup_block = ""
+
     return template.format(
         job_name=job_name,
         partition=partition,
@@ -244,32 +260,28 @@ def generate_sbatch_script(
         conda_env=conda_env,
         env_exports=env_exports,
         project_root=project_root,
-        config_path=config_path,
+        config_display=config_display,
         profile_name=profile_name,
         runner_command=runner_command,
+        inline_config_block=inline_config_block,
+        cleanup_block=cleanup_block,
     )
 
 
-def write_per_task_config(
+def make_per_task_config_yaml(
     base_config: dict,
     task_name: str,
-    out_dir: Path,
-    config_stem: str,
-) -> Path:
-    """Write a per-task YAML config derived from base_config.
+) -> str:
+    """Generate per-task YAML config string derived from base_config.
 
     Overrides the 'tasks' field to a single-element list.
+    Returns the YAML content as a string (not written to disk).
     """
     cfg = copy.deepcopy(base_config)
     cfg["tasks"] = [task_name]
-    # Update name to reflect single task
     if "name" in cfg:
         cfg["name"] = f"{cfg['name']}-{task_name.removesuffix('-v0')}"
-
-    out_path = out_dir / f"{config_stem}_{task_name.removesuffix('-v0')}.yaml"
-    with open(out_path, "w") as f:
-        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
-    return out_path
+    return yaml.dump(cfg, default_flow_style=False, sort_keys=False)
 
 
 def resolve_configs(
@@ -566,10 +578,8 @@ Relaunch failed jobs:
     # Prepare directories
     log_dir = PROJECT_ROOT / cluster["log_dir"]
     scripts_dir = log_dir / "scripts"
-    per_task_cfg_dir = log_dir / "configs"
     log_dir.mkdir(parents=True, exist_ok=True)
     scripts_dir.mkdir(parents=True, exist_ok=True)
-    per_task_cfg_dir.mkdir(parents=True, exist_ok=True)
 
     env_exports = build_env_exports()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -645,9 +655,13 @@ Relaunch failed jobs:
             else:
                 job_name = f"agentick-{stem}"
 
-            # Build config path and runner command for this job
+            # Build config path and runner command for this job.
+            # Per-task configs are embedded inline in the sbatch script
+            # so they're self-contained (no external file dependencies).
+            inline_yaml: str | None = None
+
             if task is None:
-                # Whole-config mode
+                # Whole-config mode — use original config file directly
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
                     runner_type, rel_config, output_dir=shared_output
@@ -661,13 +675,11 @@ Relaunch failed jobs:
                 )
                 display_config = f"{config_path.name} [{task}]"
             else:
-                # module / single: generate per-task YAML config
-                per_task_path = write_per_task_config(
-                    config, task, per_task_cfg_dir, stem
-                )
-                rel_config = per_task_path.relative_to(PROJECT_ROOT)
+                # module / single: embed per-task config inline in the script
+                inline_yaml = make_per_task_config_yaml(config, task)
+                # Runner will use $_AGENTICK_CFG (set by inline heredoc)
                 runner_cmd = build_runner_command(
-                    runner_type, rel_config, output_dir=shared_output
+                    runner_type, "$_AGENTICK_CFG", output_dir=shared_output
                 )
                 display_config = f"{config_path.name} [{task}]"
 
@@ -684,12 +696,16 @@ Relaunch failed jobs:
                 conda_env=conda_env,
                 env_exports=env_exports,
                 project_root=str(PROJECT_ROOT),
-                config_path=str(rel_config),
+                config_display=display_config,
                 profile_name=profile_name,
                 runner_command=runner_cmd,
+                inline_config_yaml=inline_yaml,
             )
 
-            script_name = f"{stem}_{task_short}_{timestamp}.sh" if task else f"{stem}_{timestamp}.sh"
+            if task:
+                script_name = f"{stem}_{task_short}_{timestamp}.sh"
+            else:
+                script_name = f"{stem}_{timestamp}.sh"
             script_path = scripts_dir / script_name
             script_path.write_text(script_content)
             script_path.chmod(0o755)
@@ -733,8 +749,6 @@ Relaunch failed jobs:
         print(f"\n--- Sample script ({jobs[0]['config']}) ---")
         print(jobs[0]["script_path"].read_text())
         print(f"Scripts: {scripts_dir}/")
-        if not args.no_split:
-            print(f"Per-task configs: {per_task_cfg_dir}/")
         return
 
     # Submit jobs
