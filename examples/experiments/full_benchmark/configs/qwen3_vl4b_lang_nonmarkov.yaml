@@ -3,19 +3,21 @@ description: Qwen3-VL-4B-Instruct VLM, non-markovian zero-shot, pixel+language o
 agent:
   type: vlm
   hyperparameters:
-    backend: huggingface_vlm
+    backend: vllm_vlm
     model: Qwen/Qwen3-VL-4B-Instruct
     harness: non_markovian_zero_shot
     observation_modes:
     - rgb_array
     - language
-    device: auto
     dtype: bfloat16
-    max_new_tokens: 50
+    max_new_tokens: 128
     temperature: 0.7
     top_p: 0.8
     top_k: 20
     min_p: 0.0
+    gpu_memory_utilization: 0.9
+    enable_prefix_caching: true
+    tensor_parallel_size: 1
 tasks: full
 difficulties:
 - easy

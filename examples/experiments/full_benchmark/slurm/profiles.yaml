@@ -1,24 +1,29 @@
 cluster:
-  partition: long
+  partition: long  # default partition (overridden by per-profile partition)
   conda_env: /home/mila/r/roger.creus-castanyer/miniconda3/envs/agentick
   modules: [anaconda/3]
   log_dir: slurm_logs
 
+# Per-profile partition overrides the global cluster.partition when set.
 profiles:
-  ppo:       { cpus: 8, gres: "gpu:1", mem: "50G", time: "07:59:00" }
-  local_llm: { cpus: 8, gres: "gpu:1", mem: "50G", time: "07:59:00" }
-  local_vlm: { cpus: 8, gres: "gpu:1", mem: "50G", time: "07:59:00" }
-  api_llm:   { cpus: 4, gres: "",      mem: "16G", time: "03:00:00" }
-  baseline:  { cpus: 4, gres: "",      mem: "8G",  time: "01:00:00" }
+  ppo:           { cpus: 8,  gres: "gpu:1", mem: "50G", time: "07:59:00" }
+  local_llm_1g:  { cpus: 8,  gres: "gpu:1", mem: "50G", time: "14:59:00", partition: "long" }
+  local_llm_4g:  { cpus: 32, gres: "gpu:4", mem: "128G", time: "23:59:00", partition: "lab-real" }
+  local_vlm_1g:  { cpus: 8,  gres: "gpu:1", mem: "50G", time: "14:59:00", partition: "long" }
+  local_vlm_4g:  { cpus: 32, gres: "gpu:4", mem: "80G", time: "23:59:00", partition: "lab-real" }
+  api_llm:       { cpus: 4,  gres: "",      mem: "16G", time: "03:00:00" }
+  baseline:      { cpus: 4,  gres: "",      mem: "8G",  time: "01:00:00" }
 
 classification:  # first match wins
-  - { pattern: "ppo_*",           profile: ppo }
-  - { pattern: "qwen3_vl*",       profile: local_vlm }
-  - { pattern: "qwen*",           profile: local_llm }
-  - { pattern: "qwen3_4b*",           profile: local_llm }
-  - { pattern: "claude_sonnet_*", profile: api_llm }
-  - { pattern: "gpt4o_*",         profile: api_llm }
-  - { pattern: "anthropic_*",     profile: api_llm }
-  - { pattern: "openai_*",        profile: api_llm }
-  - { pattern: "random_*",        profile: baseline }
-  - { pattern: "oracle_*",        profile: baseline }
+  - { pattern: "ppo_*",              profile: ppo }
+  - { pattern: "qwen3_vl8b*",        profile: local_vlm_2g }
+  - { pattern: "qwen3_vl*",          profile: local_vlm_1g }
+  - { pattern: "qwen3_30b*",         profile: local_llm_4g }
+  - { pattern: "qwen3_4b*",          profile: local_llm_1g }
+  - { pattern: "qwen*",              profile: local_llm_1g }
+  - { pattern: "claude_sonnet_*",    profile: api_llm }
+  - { pattern: "gpt4o_*",            profile: api_llm }
+  - { pattern: "anthropic_*",        profile: api_llm }
+  - { pattern: "openai_*",           profile: api_llm }
+  - { pattern: "random_*",           profile: baseline }
+  - { pattern: "oracle_*",           profile: baseline }

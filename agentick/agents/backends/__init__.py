@@ -13,6 +13,8 @@ _BACKEND_REGISTRY: dict[str, str] = {
     "anthropic": "agentick.agents.backends.anthropic_backend.AnthropicBackend",
     "huggingface_llm": "agentick.agents.backends.huggingface_llm.HuggingFaceLLMBackend",
     "huggingface_vlm": "agentick.agents.backends.huggingface_vlm.HuggingFaceVLMBackend",
+    "vllm_llm": "agentick.agents.backends.vllm_llm.VLLMLLMBackend",
+    "vllm_vlm": "agentick.agents.backends.vllm_vlm.VLLMVLMBackend",
 }
 
 
