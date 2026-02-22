@@ -249,8 +249,74 @@ class MarkovianReasoner(HarnessPreset):
         pass  # No state
 
 
+class NonMarkovianReasoner(HarnessPreset):
+    """History-aware chain-of-thought harness: CoT reasoning with conversation history.
+
+    Combines the step-by-step reasoning instruction from MarkovianReasoner
+    with the history tracking and diff mode from NonMarkovianZeroShot.
+
+    Args:
+        max_history: Maximum number of steps to keep in history (default: 50).
+            None means unlimited.
+        diff_mode: If True, history entries store a compact diff of the
+            observation against the previous step instead of the full text.
+            The current (latest) observation is always sent in full.
+    """
+
+    def __init__(self, max_history: int | None = 50, diff_mode: bool = True):
+        self.max_history = max_history
+        self.diff_mode = diff_mode
+        self._history: list[dict[str, Any]] = []
+        self._prev_obs_text: str | None = None
+
+    def build_messages(
+        self,
+        obs: Any,
+        info: dict[str, Any],
+        obs_modes: list[str],
+    ) -> list[dict[str, Any]]:
+        task_name = info.get("task_name", "unknown")
+        task_description = get_task_description(task_name)
+        system_text = SYSTEM_PROMPT.format(task_description=task_description)
+        system_text = system_text.replace(
+            "Respond with ONLY the action number, nothing else.",
+            "",
+        )
+        system_text = system_text.rstrip() + COT_SYSTEM_SUFFIX
+
+        messages = [{"role": "system", "content": system_text}]
+        messages.extend(self._history)
+        messages.append({"role": "user", "content": _make_user_content(obs, info, obs_modes)})
+        return messages
+
+    def record_step(self, obs, info, action, response, reward):
+        obs_modes = info.get("_obs_modes", ["language"])
+        user_content = _make_user_content(obs, info, obs_modes)
+
+        if self.diff_mode:
+            current_text = _content_to_text(user_content)
+            if self._prev_obs_text is not None:
+                diff_text = _compute_diff(self._prev_obs_text, current_text)
+                user_content = diff_text
+            self._prev_obs_text = current_text
+
+        self._history.append({"role": "user", "content": user_content})
+        # Store full CoT response so the model can build on prior reasoning
+        self._history.append({"role": "assistant", "content": response})
+
+        if self.max_history is not None:
+            max_msgs = self.max_history * 2
+            if len(self._history) > max_msgs:
+                self._history = self._history[-max_msgs:]
+
+    def reset(self):
+        self._history.clear()
+        self._prev_obs_text = None
+
+
 HARNESS_REGISTRY: dict[str, type[HarnessPreset]] = {
     "markovian_zero_shot": MarkovianZeroShot,
     "non_markovian_zero_shot": NonMarkovianZeroShot,
     "markovian_reasoner": MarkovianReasoner,
+    "non_markovian_reasoner": NonMarkovianReasoner,
 }
