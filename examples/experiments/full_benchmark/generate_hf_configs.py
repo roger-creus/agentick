@@ -26,7 +26,7 @@ MODELS = [
         "record_videos": True,
     },
     {
-        "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
+        "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
         "short": "qwen3_30b_a3b",
         "type": "llm",
         "backend": "huggingface_llm",

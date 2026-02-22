@@ -1,10 +1,10 @@
 name: qwen3_30b_a3b_lang_nonmarkov_reasoner
-description: Qwen3-30B-A3B-Instruct-2507-FP8 LLM, non-markovian reasoner (CoT+history), language observations
+description: Qwen3-30B-A3B-Instruct-2507 LLM, non-markovian reasoner (CoT+history), language observations
 agent:
   type: llm
   hyperparameters:
     backend: vllm_llm
-    model: Qwen/Qwen3-30B-A3B-Instruct-2507-FP8
+    model: Qwen/Qwen3-30B-A3B-Instruct-2507
     harness: non_markovian_reasoner
     observation_modes:
     - language
