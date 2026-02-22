@@ -10,13 +10,13 @@ profiles:
   local_llm_1g:  { cpus: 8,  gres: "gpu:1", mem: "50G", time: "14:59:00", partition: "long" }
   local_llm_4g:  { cpus: 32, gres: "gpu:4", mem: "128G", time: "23:59:00", partition: "lab-real" }
   local_vlm_1g:  { cpus: 8,  gres: "gpu:1", mem: "50G", time: "14:59:00", partition: "long" }
-  local_vlm_4g:  { cpus: 32, gres: "gpu:4", mem: "80G", time: "23:59:00", partition: "lab-real" }
+  local_vlm_4g:  { cpus: 32, gres: "gpu:4", mem: "80G", time: "23:59:00", partition: "long" }
   api_llm:       { cpus: 4,  gres: "",      mem: "16G", time: "03:00:00" }
   baseline:      { cpus: 4,  gres: "",      mem: "8G",  time: "01:00:00" }
 
 classification:  # first match wins
   - { pattern: "ppo_*",              profile: ppo }
-  - { pattern: "qwen3_vl8b*",        profile: local_vlm_2g }
+  - { pattern: "qwen3_vl8b*",        profile: local_vlm_4g }
   - { pattern: "qwen3_vl*",          profile: local_vlm_1g }
   - { pattern: "qwen3_30b*",         profile: local_llm_4g }
   - { pattern: "qwen3_4b*",          profile: local_llm_1g }
