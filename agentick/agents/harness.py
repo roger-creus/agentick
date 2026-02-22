@@ -132,21 +132,25 @@ class MarkovianZeroShot(HarnessPreset):
 
 
 class NonMarkovianZeroShot(HarnessPreset):
-    """History-aware harness: maintains full conversation history.
+    """History-aware harness: maintains conversation history with token-based sliding window.
+
+    Uses a sliding window that discards oldest steps when approaching the context
+    limit. When diff_mode is enabled, diffs are recomputed at build time so the
+    first message in the window always shows a full observation.
 
     Args:
-        max_history: Maximum number of steps to keep in history (default: 50).
-            None means unlimited.
-        diff_mode: If True, history entries store a compact diff of the
-            observation against the previous step instead of the full text.
-            The current (latest) observation is always sent in full.
+        max_context_tokens: Maximum context budget in tokens (default: 32768).
+            History is trimmed oldest-first to stay within this budget.
+        diff_mode: If True, history observations are sent as compact diffs
+            against the previous step. The first observation in the window
+            and the current (latest) observation are always sent in full.
     """
 
-    def __init__(self, max_history: int | None = 50, diff_mode: bool = True):
-        self.max_history = max_history
+    def __init__(self, max_context_tokens: int = 32768, diff_mode: bool = True):
+        self.max_context_tokens = max_context_tokens
         self.diff_mode = diff_mode
-        self._history: list[dict[str, Any]] = []
-        self._prev_obs_text: str | None = None
+        # Store raw (obs_content, assistant_reply) per step for recomputing diffs
+        self._steps: list[tuple[str | list[dict[str, Any]], str]] = []
 
     def build_messages(
         self,
@@ -155,39 +159,30 @@ class NonMarkovianZeroShot(HarnessPreset):
         obs_modes: list[str],
     ) -> list[dict[str, Any]]:
         task_name = info.get("task_name", "unknown")
-        messages = [_make_system_message(task_name)]
-        messages.extend(self._history)
-        messages.append({"role": "user", "content": _make_user_content(obs, info, obs_modes)})
+        system_msg = _make_system_message(task_name)
+        current_content = _make_user_content(obs, info, obs_modes)
+        current_msg = {"role": "user", "content": current_content}
+
+        # Token budget: total - system - current observation
+        system_tokens = _estimate_tokens_msg(system_msg)
+        current_tokens = _estimate_tokens_msg(current_msg)
+        budget = self.max_context_tokens - system_tokens - current_tokens
+
+        # Build history within budget, trimming oldest steps first
+        history = _build_sliding_history(self._steps, budget, self.diff_mode)
+
+        messages = [system_msg]
+        messages.extend(history)
+        messages.append(current_msg)
         return messages
 
     def record_step(self, obs, info, action, response, reward):
-        # Record the user turn and the action actually taken (not raw response,
-        # since the parser may have extracted a different action than what the
-        # raw text seems to say — the env state reflects the parsed action).
         obs_modes = info.get("_obs_modes", ["language"])
         user_content = _make_user_content(obs, info, obs_modes)
-
-        # In diff mode, store a compact diff for history entries
-        if self.diff_mode:
-            current_text = _content_to_text(user_content)
-            if self._prev_obs_text is not None:
-                diff_text = _compute_diff(self._prev_obs_text, current_text)
-                user_content = diff_text
-            self._prev_obs_text = current_text
-
-        self._history.append({"role": "user", "content": user_content})
-        self._history.append({"role": "assistant", "content": f"ACTION: {action}"})
-
-        # Truncate if needed
-        if self.max_history is not None:
-            # Each step = 2 messages (user + assistant)
-            max_msgs = self.max_history * 2
-            if len(self._history) > max_msgs:
-                self._history = self._history[-max_msgs:]
+        self._steps.append((user_content, f"ACTION: {action}"))
 
     def reset(self):
-        self._history.clear()
-        self._prev_obs_text = None
+        self._steps.clear()
 
 
 def _content_to_text(content: str | list[dict[str, Any]]) -> str:
@@ -209,13 +204,134 @@ def _compute_diff(old_text: str, new_text: str) -> str:
     return f"[Changes from previous step]\n{diff_text}"
 
 
+def _estimate_tokens_content(content: str | list[dict[str, Any]]) -> int:
+    """Estimate token count for message content (chars / 4 heuristic).
+
+    Images are estimated at 1000 tokens each (conservative for typical
+    gridworld screenshots at low resolution).
+    """
+    if isinstance(content, str):
+        return len(content) // 4 + 1
+    total = 0
+    for block in content:
+        if block.get("type") == "text":
+            total += len(block.get("text", "")) // 4 + 1
+        elif block.get("type") == "image":
+            total += 1000  # conservative estimate for a small gridworld image
+    return max(total, 1)
+
+
+def _estimate_tokens_msg(msg: dict[str, Any]) -> int:
+    """Estimate token count for a single message (content + role overhead)."""
+    return _estimate_tokens_content(msg["content"]) + 4  # role/formatting overhead
+
+
+def _build_sliding_history(
+    steps: list[tuple[str | list[dict[str, Any]], str]],
+    budget: int,
+    diff_mode: bool,
+) -> list[dict[str, Any]]:
+    """Build history messages from stored steps, fitting within a token budget.
+
+    Trims oldest steps first. When diff_mode is True, recomputes diffs so the
+    first observation in the window is always full (not a dangling diff).
+
+    Args:
+        steps: List of (user_content, assistant_reply) tuples.
+        budget: Maximum tokens allowed for the history portion.
+        diff_mode: Whether to convert history observations to diffs.
+
+    Returns:
+        List of message dicts ready to insert between system and current user msg.
+    """
+    if not steps:
+        return []
+
+    # Try including all steps, trim from the front until we fit
+    start = 0
+    while start < len(steps):
+        messages = _render_history_slice(steps, start, diff_mode)
+        total = sum(_estimate_tokens_msg(m) for m in messages)
+        if total <= budget:
+            return messages
+        start += 1
+
+    # Nothing fits — return empty history
+    return []
+
+
+def _render_history_slice(
+    steps: list[tuple[str | list[dict[str, Any]], str]],
+    start: int,
+    diff_mode: bool,
+) -> list[dict[str, Any]]:
+    """Render a slice of steps into message dicts, recomputing diffs from start."""
+    messages: list[dict[str, Any]] = []
+    prev_text: str | None = None
+
+    for i in range(start, len(steps)):
+        user_content, assistant_reply = steps[i]
+
+        if diff_mode and i > start:
+            # Compute diff against previous step's full observation
+            current_text = _content_to_text(user_content)
+            if prev_text is not None:
+                display_content: str | list[dict[str, Any]] = _compute_diff(
+                    prev_text, current_text
+                )
+            else:
+                display_content = user_content
+            prev_text = current_text
+        else:
+            # First entry in window or diff_mode off: send full observation
+            display_content = user_content
+            if diff_mode:
+                prev_text = _content_to_text(user_content)
+
+        messages.append({"role": "user", "content": display_content})
+        messages.append({"role": "assistant", "content": assistant_reply})
+
+    return messages
+
+
 COT_SYSTEM_SUFFIX = """
 
-IMPORTANT: Before choosing an action, reason step-by-step:
-1. Describe what you see in the current observation
-2. Identify the goal and your current progress toward it
-3. Consider which action moves you closest to the goal
-4. Output your final answer on the LAST line as: ACTION: <number>"""
+IMPORTANT: Before choosing an action, reason step-by-step but be CONCISE (2-4 sentences max):
+1. What do you observe? What is your goal?
+2. Which action best advances you toward the goal?
+3. Output your final answer on the LAST line as: ACTION: <number>"""
+
+# Even more concise for nonmarkovian where history accumulates
+COT_SYSTEM_SUFFIX_COMPACT = """
+
+IMPORTANT: Think briefly then act. Keep reasoning to 1-2 sentences.
+- State your key observation and chosen action rationale in minimal words.
+- Output your final answer on the LAST line as: ACTION: <number>"""
+
+
+def _compact_cot_response(response: str, max_chars: int = 400) -> str:
+    """Compact a CoT response for history storage.
+
+    Keeps the final ACTION line and truncates long reasoning to save context.
+    """
+    lines = response.strip().splitlines()
+
+    # Find the ACTION line (usually last)
+    action_line = ""
+    reasoning_lines = []
+    for line in lines:
+        if line.strip().upper().startswith("ACTION:"):
+            action_line = line.strip()
+        else:
+            reasoning_lines.append(line)
+
+    reasoning = "\n".join(reasoning_lines).strip()
+    if len(reasoning) > max_chars:
+        reasoning = reasoning[:max_chars].rsplit(" ", 1)[0] + "..."
+
+    if action_line:
+        return f"{reasoning}\n{action_line}" if reasoning else action_line
+    return reasoning if reasoning else response[:max_chars]
 
 
 class MarkovianReasoner(HarnessPreset):
@@ -252,22 +368,31 @@ class MarkovianReasoner(HarnessPreset):
 class NonMarkovianReasoner(HarnessPreset):
     """History-aware chain-of-thought harness: CoT reasoning with conversation history.
 
-    Combines the step-by-step reasoning instruction from MarkovianReasoner
-    with the history tracking and diff mode from NonMarkovianZeroShot.
+    Combines concise step-by-step reasoning with the token-based sliding window
+    from NonMarkovianZeroShot. CoT responses are compacted before storing in
+    history to prevent long reasoning traces from flooding the context.
 
     Args:
-        max_history: Maximum number of steps to keep in history (default: 50).
-            None means unlimited.
-        diff_mode: If True, history entries store a compact diff of the
-            observation against the previous step instead of the full text.
-            The current (latest) observation is always sent in full.
+        max_context_tokens: Maximum context budget in tokens (default: 32768).
+            History is trimmed oldest-first to stay within this budget.
+        diff_mode: If True, history observations are sent as compact diffs
+            against the previous step. The first observation in the window
+            and the current (latest) observation are always sent in full.
+        max_response_chars: Maximum characters to keep per CoT response in
+            history (default: 400). Longer responses are truncated, keeping
+            the ACTION line.
     """
 
-    def __init__(self, max_history: int | None = 50, diff_mode: bool = True):
-        self.max_history = max_history
+    def __init__(
+        self,
+        max_context_tokens: int = 32768,
+        diff_mode: bool = True,
+        max_response_chars: int = 400,
+    ):
+        self.max_context_tokens = max_context_tokens
         self.diff_mode = diff_mode
-        self._history: list[dict[str, Any]] = []
-        self._prev_obs_text: str | None = None
+        self.max_response_chars = max_response_chars
+        self._steps: list[tuple[str | list[dict[str, Any]], str]] = []
 
     def build_messages(
         self,
@@ -282,36 +407,32 @@ class NonMarkovianReasoner(HarnessPreset):
             "Respond with ONLY the action number, nothing else.",
             "",
         )
-        system_text = system_text.rstrip() + COT_SYSTEM_SUFFIX
+        system_text = system_text.rstrip() + COT_SYSTEM_SUFFIX_COMPACT
+        system_msg = {"role": "system", "content": system_text}
 
-        messages = [{"role": "system", "content": system_text}]
-        messages.extend(self._history)
-        messages.append({"role": "user", "content": _make_user_content(obs, info, obs_modes)})
+        current_content = _make_user_content(obs, info, obs_modes)
+        current_msg = {"role": "user", "content": current_content}
+
+        system_tokens = _estimate_tokens_msg(system_msg)
+        current_tokens = _estimate_tokens_msg(current_msg)
+        budget = self.max_context_tokens - system_tokens - current_tokens
+
+        history = _build_sliding_history(self._steps, budget, self.diff_mode)
+
+        messages = [system_msg]
+        messages.extend(history)
+        messages.append(current_msg)
         return messages
 
     def record_step(self, obs, info, action, response, reward):
         obs_modes = info.get("_obs_modes", ["language"])
         user_content = _make_user_content(obs, info, obs_modes)
-
-        if self.diff_mode:
-            current_text = _content_to_text(user_content)
-            if self._prev_obs_text is not None:
-                diff_text = _compute_diff(self._prev_obs_text, current_text)
-                user_content = diff_text
-            self._prev_obs_text = current_text
-
-        self._history.append({"role": "user", "content": user_content})
-        # Store full CoT response so the model can build on prior reasoning
-        self._history.append({"role": "assistant", "content": response})
-
-        if self.max_history is not None:
-            max_msgs = self.max_history * 2
-            if len(self._history) > max_msgs:
-                self._history = self._history[-max_msgs:]
+        # Compact the CoT response to prevent long traces from flooding context
+        compacted = _compact_cot_response(response, self.max_response_chars)
+        self._steps.append((user_content, compacted))
 
     def reset(self):
-        self._history.clear()
-        self._prev_obs_text = None
+        self._steps.clear()
 
 
 HARNESS_REGISTRY: dict[str, type[HarnessPreset]] = {

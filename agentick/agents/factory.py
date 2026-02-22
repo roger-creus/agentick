@@ -85,7 +85,7 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         )
     harness_cls = HARNESS_REGISTRY[harness_name]
     harness_kwargs: dict[str, Any] = {}
-    for key in ("max_history", "diff_mode"):
+    for key in ("max_context_tokens", "diff_mode", "max_response_chars"):
         if key in hp:
             harness_kwargs[key] = hp[key]
     harness = harness_cls(**harness_kwargs)
