@@ -1,59 +1,91 @@
-"""
-Collect oracle agent demonstrations for supervised fine-tuning.
+"""Collect oracle agent demonstrations for supervised fine-tuning.
 
-Demonstrates trajectory collection for imitation learning using the optimal oracle agent.
-Runtime: ~1 minute for 10 trajectories
+Comprehensive multi-task oracle data collector using DataCollector + get_oracle().
+Collects trajectories across all tasks and difficulties by default, exports to
+HuggingFace format, and optionally pushes to Hub.
 
 Usage:
+    # All tasks, all difficulties (default)
     uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
+
+    # Specific tasks and difficulties
+    uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+        --tasks GoToGoal-v0 KeyDoorPuzzle-v0 --difficulties easy medium
+
+    # Push to HuggingFace Hub
+    uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+        --push-to-hub user/agentick-oracle-data
 """
 
+from __future__ import annotations
+
+import argparse
+import sys
 from pathlib import Path
 
-import agentick
-from agentick.data import DataCollector
-from agentick.oracles import get_oracle
+# Allow running as a script from the examples directory
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _utils import (
+    add_collection_args,
+    add_hub_args,
+    add_task_args,
+    collect_multi_task_data,
+    resolve_tasks,
+)
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Collect oracle demonstrations for fine-tuning",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    add_task_args(parser)
+    add_collection_args(parser)
+    add_hub_args(parser)
+    parser.add_argument(
+        "--export-format",
+        default="conversation",
+        choices=["conversation", "decision", "trajectory"],
+        help="HuggingFace export format",
+    )
+
+    args = parser.parse_args()
+
+    tasks = resolve_tasks(args.tasks)
+    output_dir = args.output_dir or "trajectories/oracle"
+
     print("Oracle Trajectory Collection")
     print("=" * 80)
+    print(f"Tasks: {len(tasks)} ({', '.join(tasks[:5])}{'...' if len(tasks) > 5 else ''})")
+    print(f"Difficulties: {args.difficulties}")
+    print(f"Episodes per combo: {args.n_episodes}")
+    print(f"Render mode: {args.render_mode}")
+    print(f"Export format: {args.export_format}")
+    print(f"Output: {output_dir}")
+    if args.push_to_hub:
+        print(f"Push to Hub: {args.push_to_hub}")
+    print("=" * 80)
 
-    # Create environment
-    env = agentick.make("GoToGoal-v0", difficulty="easy", render_mode="language")
+    combined_path = collect_multi_task_data(
+        tasks=tasks,
+        difficulties=args.difficulties,
+        n_episodes=args.n_episodes,
+        render_mode=args.render_mode,
+        output_dir=output_dir,
+        export_format=args.export_format,
+        seed_offset=args.seed_offset,
+        push_to_hub=args.push_to_hub,
+    )
 
-    # Create oracle agent (uses privileged information for optimal policy)
-    oracle = get_oracle("GoToGoal-v0", env)
-
-    # Collect trajectories using the high-level DataCollector
-    collector = DataCollector(env, oracle, record_modalities=["language"])
-    print("\nCollecting 10 oracle trajectories...")
-    dataset = collector.collect(num_episodes=10, seeds=range(10))
-
-    # Print summary
-    print(f"\nCollected {len(dataset.trajectories)} trajectories")
-    for i, traj in enumerate(dataset.trajectories):
-        success = traj.infos[-1].get("success", False) if traj.infos else False
-        print(
-            f"  Episode {i + 1}: {traj.length} steps, "
-            f"reward={traj.total_reward:.2f}, success={success}"
-        )
-
-    # Save trajectories
-    output_dir = Path("trajectories/oracle_gotogoal/")
-    dataset.save(output_dir)
-    print(f"\nSaved trajectories to {output_dir}")
-
-    # Export to HuggingFace conversation format (for SFT)
-    hf_dir = Path("trajectories/hf_conv/")
-    dataset.export_to_huggingface(hf_dir, format="conversation")
-    print(f"Exported HuggingFace dataset to {hf_dir}")
-
+    print("\n" + "=" * 80)
+    print("COLLECTION COMPLETE")
+    print("=" * 80)
+    print(f"Combined dataset: {combined_path}")
     print("\nNext steps:")
-    print("  1. Run sft_with_trl.py to fine-tune a model on this data")
-    print("  2. Or run export_to_huggingface.py for more export options")
-
-    env.close()
+    print("  1. Train with SFT:    python sft_with_trl.py")
+    print("  2. Train with Tinker: python tinker_sft_training.py")
+    print("  3. Train with BC:     python behavior_cloning_training.py")
 
 
 if __name__ == "__main__":
