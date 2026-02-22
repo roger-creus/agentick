@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from agentick.agents.backends._utils import flatten_to_text, manual_chat_format
 from agentick.agents.backends.base import BackendResponse, ModelBackend
 
 
@@ -19,7 +20,7 @@ class HuggingFaceLLMBackend(ModelBackend):
         device: str = "auto",
         dtype: str = "bfloat16",
         quantization: str | None = None,
-        max_new_tokens: int = 50,
+        max_new_tokens: int = 16384,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,
@@ -87,7 +88,7 @@ class HuggingFaceLLMBackend(ModelBackend):
         assert self._model is not None and self._tokenizer is not None
 
         # Flatten multimodal content blocks to text-only
-        text_messages = _flatten_to_text(messages)
+        text_messages = flatten_to_text(messages)
 
         # Use chat template if available, else manual formatting.
         # Pass enable_thinking=False for Qwen3 models to suppress <think>...</think> output,
@@ -106,7 +107,7 @@ class HuggingFaceLLMBackend(ModelBackend):
                     text_messages, tokenize=False, add_generation_prompt=True
                 )
         else:
-            prompt = _manual_chat_format(text_messages)
+            prompt = manual_chat_format(text_messages)
 
         import torch
 
@@ -155,26 +156,7 @@ class HuggingFaceLLMBackend(ModelBackend):
         )
 
 
-def _flatten_to_text(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Convert multimodal messages to text-only."""
-    out = []
-    for msg in messages:
-        content = msg["content"]
-        if isinstance(content, str):
-            out.append({"role": msg["role"], "content": content})
-        elif isinstance(content, list):
-            parts = [block["text"] for block in content if block.get("type") == "text"]
-            out.append({"role": msg["role"], "content": "\n".join(parts)})
-        else:
-            out.append({"role": msg["role"], "content": str(content)})
-    return out
 
-
-def _manual_chat_format(messages: list[dict[str, str]]) -> str:
-    """Simple fallback chat format when no chat template is available."""
-    parts = []
-    for msg in messages:
-        role = msg["role"].upper()
-        parts.append(f"<|{role}|>\n{msg['content']}")
-    parts.append("<|ASSISTANT|>\n")
-    return "\n".join(parts)
+# Keep module-level aliases for backward compatibility
+_flatten_to_text = flatten_to_text
+_manual_chat_format = manual_chat_format

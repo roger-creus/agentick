@@ -606,11 +606,12 @@ Relaunch failed jobs:
                 f"WARNING: {config_path.name} needs {required_key} but it is not set"
             )
 
-        # Resolve overrides
+        # Resolve overrides (per-profile partition overrides global)
         cpus = args.cpus if args.cpus is not None else profile["cpus"]
         gres = args.gres if args.gres is not None else profile["gres"]
         mem = args.mem or profile["mem"]
         time_limit = args.time or profile["time"]
+        job_partition = args.partition or profile.get("partition") or partition
 
         # Determine task list for splitting
         if args.no_split:
@@ -673,7 +674,7 @@ Relaunch failed jobs:
             script_content = generate_sbatch_script(
                 template,
                 job_name=job_name,
-                partition=partition,
+                partition=job_partition,
                 cpus=cpus,
                 gres=gres,
                 mem=mem,

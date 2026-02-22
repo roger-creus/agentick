@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -131,11 +132,21 @@ class MarkovianZeroShot(HarnessPreset):
 
 
 class NonMarkovianZeroShot(HarnessPreset):
-    """History-aware harness: maintains full conversation history."""
+    """History-aware harness: maintains full conversation history.
 
-    def __init__(self, max_history: int | None = None):
+    Args:
+        max_history: Maximum number of steps to keep in history (default: 50).
+            None means unlimited.
+        diff_mode: If True, history entries store a compact diff of the
+            observation against the previous step instead of the full text.
+            The current (latest) observation is always sent in full.
+    """
+
+    def __init__(self, max_history: int | None = 50, diff_mode: bool = True):
         self.max_history = max_history
+        self.diff_mode = diff_mode
         self._history: list[dict[str, Any]] = []
+        self._prev_obs_text: str | None = None
 
     def build_messages(
         self,
@@ -154,7 +165,17 @@ class NonMarkovianZeroShot(HarnessPreset):
         # since the parser may have extracted a different action than what the
         # raw text seems to say — the env state reflects the parsed action).
         obs_modes = info.get("_obs_modes", ["language"])
-        self._history.append({"role": "user", "content": _make_user_content(obs, info, obs_modes)})
+        user_content = _make_user_content(obs, info, obs_modes)
+
+        # In diff mode, store a compact diff for history entries
+        if self.diff_mode:
+            current_text = _content_to_text(user_content)
+            if self._prev_obs_text is not None:
+                diff_text = _compute_diff(self._prev_obs_text, current_text)
+                user_content = diff_text
+            self._prev_obs_text = current_text
+
+        self._history.append({"role": "user", "content": user_content})
         self._history.append({"role": "assistant", "content": f"ACTION: {action}"})
 
         # Truncate if needed
@@ -166,6 +187,26 @@ class NonMarkovianZeroShot(HarnessPreset):
 
     def reset(self):
         self._history.clear()
+        self._prev_obs_text = None
+
+
+def _content_to_text(content: str | list[dict[str, Any]]) -> str:
+    """Extract plain text from user content (string or multimodal blocks)."""
+    if isinstance(content, str):
+        return content
+    parts = [block["text"] for block in content if block.get("type") == "text"]
+    return "\n".join(parts)
+
+
+def _compute_diff(old_text: str, new_text: str) -> str:
+    """Compact diff for LLM consumption."""
+    old_lines = old_text.splitlines(keepends=True)
+    new_lines = new_text.splitlines(keepends=True)
+    diff = difflib.unified_diff(old_lines, new_lines, n=1)
+    diff_text = "".join(diff)
+    if not diff_text:
+        return "[No changes from previous observation]"
+    return f"[Changes from previous step]\n{diff_text}"
 
 
 COT_SYSTEM_SUFFIX = """

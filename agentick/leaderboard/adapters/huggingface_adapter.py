@@ -19,7 +19,7 @@ class HuggingFaceAgent:
         device: str = "auto",
         dtype: str | None = "float16",
         quantization: str | None = None,  # "4bit", "8bit", or None
-        max_new_tokens: int = 50,
+        max_new_tokens: int = 16384,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,
@@ -190,7 +190,7 @@ class VisionLanguageAgent:
         model_id: str,
         device: str = "auto",
         dtype: str | None = "float16",
-        max_new_tokens: int = 50,
+        max_new_tokens: int = 16384,
         **kwargs,
     ):
         """

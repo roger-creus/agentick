@@ -18,7 +18,7 @@ class HuggingFaceVLMBackend(ModelBackend):
         model_id: str = "Qwen/Qwen3-VL-4B-Instruct",
         device: str = "auto",
         dtype: str = "bfloat16",
-        max_new_tokens: int = 50,
+        max_new_tokens: int = 16384,
         temperature: float = 0.7,
         top_p: float = 0.8,
         top_k: int = 20,

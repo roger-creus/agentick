@@ -29,6 +29,21 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
 
     # --- Backend ---
     backend_name = hp.get("backend", "openai")
+
+    # Auto-resolve "vllm" shorthand to vllm_llm or vllm_vlm
+    if backend_name == "vllm":
+        backend_name = "vllm_vlm" if agent_config.type == "vlm" else "vllm_llm"
+
+    # Auto-upgrade HuggingFace backends to vLLM when vllm is installed
+    if backend_name in ("huggingface_llm", "huggingface_vlm"):
+        try:
+            import vllm as _vllm  # noqa: F401
+
+            _upgrade = {"huggingface_llm": "vllm_llm", "huggingface_vlm": "vllm_vlm"}
+            backend_name = _upgrade[backend_name]
+        except ImportError:
+            pass
+
     backend_cls = get_backend_class(backend_name)
 
     # Collect backend-specific kwargs
@@ -50,6 +65,12 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         "quantization",
         "max_new_tokens",
         "enable_thinking",
+        # vLLM-specific kwargs
+        "gpu_memory_utilization",
+        "enable_prefix_caching",
+        "max_model_len",
+        "tensor_parallel_size",
+        "limit_mm_per_prompt",
     ):
         if key in hp:
             backend_kwargs[key] = hp[key]
@@ -64,8 +85,9 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         )
     harness_cls = HARNESS_REGISTRY[harness_name]
     harness_kwargs: dict[str, Any] = {}
-    if "max_history" in hp:
-        harness_kwargs["max_history"] = hp["max_history"]
+    for key in ("max_history", "diff_mode"):
+        if key in hp:
+            harness_kwargs[key] = hp[key]
     harness = harness_cls(**harness_kwargs)
 
     # --- Observation modes ---

@@ -36,3 +36,9 @@ class ModelBackend(ABC):
             BackendResponse with generated text and token usage.
         """
         ...
+
+    def generate_batch(
+        self, messages_list: list[list[dict[str, Any]]]
+    ) -> list[BackendResponse]:
+        """Batch generate responses. Default: sequential fallback."""
+        return [self.generate(msgs) for msgs in messages_list]

@@ -251,6 +251,7 @@ class ExperimentRunner:
             ExperimentResults with all data
         """
         # LLM/VLM agents are not picklable -- force sequential execution
+        # (vLLM batching is handled within _run_task via BatchedEpisodeRunner)
         if self.agent is not None and n_parallel > 1:
             print("Note: LLM/VLM agents require sequential execution, setting n_parallel=1")
             n_parallel = 1
@@ -637,35 +638,53 @@ class ExperimentRunner:
                 video_dir = output_dir / "videos" / task_name / difficulty
                 video_dir.mkdir(parents=True, exist_ok=True)
 
-            # Run episodes
-            for seed_idx, seed in enumerate(seeds):
-                for ep_idx in range(self.config.n_episodes):
-                    # Create environment
-                    import agentick
+            # Use batched execution automatically for vLLM backends
+            use_batched = (
+                self.agent is not None
+                and hasattr(self.agent.backend, "_llm")  # vLLM backend
+            )
 
-                    env = agentick.make(
-                        task_name,
-                        difficulty=difficulty,
-                        render_mode=render_mode,
-                    )
+            if use_batched:
+                # Batched execution via BatchedEpisodeRunner
+                self._run_episodes_batched(
+                    task_name,
+                    difficulty,
+                    seeds,
+                    render_mode,
+                    episodes_dir,
+                    video_dir,
+                    difficulty_results,
+                )
+            else:
+                # Sequential execution
+                for seed_idx, seed in enumerate(seeds):
+                    for ep_idx in range(self.config.n_episodes):
+                        # Create environment
+                        import agentick
 
-                    # Only record video for first episode per seed
-                    ep_video_dir = video_dir if (video_dir and ep_idx == 0) else None
+                        env = agentick.make(
+                            task_name,
+                            difficulty=difficulty,
+                            render_mode=render_mode,
+                        )
 
-                    # Run episode
-                    episode_data = self._run_episode(
-                        env,
-                        seed,
-                        seed_idx,
-                        ep_idx,
-                        episodes_dir,
-                        ep_video_dir,
-                        task_name=task_name,
-                        difficulty=difficulty,
-                    )
-                    difficulty_results["episodes"].append(episode_data)
+                        # Only record video for first episode per seed
+                        ep_video_dir = video_dir if (video_dir and ep_idx == 0) else None
 
-                    env.close()
+                        # Run episode
+                        episode_data = self._run_episode(
+                            env,
+                            seed,
+                            seed_idx,
+                            ep_idx,
+                            episodes_dir,
+                            ep_video_dir,
+                            task_name=task_name,
+                            difficulty=difficulty,
+                        )
+                        difficulty_results["episodes"].append(episode_data)
+
+                        env.close()
 
             # Compute metrics for this difficulty
             difficulty_results["metrics"] = self._compute_metrics(difficulty_results["episodes"])
@@ -680,6 +699,110 @@ class ExperimentRunner:
         task_results["aggregate_metrics"] = self._compute_metrics(all_episodes)
 
         return task_results
+
+    def _run_episodes_batched(
+        self,
+        task_name: str,
+        difficulty: str,
+        seeds: list[int],
+        render_mode: str | None,
+        episodes_dir: Path,
+        video_dir: Path | None,
+        difficulty_results: dict[str, Any],
+    ) -> None:
+        """Run episodes in batches using BatchedEpisodeRunner."""
+        from agentick.agents.harness import HARNESS_REGISTRY
+        from agentick.experiments.batched_runner import BatchedEpisodeRunner
+
+        assert self.agent is not None
+
+        hp = self.config.agent.hyperparameters
+        harness_name = hp.get("harness", "markovian_zero_shot")
+        harness_cls = HARNESS_REGISTRY[harness_name]
+        harness_kwargs: dict[str, Any] = {}
+        for key in ("max_history", "diff_mode"):
+            if key in hp:
+                harness_kwargs[key] = hp[key]
+
+        runner = BatchedEpisodeRunner(
+            backend=self.agent.backend,
+            harness_cls=harness_cls,
+            harness_kwargs=harness_kwargs,
+            obs_modes=self.agent.observation_modes,
+        )
+
+        # Batch ALL seeds x episodes together — vLLM handles them in one pass
+        import agentick
+
+        envs = []
+        batch_seeds = []
+        batch_seed_indices = []
+        batch_ep_indices = []
+
+        for seed_idx, seed in enumerate(seeds):
+            for ep_idx in range(self.config.n_episodes):
+                env = agentick.make(
+                    task_name,
+                    difficulty=difficulty,
+                    render_mode=render_mode,
+                )
+                envs.append(env)
+                batch_seeds.append(seed)
+                batch_seed_indices.append(seed_idx)
+                batch_ep_indices.append(ep_idx)
+
+        n_total = len(envs)
+        print(
+            f"\n  Batched {n_total} episodes "
+            f"({len(seeds)} seeds x {self.config.n_episodes} eps) "
+            f"| {task_name} | {difficulty}"
+        )
+
+        batch_results = runner.run_batch(
+            envs=envs,
+            seeds=batch_seeds,
+            seed_indices=batch_seed_indices,
+            episode_indices=batch_ep_indices,
+        )
+
+        for i, result in enumerate(batch_results):
+            episode_data: dict[str, Any] = {
+                "seed": result.seed,
+                "episode_idx": result.episode_idx,
+                "return": result.total_reward,
+                "length": result.episode_length,
+                "success": result.success,
+                "agent_stats": result.agent_stats,
+            }
+            difficulty_results["episodes"].append(episode_data)
+
+            # Save trajectory
+            if self.config.record_trajectories:
+                traj = {
+                    "seed": result.seed,
+                    "seed_idx": result.seed_idx,
+                    "episode_idx": result.episode_idx,
+                    "steps": result.steps,
+                    "total_reward": result.total_reward,
+                    "episode_length": result.episode_length,
+                    "success": result.success,
+                }
+                ep_file = (
+                    episodes_dir
+                    / f"seed_{result.seed_idx}_ep_{result.episode_idx}.json"
+                )
+                with open(ep_file, "w") as f:
+                    json.dump(traj, f, indent=2)
+
+            status = "SUCCESS" if result.success else "FAIL"
+            print(
+                f"    ep[{i}] {status} | {result.episode_length} steps | "
+                f"reward={result.total_reward:.2f}"
+            )
+
+        # Clean up envs
+        for env in envs:
+            env.close()
 
     def _save_video(
         self,
