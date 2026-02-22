@@ -17,8 +17,15 @@ conda activate {conda_env}
 cd {project_root}
 
 echo "=== SLURM Job: $SLURM_JOB_ID on $SLURM_NODELIST ==="
-echo "Config: {config_path} | Profile: {profile_name} | Started: $(date)"
+echo "Config: {config_display} | Profile: {profile_name} | Started: $(date)"
+
+# Write inline config to a temporary file (self-contained, no external deps)
+{inline_config_block}
 
 uv run {runner_command}
+_exit=$?
 
-echo "=== Finished: $(date), exit=$? ==="
+{cleanup_block}
+
+echo "=== Finished: $(date), exit=$_exit ==="
+exit $_exit
