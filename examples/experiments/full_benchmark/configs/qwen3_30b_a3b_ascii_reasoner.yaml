@@ -1,10 +1,10 @@
 name: qwen3_30b_a3b_ascii_reasoner
-description: Qwen3-30B-A3B-Instruct-2507-FP8 LLM, markovian reasoner (CoT), ASCII observations
+description: Qwen3-30B-A3B-Instruct-2507 LLM, markovian reasoner (CoT), ASCII observations
 agent:
   type: llm
   hyperparameters:
     backend: vllm_llm
-    model: Qwen/Qwen3-30B-A3B-Instruct-2507-FP8
+    model: Qwen/Qwen3-30B-A3B-Instruct-2507
     harness: markovian_reasoner
     observation_modes:
     - ascii
