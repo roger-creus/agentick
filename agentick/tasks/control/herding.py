@@ -166,6 +166,7 @@ class HerdingTask(TaskSpec):
             for pp in pred_cands[:n_predators]:
                 px, py = pp
                 grid.objects[py, px] = ObjectType.ENEMY
+                grid.metadata[py, px] = 2  # default facing down
                 predator_positions.append(pp)
 
         leader_indices = []
@@ -197,6 +198,7 @@ class HerdingTask(TaskSpec):
         self._draw_sheep(grid, config["_live_sheep"], draw=True)
         for px, py in config["_predators"]:
             grid.objects[py, px] = ObjectType.ENEMY
+            grid.metadata[py, px] = 2  # default facing down
 
     def on_env_step(self, agent, grid, config, step_count):
         if "_live_sheep" not in config:
@@ -226,6 +228,7 @@ class HerdingTask(TaskSpec):
         for px_c, py_c in predators:
             if grid.objects[py_c, px_c] == ObjectType.ENEMY:
                 grid.objects[py_c, px_c] = ObjectType.NONE
+                grid.metadata[py_c, px_c] = 0
             moves = [(px_c + dx, py_c + dy) for dx, dy in self._DIRS]
             valid = [
                 (x, y)
@@ -242,6 +245,18 @@ class HerdingTask(TaskSpec):
                 np_pos = (px_c, py_c)
             new_preds.append(np_pos)
             grid.objects[np_pos[1], np_pos[0]] = ObjectType.ENEMY
+            # Direction metadata for predators
+            ddx, ddy = np_pos[0] - px_c, np_pos[1] - py_c
+            if ddx > 0:
+                grid.metadata[np_pos[1], np_pos[0]] = 1  # right
+            elif ddx < 0:
+                grid.metadata[np_pos[1], np_pos[0]] = 3  # left
+            elif ddy < 0:
+                grid.metadata[np_pos[1], np_pos[0]] = 0  # up
+            elif ddy > 0:
+                grid.metadata[np_pos[1], np_pos[0]] = 2  # down
+            else:
+                grid.metadata[np_pos[1], np_pos[0]] = 2  # default down
         config["_predators"] = new_preds
 
         # Compute leader positions for flock behavior
@@ -320,6 +335,21 @@ class HerdingTask(TaskSpec):
                 else:
                     new_sheep.append((sx, sy))
 
+        # Store movement directions for directional sprites
+        config["_sheep_dirs"] = []
+        for idx2, (nx, ny) in enumerate(new_sheep):
+            old_sx, old_sy = sheep[idx2] if idx2 < len(sheep) else (nx, ny)
+            ddx, ddy = nx - old_sx, ny - old_sy
+            if ddx > 0:
+                config["_sheep_dirs"].append(1)  # right
+            elif ddx < 0:
+                config["_sheep_dirs"].append(3)  # left
+            elif ddy < 0:
+                config["_sheep_dirs"].append(0)  # up
+            elif ddy > 0:
+                config["_sheep_dirs"].append(2)  # down
+            else:
+                config["_sheep_dirs"].append(2)  # default down
         config["_live_sheep"] = new_sheep
         self._draw_sheep(grid, new_sheep, draw=True)
 
@@ -327,7 +357,8 @@ class HerdingTask(TaskSpec):
         config = getattr(self, "_config", {})
         pen = set(map(tuple, config.get("pen_cells", [])))
         captured = set(map(tuple, config.get("_captured_sheep", [])))
-        for sx, sy in sheep:
+        sheep_dirs = config.get("_sheep_dirs", [])
+        for idx, (sx, sy) in enumerate(sheep):
             if 0 <= sx < grid.width and 0 <= sy < grid.height:
                 if draw:
                     # Captured sheep in pen: show as GOAL (checkmark visual = locked in)
@@ -335,12 +366,18 @@ class HerdingTask(TaskSpec):
                         grid.objects[sy, sx] = ObjectType.GOAL
                     else:
                         grid.objects[sy, sx] = ObjectType.SHEEP
+                        # Store direction in metadata for directional sprites
+                        if idx < len(sheep_dirs):
+                            grid.metadata[sy, sx] = sheep_dirs[idx]
+                        else:
+                            grid.metadata[sy, sx] = 2  # default down
                 elif grid.objects[sy, sx] in (ObjectType.SHEEP, ObjectType.GOAL):
                     # Restore TARGET if this was a pen cell
                     if (sx, sy) in pen:
                         grid.objects[sy, sx] = ObjectType.TARGET
                     else:
                         grid.objects[sy, sx] = ObjectType.NONE
+                    grid.metadata[sy, sx] = 0
 
     # ── Reward & success ─────────────────────────────────────────────────────
 

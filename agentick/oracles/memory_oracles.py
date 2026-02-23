@@ -17,19 +17,29 @@ class KeyDoorPuzzleOracle(OracleAgent):
     """
 
     def _get_door_positions(self):
-        """Return set of all DOOR object positions on the grid."""
+        """Return set of all closed DOOR object positions on the grid.
+
+        Open doors (metadata >= 10) are excluded since they are passable.
+        """
         grid = self.api.grid
         doors = set()
         for y in range(grid.height):
             for x in range(grid.width):
                 if grid.objects[y, x] == ObjectType.DOOR:
-                    doors.add((x, y))
+                    if int(grid.metadata[y, x]) < 10:
+                        doors.add((x, y))
         return doors
 
     def _get_door_color(self, pos):
-        """Return color metadata of a door at position (x, y)."""
+        """Return color metadata of a door at position (x, y).
+
+        For open doors (meta >= 10), returns the base color (meta - 10).
+        """
         x, y = pos
-        return int(self.api.grid.metadata[y, x])
+        meta = int(self.api.grid.metadata[y, x])
+        if meta >= 10:
+            return meta - 10
+        return meta
 
     def _get_guard_avoidance(self):
         """Return (wide_avoid, exact_avoid) sets for guard positions.
@@ -236,8 +246,14 @@ class BacktrackPuzzleOracle(OracleAgent):
 
         if not all_activated:
             switches = self.api.get_entities_of_type("switch")
-            if switches:
-                nearest = min(switches, key=lambda s: s.distance)
+            # Filter out already-activated switches (metadata >= 100)
+            grid = self.api.grid
+            unactivated = [
+                s for s in switches
+                if int(grid.metadata[s.position[1], s.position[0]]) < 100
+            ]
+            if unactivated:
+                nearest = min(unactivated, key=lambda s: s.distance)
                 self.action_queue = self.api.move_to(*nearest.position)
                 return
 

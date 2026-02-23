@@ -364,15 +364,20 @@ class KeyDoorPuzzleTask(TaskSpec):
         config["_door_open"] = False
         config["_guard_collision"] = False
         config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
-        # Redraw guards
+        # Redraw guards with default direction
         for gx, gy in config.get("_guard_positions", []):
             if grid.terrain[gy, gx] == CellType.EMPTY:
                 grid.objects[gy, gx] = ObjectType.NPC
+                grid.metadata[gy, gx] = 2  # default facing down
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
         x, y = pos
         if grid.objects[y, x] == ObjectType.DOOR:
-            door_color = int(grid.metadata[y, x])
+            door_meta = int(grid.metadata[y, x])
+            # Open doors (meta >= 10) are passable
+            if door_meta >= 10:
+                return True
+            door_color = door_meta
             matching = next(
                 (
                     e
@@ -384,8 +389,8 @@ class KeyDoorPuzzleTask(TaskSpec):
             )
             if matching:
                 agent.inventory.remove(matching)
-                grid.objects[y, x] = ObjectType.NONE
-                grid.metadata[y, x] = 0
+                # Keep door object, mark as open via meta + 10
+                grid.metadata[y, x] = door_color + 10
                 config = getattr(self, "_config", {})
                 config["_door_open"] = True
                 return True
@@ -421,6 +426,7 @@ class KeyDoorPuzzleTask(TaskSpec):
         for gx, gy in guards:
             if grid.objects[gy, gx] == ObjectType.NPC:
                 grid.objects[gy, gx] = ObjectType.NONE
+                grid.metadata[gy, gx] = 0
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
             d = dirs[i]
@@ -441,9 +447,22 @@ class KeyDoorPuzzleTask(TaskSpec):
                 config["_guard_collision"] = True
         config["_guard_positions"] = new_g
         config["_guard_dirs"] = new_d
-        for gx, gy in new_g:
+        for i, (gx, gy) in enumerate(new_g):
             if grid.terrain[gy, gx] == CellType.EMPTY:
                 grid.objects[gy, gx] = ObjectType.NPC
+                # Direction metadata from old -> new position
+                old_gx, old_gy = guards[i] if i < len(guards) else (gx, gy)
+                ddx, ddy = gx - old_gx, gy - old_gy
+                if ddx > 0:
+                    grid.metadata[gy, gx] = 1  # right
+                elif ddx < 0:
+                    grid.metadata[gy, gx] = 3  # left
+                elif ddy < 0:
+                    grid.metadata[gy, gx] = 0  # up
+                elif ddy > 0:
+                    grid.metadata[gy, gx] = 2  # down
+                else:
+                    grid.metadata[gy, gx] = 2  # default down
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         config = new_state.get("config", {})

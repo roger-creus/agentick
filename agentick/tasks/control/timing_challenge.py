@@ -187,7 +187,8 @@ class TimingChallengeTask(TaskSpec):
             config[f"_bx_{i}"] = s["x"]
             config[f"_bdir_{i}"] = s["dir"]
             if grid.terrain[s["row"], s["x"]] == CellType.EMPTY:
-                grid.objects[s["row"], s["x"]] = ObjectType.BLOCKER
+                grid.objects[s["row"], s["x"]] = ObjectType.ENEMY
+                grid.metadata[s["row"], s["x"]] = 1 if s["dir"] > 0 else 3  # right or left
 
     def on_env_step(self, agent, grid, config, step_count):
         specs = config.get("_blocker_specs", [])
@@ -200,8 +201,9 @@ class TimingChallengeTask(TaskSpec):
             d = config.get(f"_bdir_{i}", 1)
             by = s["row"]
             p0, p1 = s["p0"], s["p1"]
-            if grid.objects[by, bx] == ObjectType.BLOCKER:
+            if grid.objects[by, bx] == ObjectType.ENEMY:
                 grid.objects[by, bx] = ObjectType.NONE
+                grid.metadata[by, bx] = 0
             new_x = bx + d
             if new_x > p1:
                 d = -1
@@ -212,7 +214,8 @@ class TimingChallengeTask(TaskSpec):
             new_x = max(p0, min(p1, new_x))
             config[f"_bx_{i}"] = new_x
             config[f"_bdir_{i}"] = d
-            grid.objects[by, new_x] = ObjectType.BLOCKER
+            grid.objects[by, new_x] = ObjectType.ENEMY
+            grid.metadata[by, new_x] = 1 if d > 0 else 3  # right or left
             if ay == by and ax == new_x:
                 config["_collision"] = True
 

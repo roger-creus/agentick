@@ -1,7 +1,10 @@
 """MazeNavigation task - Solve procedurally generated mazes."""
 
+from collections import deque
+
 import numpy as np
 
+from agentick.core.entity import Entity
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, ObjectType
 from agentick.generation.maze import MazeConfig, MazeGenerator
@@ -30,7 +33,13 @@ class MazeNavigationTask(TaskSpec):
             name="easy",
             grid_size=7,
             max_steps=60,
-            params={"loop_freq": 0.30, "n_guards": 0, "n_hazards": 0, "algorithm": "binary_tree"},
+            params={
+                "loop_freq": 0.30,
+                "n_guards": 0,
+                "n_hazards": 0,
+                "n_doors": 0,
+                "algorithm": "binary_tree",
+            },
         ),
         "medium": DifficultyConfig(
             name="medium",
@@ -40,6 +49,7 @@ class MazeNavigationTask(TaskSpec):
                 "loop_freq": 0.15,
                 "n_guards": 1,
                 "n_hazards": 2,
+                "n_doors": 0,
                 "algorithm": "recursive_backtracker",
             },
         ),
@@ -51,6 +61,7 @@ class MazeNavigationTask(TaskSpec):
                 "loop_freq": 0.08,
                 "n_guards": 2,
                 "n_hazards": 4,
+                "n_doors": 1,
                 "algorithm": "recursive_backtracker",
             },
         ),
@@ -62,6 +73,7 @@ class MazeNavigationTask(TaskSpec):
                 "loop_freq": 0.03,
                 "n_guards": 3,
                 "n_hazards": 6,
+                "n_doors": 2,
                 "algorithm": "recursive_backtracker",
             },
         ),
@@ -198,6 +210,7 @@ class MazeNavigationTask(TaskSpec):
         guard_positions = guard_candidates[:n_guards]
         for gx, gy in guard_positions:
             grid.objects[gy, gx] = ObjectType.NPC
+            grid.metadata[gy, gx] = 2  # default facing down
 
         # Place hazards at dead ends (cells with only one open neighbor)
         n_hazards = p.get("n_hazards", 0)
@@ -222,6 +235,96 @@ class MazeNavigationTask(TaskSpec):
             for hx, hy in dead_ends[:n_hazards]:
                 grid.terrain[hy, hx] = CellType.HAZARD
 
+        # Place key/door pairs at hard/expert difficulties
+        n_doors = p.get("n_doors", 0)
+        door_positions = []
+        key_positions = []
+        if n_doors > 0 and optimal_path and len(optimal_path) > 4:
+            used_cells = (
+                {agent_pos, goal_pos}
+                | set(guard_positions)
+                | {
+                    (hx, hy)
+                    for hx, hy in dead_ends[:n_hazards]
+                    if grid.terrain[hy, hx] == CellType.HAZARD
+                }
+                if n_hazards > 0
+                else {agent_pos, goal_pos} | set(guard_positions)
+            )
+            for door_idx in range(n_doors):
+                color = door_idx  # 0=gold, 1=red
+                # Pick a choke point on the optimal path (~40-60% of the way)
+                frac = 0.4 + 0.2 * door_idx / max(1, n_doors - 1) if n_doors > 1 else 0.5
+                path_idx = int(len(optimal_path) * frac)
+                path_idx = max(2, min(len(optimal_path) - 2, path_idx))
+                door_pos = optimal_path[path_idx]
+                if door_pos in used_cells or door_pos == agent_pos or door_pos == goal_pos:
+                    # Try adjacent path positions
+                    found = False
+                    for offset in [1, -1, 2, -2]:
+                        pi = path_idx + offset
+                        if 0 < pi < len(optimal_path) - 1:
+                            dp = optimal_path[pi]
+                            if dp not in used_cells and dp != agent_pos and dp != goal_pos:
+                                door_pos = dp
+                                found = True
+                                break
+                    if not found:
+                        continue
+                dx, dy = door_pos
+                grid.objects[dy, dx] = ObjectType.DOOR
+                grid.metadata[dy, dx] = color
+                door_positions.append(door_pos)
+                used_cells.add(door_pos)
+
+                # Find a key position: reachable cell NOT on agent→door path segment
+                pre_door_path = set(optimal_path[:path_idx])
+                key_cands = [
+                    pos
+                    for pos in valid_positions
+                    if pos not in used_cells
+                    and pos not in pre_door_path
+                    and pos != agent_pos
+                    and pos != goal_pos
+                    and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
+                    and grid.objects[pos[1], pos[0]] == ObjectType.NONE
+                ]
+                if not key_cands:
+                    # Fallback: any reachable empty cell
+                    key_cands = [
+                        pos
+                        for pos in valid_positions
+                        if pos not in used_cells
+                        and pos != agent_pos
+                        and pos != goal_pos
+                        and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
+                        and grid.objects[pos[1], pos[0]] == ObjectType.NONE
+                    ]
+                if key_cands:
+                    # Prefer dead-end cells for more interesting exploration
+                    dead_end_keys = [
+                        kp
+                        for kp in key_cands
+                        if sum(
+                            1
+                            for ddx, ddy in self._DIRS
+                            if 0 <= kp[0] + ddx < size
+                            and 0 <= kp[1] + ddy < size
+                            and grid.terrain[kp[1] + ddy, kp[0] + ddx] == CellType.EMPTY
+                        )
+                        == 1
+                    ]
+                    if dead_end_keys:
+                        kp = dead_end_keys[int(rng.integers(len(dead_end_keys)))]
+                    else:
+                        rng.shuffle(key_cands)
+                        kp = key_cands[0]
+                    kx, ky = kp
+                    grid.objects[ky, kx] = ObjectType.KEY
+                    grid.metadata[ky, kx] = color
+                    key_positions.append(kp)
+                    used_cells.add(kp)
+
         config = {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
@@ -231,6 +334,8 @@ class MazeNavigationTask(TaskSpec):
             "_guard_positions": guard_positions,
             "_guard_dirs": [int(rng.integers(0, 4)) for _ in guard_positions],
             "_guard_seed": int(rng.integers(0, 2**31)),
+            "door_positions": door_positions,
+            "key_positions": key_positions,
         }
 
         return grid, config
@@ -241,7 +346,31 @@ class MazeNavigationTask(TaskSpec):
         config["_guard_collision"] = False
         config["_hazard_hit"] = False
         config["_guard_rng"] = np.random.default_rng(config.get("_guard_seed", 0))
+        agent.inventory.clear()
         self._config = config
+
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.DOOR:
+            door_meta = int(grid.metadata[y, x])
+            if door_meta >= 10:
+                return True  # already open
+            door_color = door_meta
+            matching = next(
+                (
+                    e
+                    for e in agent.inventory
+                    if e.entity_type == "key"
+                    and e.properties.get("color") == door_color
+                ),
+                None,
+            )
+            if matching:
+                agent.inventory.remove(matching)
+                grid.metadata[y, x] = door_color + 10  # open door
+                return True
+            return False
+        return True
 
     def on_agent_moved(self, pos, agent, grid):
         x, y = pos
@@ -250,6 +379,17 @@ class MazeNavigationTask(TaskSpec):
             config["_hazard_hit"] = True
         if grid.objects[y, x] == ObjectType.NPC:
             config["_guard_collision"] = True
+        if grid.objects[y, x] == ObjectType.KEY:
+            key_color = int(grid.metadata[y, x])
+            key_ent = Entity(
+                id=f"key_{x}_{y}",
+                entity_type="key",
+                position=(x, y),
+                properties={"color": key_color},
+            )
+            agent.inventory.append(key_ent)
+            grid.objects[y, x] = ObjectType.NONE
+            grid.metadata[y, x] = 0
 
     def on_env_step(self, agent, grid, config, step_count):
         guards = config.get("_guard_positions", [])
@@ -261,6 +401,7 @@ class MazeNavigationTask(TaskSpec):
         for gx, gy in guards:
             if grid.objects[gy, gx] == ObjectType.NPC:
                 grid.objects[gy, gx] = ObjectType.NONE
+                grid.metadata[gy, gx] = 0
         new_g, new_d = [], []
         for i, (gx, gy) in enumerate(guards):
             d = dirs[i]
@@ -281,9 +422,22 @@ class MazeNavigationTask(TaskSpec):
                 config["_guard_collision"] = True
         config["_guard_positions"] = new_g
         config["_guard_dirs"] = new_d
-        for gx, gy in new_g:
+        for i, (gx, gy) in enumerate(new_g):
             if grid.terrain[gy, gx] == CellType.EMPTY:
                 grid.objects[gy, gx] = ObjectType.NPC
+                # Direction metadata from old -> new position
+                old_gx, old_gy = guards[i] if i < len(guards) else (gx, gy)
+                ddx, ddy = gx - old_gx, gy - old_gy
+                if ddx > 0:
+                    grid.metadata[gy, gx] = 1  # right
+                elif ddx < 0:
+                    grid.metadata[gy, gx] = 3  # left
+                elif ddy < 0:
+                    grid.metadata[gy, gx] = 0  # up
+                elif ddy > 0:
+                    grid.metadata[gy, gx] = 2  # down
+                else:
+                    grid.metadata[gy, gx] = 2  # default down
 
     def check_done(self, state):
         config = state.get("config", {})

@@ -1,0 +1,86 @@
+{
+    "_comment": "Entity-to-tile mapping. Old Kenney tiles for terrain/generic; new/ for dedicated isometric sprites.",
+
+    "floor": "voxel/voxelTile_20.png",
+    "wall": "voxel/voxelTile_30.png",
+    "water": "abstract/abstractTile_26.png",
+    "ice": "voxel/voxelTile_06.png",
+
+    "agent": "new/agent_down.png",
+    "agent_up": "new/agent_up.png",
+    "agent_down": "new/agent_down.png",
+    "agent_left": "new/agent_left.png",
+    "agent_right": "new/agent_right.png",
+
+    "goal": "new/goal.png",
+    "hazard": "new/spiky_hazard_block.png",
+    "hole": "new/hole_block.png",
+
+    "golden_door_ud": "new/golden_door_up_or_down.png",
+    "golden_door_rl": "new/golden_door_right_or_left.png",
+    "golden_door_open_ud": "new/golden_door_open_up_or_down.png",
+    "golden_door_open_rl": "new/golden_door_open_right_or_left.png",
+    "red_door_ud": "new/red_door_up_or_down.png",
+    "red_door_rl": "new/red_door_right_or_left.png",
+    "red_door_open_ud": "new/red_door_open_up_or_down.png",
+    "red_door_open_rl": "new/red_door_open_right_or_left.png",
+    "blue_door_ud": "new/blue_door_up_or_down.png",
+    "blue_door_rl": "new/blue_door_right_or_left.png",
+    "blue_door_open_ud": "new/blue_door_open_up_or_down.png",
+    "blue_door_open_rl": "new/blue_door_open_right_or_left.png",
+    "door": "new/golden_door_up_or_down.png",
+    "door_open": "new/golden_door_open_up_or_down.png",
+
+    "golden_key": "new/golden_key.png",
+    "red_key": "new/red_key.png",
+    "blue_key": "new/blue_key.png",
+    "key": "new/golden_key.png",
+
+    "switch": "new/switch_off.png",
+    "switch_off": "new/switch_off.png",
+    "switch_on": "new/switch_on.png",
+
+    "lever": "new/lever_off.png",
+    "lever_off": "new/lever_off.png",
+    "lever_on": "new/lever_on.png",
+
+    "npc": "new/npc_down.png",
+    "npc_up": "new/npc_up.png",
+    "npc_down": "new/npc_down.png",
+    "npc_left": "new/npc_left.png",
+    "npc_right": "new/npc_right.png",
+
+    "enemy": "new/enemy_down.png",
+    "enemy_up": "new/enemy_up.png",
+    "enemy_down": "new/enemy_down.png",
+    "enemy_left": "new/enemy_left.png",
+    "enemy_right": "new/enemy_right.png",
+
+    "sheep": "new/sheep_down.png",
+    "sheep_up": "new/sheep_up.png",
+    "sheep_down": "new/sheep_down.png",
+    "sheep_left": "new/sheep_left.png",
+    "sheep_right": "new/sheep_right.png",
+
+    "coin": "new/coin.png",
+    "gem": "new/gem.png",
+    "orb": "new/orb.png",
+    "scroll": "new/scroll.png",
+
+    "box": "platformer/platformerTile_09.png",
+    "target": "abstract/abstractTile_15.png",
+    "tool": "voxel/voxelTile_17.png",
+    "resource": "voxel/voxelTile_35.png",
+    "breadcrumb": "abstract/abstractTile_19.png",
+    "blocker": "abstract/abstractTile_32.png",
+    "potion": "abstract/abstractTile_27.png",
+
+    "fog": "abstract/abstractTile_31.png",
+    "fog_partial": "abstract/abstractTile_22.png",
+
+    "cage": "abstract/abstractTile_01.png",
+
+    "border_wall": "voxel/voxelTile_48.png",
+
+    "empty": null
+}

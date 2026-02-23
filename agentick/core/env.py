@@ -33,6 +33,7 @@ class AgentickEnv(gym.Env):
             "language_structured",
             "rgb_array",
             "rgb_array_2d",
+            "rgb_iso",
             "human",
             "state_dict",
         ],
@@ -91,11 +92,17 @@ class AgentickEnv(gym.Env):
         self._setup_observation_space()
 
         # Renderer — for rgb_array_2d use isometric renderer (Lux AI style)
-        effective_mode = "rgb_array" if render_mode == "rgb_array_2d" else render_mode
-        use_isometric = render_mode == "rgb_array_2d"  # Isometric by default for 2D mode
-        self.renderer = create_renderer(
-            effective_mode, fast_mode=fast_mode, use_isometric=use_isometric
-        )
+        # For rgb_iso, use the new Kenney sprite-based isometric renderer
+        if render_mode == "rgb_iso":
+            self._iso_renderer = None  # Lazy init
+            self.renderer = None  # Will use _render_isometric() directly
+        else:
+            self._iso_renderer = None
+            effective_mode = "rgb_array" if render_mode == "rgb_array_2d" else render_mode
+            use_isometric = render_mode == "rgb_array_2d"
+            self.renderer = create_renderer(
+                effective_mode, fast_mode=fast_mode, use_isometric=use_isometric
+            )
 
         # Episode state
         self.step_count = 0
@@ -141,6 +148,11 @@ class AgentickEnv(gym.Env):
                     "step_count": spaces.Box(0, self.max_steps, shape=(), dtype=np.int32),
                     "max_steps": spaces.Box(0, np.inf, shape=(), dtype=np.int32),
                 }
+            )
+        elif self.render_mode == "rgb_iso":
+            # Isometric pixel observations — fixed output size
+            self.observation_space = spaces.Box(
+                low=0, high=255, shape=(512, 512, 3), dtype=np.uint8
             )
         elif self.render_mode in ("rgb_array", "rgb_array_2d", "human"):
             # Pixel observations — 2D tile-based
@@ -255,8 +267,22 @@ class AgentickEnv(gym.Env):
         if self.render_mode is None:
             return None
 
+        if self.render_mode == "rgb_iso":
+            return self._render_isometric()
+
         info = self._get_info()
         return self.renderer.render(self.grid, self.entities, self.agent, info)
+
+    def _render_isometric(self) -> np.ndarray:
+        """Render using the Kenney sprite isometric renderer."""
+        if self._iso_renderer is None:
+            from agentick.rendering.iso_renderer import IsometricRenderer
+
+            self._iso_renderer = IsometricRenderer(output_size=(512, 512))
+        info = self._get_info()
+        return self._iso_renderer.render(
+            self.grid, self.entities, self.agent, info
+        )
 
     def render_in_mode(self, mode: str) -> Any:
         """Render current state in the given mode (regardless of configured render_mode).
@@ -264,6 +290,12 @@ class AgentickEnv(gym.Env):
         This enables multimodal agents: the env renders one mode as the primary
         observation, and this method produces additional renderings in other modes.
         """
+        if mode == "rgb_iso":
+            from agentick.rendering.iso_renderer import IsometricRenderer
+
+            renderer = IsometricRenderer(output_size=(512, 512))
+            info = self._get_info()
+            return renderer.render(self.grid, self.entities, self.agent, info)
         renderer = create_renderer(mode)
         info = self._get_info()
         return renderer.render(self.grid, self.entities, self.agent, info)
@@ -358,9 +390,22 @@ class AgentickEnv(gym.Env):
 
     def _move_agent(self, action_type: ActionType) -> None:
         """Move agent based on action."""
+        from agentick.core.types import Direction
+
+        _ACTION_DIR = {
+            ActionType.MOVE_UP: Direction.NORTH,
+            ActionType.MOVE_DOWN: Direction.SOUTH,
+            ActionType.MOVE_LEFT: Direction.WEST,
+            ActionType.MOVE_RIGHT: Direction.EAST,
+        }
+
         delta = get_move_delta(action_type)
         if delta is None:
             return
+
+        # Update orientation to face movement direction
+        if action_type in _ACTION_DIR:
+            self.agent.orientation = _ACTION_DIR[action_type]
 
         dx, dy = delta
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)

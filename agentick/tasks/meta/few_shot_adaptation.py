@@ -447,8 +447,8 @@ class FewShotAdaptationTask(TaskSpec):
         for i, (tx, ty) in enumerate(first_trial["targets"]):
             ttype = first_trial["target_types"][i]
             if i == first_trial["correct_idx"]:
-                # Correct target: show as GOAL during reveal, plus GEM overlay
-                grid.objects[ty, tx] = ObjectType.GOAL
+                # Correct target: show as SWITCH during reveal, plus GEM overlay
+                grid.objects[ty, tx] = ObjectType.SWITCH
             else:
                 # Use the visual type for compositional rules, else TARGET
                 if needs_types and ttype != ObjectType.TARGET:
@@ -561,7 +561,7 @@ class FewShotAdaptationTask(TaskSpec):
             ObjectType.POTION, ObjectType.SCROLL,
         )
 
-        if obj_here == ObjectType.GOAL or (at_correct and not is_test):
+        if obj_here == ObjectType.SWITCH or (at_correct and not is_test):
             if is_test:
                 config["_goal_reached"] = True
             else:
@@ -596,7 +596,7 @@ class FewShotAdaptationTask(TaskSpec):
                 else:
                     grid.objects[ty, tx] = ObjectType.TARGET
             elif i == trial["correct_idx"]:
-                grid.objects[ty, tx] = ObjectType.GOAL
+                grid.objects[ty, tx] = ObjectType.SWITCH
             else:
                 if needs_types and ttype != ObjectType.TARGET:
                     grid.objects[ty, tx] = ttype
@@ -616,7 +616,7 @@ class FewShotAdaptationTask(TaskSpec):
                 config["_gem_placed"] = False
 
     def _clear_trial_objects(self, grid, trial, needs_types=False):
-        target_objs = {ObjectType.GOAL, ObjectType.TARGET}
+        target_objs = {ObjectType.GOAL, ObjectType.TARGET, ObjectType.SWITCH}
         if needs_types:
             target_objs |= set(_MARKER_TYPES)
         for tx, ty in trial.get("targets", []):
@@ -651,7 +651,7 @@ class FewShotAdaptationTask(TaskSpec):
                     # Hide the GOAL marker, make it look like TARGET (or typed)
                     correct_idx = trial["correct_idx"]
                     tx, ty = trial["targets"][correct_idx]
-                    if grid.objects[ty, tx] == ObjectType.GOAL:
+                    if grid.objects[ty, tx] == ObjectType.SWITCH:
                         ttype = trial.get(
                             "target_types",
                             [ObjectType.TARGET] * len(trial["targets"]),

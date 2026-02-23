@@ -157,11 +157,11 @@ _td(
 _td(
     "DynamicObstacles-v0",
     "navigation",
-    "Navigate toward a GOAL while avoiding moving BLOCKER obstacles that patrol "
-    "the grid. Blockers move probabilistically each step; expert mode adds pursuit behavior.",
-    "GOAL (static destination), BLOCKER (moving obstacles, fatal on collision), "
+    "Navigate toward a GOAL while avoiding moving NPC obstacles that patrol "
+    "the grid. NPCs move probabilistically each step; expert mode adds pursuit behavior.",
+    "GOAL (static destination), NPC (moving obstacles, fatal on collision), "
     "WALL (static barriers).",
-    "Reach GOAL without colliding with any BLOCKER. Collision ends episode.",
+    "Reach GOAL without colliding with any NPC. Collision ends episode.",
     "Move in 4 directions. Timing and prediction of BLOCKER movement is key.",
     [
         ("easy", "7x7 grid with 2 BLOCKERs (50% move chance). Open layout, easy avoidance."),

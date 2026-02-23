@@ -104,6 +104,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["agentick"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"agentick/rendering/tiles" = "agentick/rendering/tiles"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

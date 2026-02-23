@@ -225,8 +225,6 @@ class SokobanPushOracle(OracleAgent):
                 continue
             if self._is_blocked(pfx, pfy, grid):
                 continue
-            if not grid.is_walkable((pfx, pfy)):
-                continue
             if push_from in box_set:
                 continue
 
@@ -250,10 +248,16 @@ class SokobanPushOracle(OracleAgent):
             else:
                 # Navigate to push position avoiding boxes AND hazards
                 avoid = box_set | hazards
+                # HOLE terrain at target positions is passable
+                target_passable = set(
+                    tuple(t)
+                    for t in self.api.task_config.get("target_positions", [])
+                )
                 path = self.api.bfs_path_positions(
                     (ax, ay),
                     push_from,
                     avoid=avoid,
+                    extra_passable=target_passable,
                 )
                 if path:
                     actions = self.api.positions_to_actions(path)

@@ -134,10 +134,7 @@ class InstructionFollowingTask(TaskSpec):
         used = {agent_pos} | set(zone_positions)
 
         for i, (zx, zy) in enumerate(zone_positions):
-            if i == instruction:
-                grid.objects[zy, zx] = ObjectType.GOAL
-            else:
-                grid.objects[zy, zx] = ObjectType.TARGET
+            grid.objects[zy, zx] = ObjectType.LEVER
 
         # Distractors: extra TARGET cells not in zone_positions (visual noise)
         free = [
@@ -192,7 +189,7 @@ class InstructionFollowingTask(TaskSpec):
         # (row 0, which is always WALL) so agent can see the target without
         # affecting the playable grid. The cage is purely visual.
         cage_cx = size // 2  # center of top wall
-        grid.objects[0, cage_cx] = ObjectType.GOAL  # visual indicator in wall
+        grid.objects[0, cage_cx] = ObjectType.LEVER  # visual indicator in wall
         grid.metadata[0, cage_cx] = 3  # META_CAGE
         # Mark neighbor wall cells as cage border
         for dx2 in [-1, 0, 1]:
@@ -254,7 +251,7 @@ class InstructionFollowingTask(TaskSpec):
         # Waypoint zones (multi_step) are TARGET cells the agent must visit,
         # so they should NOT trigger the wrong-zone flag.
         wp_set = {tuple(w) for w in wp_zones}
-        if grid.objects[y, x] == ObjectType.TARGET and (
+        if grid.objects[y, x] == ObjectType.LEVER and (
             (x, y) != tuple(true_goal or ()) and (x, y) not in wp_set
         ):
             config["_wrong_zone"] = True
@@ -283,8 +280,7 @@ class InstructionFollowingTask(TaskSpec):
                 and grid.terrain[ny, nx] == CellType.EMPTY
                 and grid.objects[ny, nx]
                 not in (
-                    ObjectType.GOAL,
-                    ObjectType.TARGET,
+                    ObjectType.LEVER,
                     ObjectType.SWITCH,
                 )
             ):
@@ -347,7 +343,8 @@ class InstructionFollowingTask(TaskSpec):
             return False
 
         x, y = state["agent"].position
-        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
+        true_goal = config.get("goal_positions", [None])[0]
+        return true_goal is not None and (x, y) == tuple(true_goal)
 
     def check_done(self, state):
         """Episode ends on correct zone, wrong zone, or guard collision."""

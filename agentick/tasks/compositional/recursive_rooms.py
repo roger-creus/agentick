@@ -140,8 +140,10 @@ class RecursiveRoomsTask(TaskSpec):
         reachable = grid.flood_fill(agent_pos)
         if goal_pos not in reachable:
             return False
-        # Goal must be at least some distance away
-        if abs(agent_pos[0] - goal_pos[0]) + abs(agent_pos[1] - goal_pos[1]) < 4:
+        # Goal must be at least half the grid size away (manhattan distance)
+        min_dist = max(grid.width, grid.height) // 2
+        actual_dist = abs(agent_pos[0] - goal_pos[0]) + abs(agent_pos[1] - goal_pos[1])
+        if actual_dist < min_dist:
             return False
         return True
 
