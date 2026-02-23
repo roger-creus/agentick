@@ -5,6 +5,7 @@ from agentick.tasks import (
     combinatorial,
     compositional,
     control,
+    exploration,
     memory,
     meta,
     multi_agent,
@@ -15,6 +16,7 @@ from agentick.tasks import (
 
 __all__ = [
     "navigation",
+    "exploration",
     "memory",
     "reasoning",
     "skill",

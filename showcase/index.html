@@ -229,7 +229,10 @@
   }
   .badge-category { background: var(--accent); color: #fff; }
   .badge-tag { background: var(--surface3); color: var(--text-dim); border: 1px solid var(--border); }
-  .badge-diff { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: .65rem; }
+  .badge-diff { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: .65rem; cursor: pointer; transition: all .15s; }
+  .badge-diff:hover { border-color: var(--accent); color: var(--text); }
+  .badge-diff.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .diff-description { font-size: .88rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; min-height: 24px; }
 
   .desc-brief {
     font-size: 1rem;
@@ -693,8 +696,8 @@
         across 38 procedurally generated gridworld tasks with multi-modal observations.
       </div>
       <div class="home-stats">
-        <div class="home-stat"><div class="num" id="homeTaskCount">38</div><div class="label">Tasks</div></div>
-        <div class="home-stat"><div class="num">10</div><div class="label">Categories</div></div>
+        <div class="home-stat"><div class="num" id="homeTaskCount">40</div><div class="label">Tasks</div></div>
+        <div class="home-stat"><div class="num">11</div><div class="label">Categories</div></div>
         <div class="home-stat"><div class="num">4</div><div class="label">Modalities</div></div>
         <div class="home-stat"><div class="num">4</div><div class="label">Difficulty Levels</div></div>
       </div>
@@ -897,6 +900,7 @@ function showPage(page) {
    ================================================================ */
 function navigate(dir) {
   currentIdx = (currentIdx + dir + tasks.length) % tasks.length;
+  slideSelectedDiff = 'easy';
   renderSlide();
 }
 
@@ -908,15 +912,17 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
+let slideSelectedDiff = 'easy';
+
 function renderSlide() {
   if (!tasks.length) return;
   const t = tasks[currentIdx];
 
   // Video / GIF preview (prefer gallery GIF, fall back to video)
   const videoEl = document.getElementById('slideVideo');
-  const gUrl = gifUrl(t, 'easy');
+  const gUrl = gifUrl(t, slideSelectedDiff);
   if (gUrl) {
-    videoEl.innerHTML = `<img class="gallery-gif" src="${gUrl}" alt="${t.name} oracle demo">`;
+    videoEl.innerHTML = `<img class="gallery-gif" id="slideGif" src="${gUrl}" alt="${t.name} oracle demo">`;
   } else if (t.video) {
     videoEl.innerHTML = `<video src="/videos/${t.video}" autoplay loop muted playsinline></video>`;
   } else {
@@ -926,9 +932,31 @@ function renderSlide() {
   // Info
   const tags = (t.capability_tags || []).map(tag =>
     `<span class="badge badge-tag">${tag}</span>`).join('');
-  const diffs = (t.difficulties || []).map(d =>
-    `<span class="badge badge-diff">${d}</span>`).join('');
-  const mainDesc = t.detailed_description || t.description || '';
+
+  // Build difficulty selector badges
+  const diffDescs = t.difficulty_descriptions || [];
+  const diffMap = {};
+  diffDescs.forEach(dd => { diffMap[dd.level] = dd.description; });
+  const diffs = (t.difficulties || []).map(d => {
+    const cls = d === slideSelectedDiff ? 'badge badge-diff active' : 'badge badge-diff';
+    return `<span class="${cls}" onclick="selectSlideDiff('${d}')">${d}</span>`;
+  }).join('');
+
+  // Current difficulty description
+  const diffDesc = diffMap[slideSelectedDiff] || '';
+
+  // Main summary (use 'summary' field from structured data, fall back to older fields)
+  const mainDesc = t.summary || t.detailed_description || t.description || '';
+
+  // Objects/goal/actions info block
+  let detailBlock = '';
+  if (t.objects || t.goal || t.actions) {
+    const parts = [];
+    if (t.objects) parts.push(`<strong>Objects:</strong> ${t.objects}`);
+    if (t.goal) parts.push(`<strong>Goal:</strong> ${t.goal}`);
+    if (t.actions) parts.push(`<strong>Actions:</strong> ${t.actions}`);
+    detailBlock = `<div style="font-size:.85rem;line-height:1.65;color:var(--text-dim);margin-bottom:14px;">${parts.join('<br>')}</div>`;
+  }
 
   document.getElementById('slideInfo').innerHTML = `
     <h2>${t.name}</h2>
@@ -937,9 +965,68 @@ function renderSlide() {
       ${tags}
     </div>
     <div class="desc-brief">${mainDesc}</div>
-    <div class="badge-row" style="margin-bottom:20px">${diffs}</div>
-    <button class="btn-primary" onclick="playTask('${t.name}')">Play This Task</button>
+    ${detailBlock}
+    <div class="badge-row">${diffs}</div>
+    <div class="diff-description" id="diffDesc">${diffDesc}</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-primary" onclick="playTask('${t.name}')">Play This Task</button>
+      <button class="btn-primary" style="background:var(--surface2);border:1px solid var(--border);" onclick="viewOracleFromSlide('${t.name}')">View Oracle</button>
+    </div>
   `;
+}
+
+function selectSlideDiff(diff) {
+  slideSelectedDiff = diff;
+  const t = tasks[currentIdx];
+
+  // Update GIF
+  const img = document.getElementById('slideGif');
+  const newUrl = gifUrl(t, diff);
+  if (img && newUrl) img.src = newUrl;
+
+  // Update badge active states
+  document.querySelectorAll('#slideInfo .badge-diff').forEach(b => {
+    b.classList.toggle('active', b.textContent === diff);
+  });
+
+  // Update difficulty description
+  const diffDescs = t.difficulty_descriptions || [];
+  const dd = diffDescs.find(d => d.level === diff);
+  const descEl = document.getElementById('diffDesc');
+  if (descEl) descEl.textContent = dd ? dd.description : '';
+}
+
+function viewOracleFromSlide(taskName) {
+  const t = tasks.find(x => x.name === taskName);
+  if (!t) return;
+  const url = gifUrl(t, slideSelectedDiff);
+  if (!url) { alert('No oracle GIF available for this difficulty.'); return; }
+  const diffs = gifDiffs(t);
+  const overlay = document.createElement('div');
+  overlay.className = 'oracle-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  let curDiff = slideSelectedDiff;
+  const diffBtns = diffs.map(d =>
+    `<button style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);`
+    + `background:${d===curDiff?'var(--accent)':'var(--surface2)'};color:var(--text);cursor:pointer;`
+    + `font-size:.8rem;" onclick="event.stopPropagation();`
+    + `this.parentElement.parentElement.querySelector('img').src=gifUrl(tasks.find(x=>x.name==='${t.name}'),'${d}');`
+    + `[...this.parentElement.children].forEach(b=>b.style.background='var(--surface2)');`
+    + `this.style.background='var(--accent)'">${d}</button>`
+  ).join('');
+  overlay.innerHTML = `
+    <span class="close-hint">Click background or press Escape to close</span>
+    <div style="text-align:center;" onclick="event.stopPropagation()">
+      <div style="margin-bottom:8px;display:flex;gap:6px;justify-content:center;">${diffBtns}</div>
+      <img src="${url}" alt="${t.name} oracle trajectory"
+           style="max-width:80vw;max-height:75vh;border-radius:var(--radius-lg);box-shadow:0 8px 48px rgba(0,0,0,.6);">
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const closeOnEsc = e => {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', closeOnEsc); }
+  };
+  document.addEventListener('keydown', closeOnEsc);
 }
 
 function playTask(taskName) {

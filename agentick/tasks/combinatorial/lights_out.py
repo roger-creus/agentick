@@ -8,6 +8,8 @@ MECHANICS:
   - Agent can move freely; toggles happen by stepping
 """
 
+from __future__ import annotations
+
 import numpy as np
 
 from agentick.core.grid import Grid
@@ -15,6 +17,14 @@ from agentick.core.types import CellType, ObjectType
 from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
+
+# Minimum solution toggles required per difficulty to reject trivial puzzles.
+_MIN_SOLUTION_TOGGLES: dict[str, int] = {
+    "easy": 2,
+    "medium": 4,
+    "hard": 6,
+    "expert": 8,
+}
 
 
 @register_task("LightsOut-v0", tags=["combinatorial_logic"])
@@ -36,7 +46,10 @@ class LightsOutTask(TaskSpec):
             name="easy",
             grid_size=7,
             max_steps=80,
-            params={"n_lights": 3, "adjacent": False, "n_decoys": 0, "n_walls": 0, "puzzle_size": 3},
+            params={
+                "n_lights": 3, "adjacent": False, "n_decoys": 0,
+                "n_walls": 0, "puzzle_size": 3,
+            },
         ),
         "medium": DifficultyConfig(
             name="medium",
@@ -54,9 +67,82 @@ class LightsOutTask(TaskSpec):
             name="expert",
             grid_size=13,
             max_steps=400,
-            params={"n_lights": 10, "adjacent": True, "n_decoys": 3, "n_walls": 4, "puzzle_size": 5},
+            params={
+                "n_lights": 10, "adjacent": True, "n_decoys": 3,
+                "n_walls": 4, "puzzle_size": 5,
+            },
         ),
     }
+
+    @staticmethod
+    def _count_solution_toggles(
+        puzzle_cells: list[tuple[int, int]],
+        light_state: dict[tuple[int, int], bool],
+        adjacent: bool,
+    ) -> int:
+        """Return the minimum number of toggles needed to solve the puzzle.
+
+        For non-adjacent (simple) mode each lit cell needs exactly one toggle,
+        so the answer is just the number of lit cells.
+
+        For adjacent mode this is the classic Lights Out problem: build the
+        toggle matrix over GF(2) and solve via Gaussian elimination to find
+        the solution with the fewest 1-bits.  Because every reachable state
+        has a *unique* solution (the toggle matrix for an NxN Lights Out grid
+        is always full-rank for N <= 5), we just count the 1s in that solution.
+        """
+        if not adjacent:
+            return sum(1 for v in light_state.values() if v)
+
+        n = len(puzzle_cells)
+        if n == 0:
+            return 0
+
+        idx = {pos: i for i, pos in enumerate(puzzle_cells)}
+
+        # Build the n x n toggle matrix over GF(2).
+        # mat[i][j] = 1 iff toggling cell j affects cell i.
+        mat = np.zeros((n, n), dtype=np.int8)
+        for j, (cx, cy) in enumerate(puzzle_cells):
+            neighbors = [
+                (cx, cy), (cx + 1, cy), (cx - 1, cy),
+                (cx, cy + 1), (cx, cy - 1),
+            ]
+            for affected in neighbors:
+                if affected in idx:
+                    mat[idx[affected], j] = 1
+
+        # Build the target vector b: 1 for each lit cell.
+        b = np.array(
+            [int(light_state.get(pos, False)) for pos in puzzle_cells],
+            dtype=np.int8,
+        )
+
+        # Gaussian elimination over GF(2) on the augmented matrix.
+        aug = np.concatenate([mat, b.reshape(-1, 1)], axis=1)
+        pivot_col = 0
+        for row in range(n):
+            if pivot_col >= n:
+                break
+            # Find a pivot in this column.
+            found = -1
+            for k in range(row, n):
+                if aug[k, pivot_col]:
+                    found = k
+                    break
+            if found == -1:
+                pivot_col += 1
+                continue
+            if found != row:
+                aug[[row, found]] = aug[[found, row]]
+            for k in range(n):
+                if k != row and aug[k, pivot_col]:
+                    aug[k] = (aug[k] ^ aug[row])
+            pivot_col += 1
+
+        # The solution vector is the last column (after elimination).
+        x = aug[:, -1]
+        return int(np.sum(x))
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
@@ -96,40 +182,58 @@ class LightsOutTask(TaskSpec):
         ]
 
         # Generate a valid solvable puzzle: start with all-off, then apply
-        # random toggle moves to create an on-pattern that we know is solvable
-        light_state = {pos: False for pos in puzzle_cells}
+        # random toggle moves to create an on-pattern that we know is solvable.
+        # Reject trivially easy puzzles that fall below the minimum solution
+        # toggle threshold for this difficulty level.
+        min_toggles = _MIN_SOLUTION_TOGGLES.get(self.difficulty_config.name, 2)
         n_lit = min(n_lights, len(puzzle_cells))
+        max_attempts = 50  # safety cap to avoid infinite loops
 
-        if adjacent:
-            # Generate solvable puzzle by applying random moves to all-off state
-            # Each move toggles a cell + neighbors — this ensures solvability
-            n_moves = max(n_lit, int(rng.integers(n_lit, n_lit * 2 + 1)))
-            toggle_positions = list(puzzle_cells)
-            for _ in range(n_moves):
-                toggle_pos = toggle_positions[int(rng.integers(len(toggle_positions)))]
-                tx, ty = toggle_pos
-                for affected in [(tx, ty), (tx + 1, ty), (tx - 1, ty), (tx, ty + 1), (tx, ty - 1)]:
-                    if affected in light_state:
-                        light_state[affected] = not light_state[affected]
-            # Ensure at least n_lit lights are on; if too few, toggle more
-            lit_count = sum(1 for v in light_state.values() if v)
-            if lit_count == 0:
-                # Force-light some cells
-                for pos in rng.choice(len(puzzle_cells), size=n_lit, replace=False):
-                    light_state[puzzle_cells[pos]] = True
-        else:
-            # Simple mode: randomly pick n_lit cells to be on
-            on_cells = [puzzle_cells[i] for i in rng.choice(len(puzzle_cells), size=n_lit, replace=False)]
-            for pos in on_cells:
-                light_state[pos] = True
+        for _attempt in range(max_attempts):
+            light_state = {pos: False for pos in puzzle_cells}
 
-        light_positions = [pos for pos, on in light_state.items() if on]
+            if adjacent:
+                # Generate solvable puzzle by applying random moves to all-off state
+                # Each move toggles a cell + neighbors — this ensures solvability
+                n_moves = max(n_lit, int(rng.integers(n_lit, n_lit * 2 + 1)))
+                toggle_positions = list(puzzle_cells)
+                for _ in range(n_moves):
+                    toggle_pos = toggle_positions[int(rng.integers(len(toggle_positions)))]
+                    tx, ty = toggle_pos
+                    for affected in [
+                        (tx, ty), (tx + 1, ty), (tx - 1, ty), (tx, ty + 1), (tx, ty - 1),
+                    ]:
+                        if affected in light_state:
+                            light_state[affected] = not light_state[affected]
+                # Ensure at least n_lit lights are on; if too few, toggle more
+                lit_count = sum(1 for v in light_state.values() if v)
+                if lit_count == 0:
+                    # Force-light some cells
+                    for pos in rng.choice(len(puzzle_cells), size=n_lit, replace=False):
+                        light_state[puzzle_cells[pos]] = True
+            else:
+                # Simple mode: randomly pick n_lit cells to be on
+                on_cells = [
+                    puzzle_cells[i]
+                    for i in rng.choice(len(puzzle_cells), size=n_lit, replace=False)
+                ]
+                for pos in on_cells:
+                    light_state[pos] = True
 
-        # If no lights ended up on, turn some on
-        if not light_positions:
-            for pos in puzzle_cells[:n_lit]:
-                light_state[pos] = True
-            light_positions = puzzle_cells[:n_lit]
+            light_positions = [pos for pos, on in light_state.items() if on]
+
+            # If no lights ended up on, turn some on
+            if not light_positions:
+                for pos in puzzle_cells[:n_lit]:
+                    light_state[pos] = True
+                light_positions = puzzle_cells[:n_lit]
+
+            # Check minimum solution complexity
+            sol_toggles = self._count_solution_toggles(
+                puzzle_cells, light_state, adjacent,
+            )
+            if sol_toggles >= min_toggles:
+                break  # puzzle is complex enough
 
         used = set(puzzle_cells) | {agent_pos}
 

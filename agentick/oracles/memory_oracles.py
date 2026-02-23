@@ -9,11 +9,11 @@ from agentick.oracles.registry import register_oracle
 
 @register_oracle("KeyDoorPuzzle-v0")
 class KeyDoorPuzzleOracle(OracleAgent):
-    """Collect keys to unlock doors, then reach goal.
+    """Collect color-coded keys to unlock matching doors, then reach goal.
 
-    Strategy: find nearest REACHABLE key -> pick up -> find nearest door ->
-    walk through. When searching for keys, avoid door cells (impassable
-    without a key). At hard+, avoids NPC guards with prediction.
+    Strategy: if holding a key, find the door with matching color metadata.
+    If not holding a key, find the nearest reachable key.
+    At hard+, avoids NPC guards with prediction.
     """
 
     def _get_door_positions(self):
@@ -25,6 +25,11 @@ class KeyDoorPuzzleOracle(OracleAgent):
                 if grid.objects[y, x] == ObjectType.DOOR:
                     doors.add((x, y))
         return doors
+
+    def _get_door_color(self, pos):
+        """Return color metadata of a door at position (x, y)."""
+        x, y = pos
+        return int(self.api.grid.metadata[y, x])
 
     def _get_guard_avoidance(self):
         """Return (wide_avoid, exact_avoid) sets for guard positions.
@@ -72,12 +77,24 @@ class KeyDoorPuzzleOracle(OracleAgent):
         ax, ay = self.api.agent_position
         avoid_wide, avoid_exact = self._get_guard_avoidance()
 
-        # If carrying a key, head to nearest door
-        if self.api.has_in_inventory("key"):
+        # If carrying a key, find the door whose color matches the key's color
+        inv_keys = [e for e in self.api.agent.inventory if e.entity_type == "key"]
+        if inv_keys:
+            held_key = inv_keys[0]
+            key_color = held_key.properties.get("color", 0)
+
+            # Find matching door
             doors = self.api.get_entities_of_type("door")
-            if doors:
-                nearest_door = min(doors, key=lambda d: d.distance)
-                dp = nearest_door.position
+            matching_door = None
+            for d in doors:
+                if self._get_door_color(d.position) == key_color:
+                    matching_door = d
+                    break
+            if matching_door is None and doors:
+                matching_door = min(doors, key=lambda d: d.distance)
+
+            if matching_door:
+                dp = matching_door.position
                 for avoid in [avoid_wide - {dp}, avoid_exact - {dp}, set()]:
                     path = self.api.bfs_path_positions(
                         (ax, ay),

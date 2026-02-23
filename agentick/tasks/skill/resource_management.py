@@ -1,17 +1,17 @@
-"""ResourceManagement - Keep energy stations charged while reaching the goal.
+"""ResourceManagement - Keep energy stations alive for max_steps.
 
 MECHANICS:
   - N energy stations (RESOURCE objects) scattered on the map
   - Each station has metadata = energy level (100 = full, 0 = dead)
   - Energy drains every few steps at different rates per station
-  - Agent visits a station to RECHARGE it (steps on RESOURCE → charges to 100)
-  - If ANY station hits 0 → episode FAIL (returns -1.0)
-  - SUCCESS = reach the GOAL object while all stations stay alive
-  - Agent must JUGGLE: recharge critical stations while progressing toward goal
+  - Agent visits a station to RECHARGE it (steps on RESOURCE -> charges to 100)
+  - If ANY station hits 0 -> episode FAIL (returns -1.0)
+  - SUCCESS = survive all max_steps with NO station dying (no goal to reach)
+  - Agent must JUGGLE: recharge critical stations in time
 
 VISIBILITY (all modalities):
   - Pixels: station color changes as energy depletes
-      green (≥80%) → yellow-green → yellow → orange → red/critical (≤20%)
+      green (>=80%) -> yellow-green -> yellow -> orange -> red/critical (<=20%)
       Via metadata value 0-100 on RESOURCE objects rendered by _energy_color()
   - ASCII: "r" character for RESOURCE; number in metadata shows energy level
   - Language: "Station 1 is at 80%, Station 2 is critical at 15%"
@@ -19,7 +19,7 @@ VISIBILITY (all modalities):
 DIFFICULTY:
   - easy:   2 stations, slow drain (every 10 steps), small map, no obstacles
   - medium: 3 stations, medium drain, obstacles
-  - hard:   4 stations, fast drain (every 4 steps), more obstacles, varied rates
+  - hard:   4 stations, fast drain (every 5 steps), more obstacles, varied rates
   - expert: 5 stations, very fast drain, varied rates, large map with obstacles
 """
 
@@ -36,10 +36,15 @@ _FULL_ENERGY = 100
 
 @register_task("ResourceManagement-v0", tags=["planning", "resource_allocation"])
 class ResourceManagementTask(TaskSpec):
-    """Recharge stations before any dies, then reach the goal."""
+    """Keep all energy stations alive for the entire episode duration.
+
+    There is no goal to reach. Success means surviving max_steps without
+    any station's energy dropping to zero. The agent recharges stations
+    by stepping on them. Drain rates scale with difficulty.
+    """
 
     name = "ResourceManagement-v0"
-    description = "Keep energy stations alive while reaching the goal"
+    description = "Keep energy stations alive by recharging them before they drain to zero"
     capability_tags = ["planning", "resource_allocation"]
 
     difficulty_configs = {
@@ -104,9 +109,7 @@ class ResourceManagementTask(TaskSpec):
         grid.terrain[:, -1] = CellType.WALL
 
         agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
-        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
-        used = {agent_pos, goal_pos}
+        used = {agent_pos}
 
         # Place stations well spread out
         interior = [
@@ -138,8 +141,8 @@ class ResourceManagementTask(TaskSpec):
             grid.objects[sy, sx] = ObjectType.RESOURCE
             grid.metadata[sy, sx] = _FULL_ENERGY
 
-        # Interior obstacles — keep all stations + goal reachable
-        critical = [agent_pos, goal_pos] + station_positions
+        # Interior obstacles — keep all stations reachable
+        critical = [agent_pos] + station_positions
         wall_cands = [p2 for p2 in interior if p2 not in used]
         rng.shuffle(wall_cands)
         placed_walls = 0
@@ -163,7 +166,7 @@ class ResourceManagementTask(TaskSpec):
 
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": [goal_pos],
+            "goal_positions": [],
             "station_positions": station_positions,
             "drain_interval": p.get("drain_interval", 10),
             "drain_amounts": drain_amts,
@@ -231,21 +234,19 @@ class ResourceManagementTask(TaskSpec):
         if stations and "agent_position" in new_state:
             ax, ay = new_state["agent_position"]
             ox, oy = old_state.get("agent_position", (ax, ay))
-            # Guide toward most urgent (lowest energy) station if critical,
-            # else guide toward goal
+            # Guide toward most urgent (lowest energy) station
             min_e = min(levels) if levels else _FULL_ENERGY
-            if min_e < 40 and levels:
-                # Urgent: go to most critical station
+            if min_e < 50 and levels:
                 urgency = [(levels[i], stations[i]) for i in range(len(stations))]
                 urgency.sort(key=lambda q: q[0])
                 tx, ty = urgency[0][1]
                 reward += 0.04 * (abs(ox - tx) + abs(oy - ty) - abs(ax - tx) - abs(ay - ty))
-            else:
-                # Approach goal
-                goal = config.get("goal_positions", [None])[0]
-                if goal:
-                    gx, gy = goal
-                    reward += 0.03 * (abs(ox - gx) + abs(oy - gy) - abs(ax - gx) - abs(ay - gy))
+
+        # Reward for recharging a station
+        old_levels = old_state.get("config", {}).get("_energy_levels", [])
+        for i, lv in enumerate(levels):
+            if i < len(old_levels) and lv > old_levels[i]:
+                reward += 0.1
 
         # Penalty for energy dropping very low
         min_e = min(levels) if levels else _FULL_ENERGY
@@ -261,25 +262,26 @@ class ResourceManagementTask(TaskSpec):
         config = new_state.get("config", {})
         if config.get("_dead", False):
             return -1.0
-        if self.check_success(new_state):
-            return 1.0
+        # Survival task: success reward is only given at truncation (handled by
+        # TaskEnv._check_success).  Mid-episode sparse reward stays 0.
         return 0.0
 
     def check_done(self, state):
         config = state.get("config", {})
         if config.get("_dead", False):
             return True
-        return self.check_success(state)
+        # No explicit done — episode ends only when truncated (max_steps) or station dies
+        return False
 
     def check_success(self, state):
-        """Agent at GOAL while all stations alive."""
+        """Success = all stations alive at episode end (checked at truncation)."""
         config = state.get("config", {})
         if config.get("_dead", False):
             return False
-        if "grid" not in state or "agent" not in state:
-            return False
-        x, y = state["agent"].position
-        return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
+        # Success is evaluated at truncation (max_steps reached)
+        # The env wrapper checks check_success at truncation
+        # If we're still alive when this is called, we're successful
+        return not config.get("_dead", False)
 
     def validate_instance(self, grid, config):
         return True
