@@ -29,6 +29,7 @@ class SokobanPushTask(TaskSpec):
     name = "SokobanPush-v0"
     description = "Push boxes onto targets"
     capability_tags = ["reasoning", "planning"]
+    overrides_walkable = True  # HOLE terrain is walkable at target positions
 
     difficulty_configs = {
         "easy": DifficultyConfig(
@@ -149,6 +150,11 @@ class SokobanPushTask(TaskSpec):
                 else:
                     grid.terrain[hy, hx] = CellType.EMPTY
 
+        # Set HOLE terrain on target positions AFTER obstacle/hazard placement
+        # (flood_fill treats HOLE as non-walkable, so this must come last)
+        for tx, ty in target_positions:
+            grid.terrain[ty, tx] = CellType.HOLE  # renders as hole_block tile
+
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": target_positions,
@@ -168,6 +174,9 @@ class SokobanPushTask(TaskSpec):
     def can_agent_enter(self, pos, agent, grid) -> bool:
         """If moving into a box, try to push it one step further."""
         x, y = pos
+        # Block walls and hazards (since we override walkable for HOLE terrain)
+        if grid.terrain[y, x] in (CellType.WALL, CellType.HAZARD):
+            return False
         obj = grid.objects[y, x]
         if obj == ObjectType.BOX:
             # Compute push direction (same as agent's direction of travel)
@@ -189,6 +198,7 @@ class SokobanPushTask(TaskSpec):
                 config = getattr(self, "_current_config", {})
                 if (x, y) in config.get("target_positions", []):
                     grid.objects[y, x] = ObjectType.TARGET
+                    grid.terrain[y, x] = CellType.HOLE
                 # Place box at new position
                 grid.objects[ny, nx] = ObjectType.BOX
                 return True  # agent enters old box cell
@@ -265,6 +275,24 @@ class SokobanPushTask(TaskSpec):
 
         # Success = every target cell has a BOX
         return all(grid.objects[ty, tx] == ObjectType.BOX for tx, ty in targets)
+
+    def validate_instance(self, grid, config):
+        """Custom validation: treat HOLE terrain (target positions) as walkable."""
+        agent_pos = config.get("agent_start")
+        targets = config.get("target_positions", [])
+        if not agent_pos or not targets:
+            return True
+        # Temporarily set HOLE terrain to EMPTY for flood_fill reachability check
+        hole_cells = []
+        for tx, ty in targets:
+            if grid.terrain[ty, tx] == CellType.HOLE:
+                grid.terrain[ty, tx] = CellType.EMPTY
+                hole_cells.append((tx, ty))
+        reachable = grid.flood_fill(agent_pos)
+        # Restore HOLE terrain
+        for tx, ty in hole_cells:
+            grid.terrain[ty, tx] = CellType.HOLE
+        return any(t in reachable for t in targets)
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

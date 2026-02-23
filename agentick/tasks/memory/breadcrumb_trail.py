@@ -32,7 +32,7 @@ CRUMB_TYPES = [
     ObjectType.BREADCRUMB,  # crumb 2
     ObjectType.TARGET,  # crumb 3
     ObjectType.SWITCH,  # crumb 4
-    ObjectType.BLOCKER,  # crumb 5 (largest)
+    ObjectType.NPC,  # crumb 5 (largest)
 ]
 
 

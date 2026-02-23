@@ -112,7 +112,7 @@ class CompetitiveTagTask(TaskSpec):
             ox, oy = interior[i]
             grid.terrain[oy, ox] = CellType.WALL
 
-        # Place safe zones (ICE terrain — visually distinct, functional)
+        # Place safe zones (SWITCH objects — visually distinct, functional)
         walkable = [
             (x, y)
             for x in range(1, size - 1)
@@ -125,13 +125,8 @@ class CompetitiveTagTask(TaskSpec):
             if len(safe_zone_positions) >= n_safe:
                 break
             sx, sy = pos
-            grid.terrain[sy, sx] = CellType.ICE
-            # Verify still connected
-            reachable = grid.flood_fill(agent_pos)
-            if len(reachable) > (size - 2) ** 2 // 3:
-                safe_zone_positions.append(pos)
-            else:
-                grid.terrain[sy, sx] = CellType.EMPTY
+            grid.objects[sy, sx] = ObjectType.SWITCH
+            safe_zone_positions.append(pos)
 
         # Place NPCs on opposite side of grid from agent
         npc_candidates = [
@@ -154,6 +149,7 @@ class CompetitiveTagTask(TaskSpec):
 
         for nx, ny in npc_positions:
             grid.objects[ny, nx] = ObjectType.ENEMY
+            grid.metadata[ny, nx] = 2  # default facing down
 
         # Solvability check
         reachable = grid.flood_fill(agent_pos)
@@ -182,15 +178,20 @@ class CompetitiveTagTask(TaskSpec):
         config["_agent_tagged_count"] = 0
         config["_cooldown_remaining"] = 0
         config["_score"] = 0.0
+        self._safe_zone_set = set(map(tuple, config.get("safe_zone_positions", [])))
         self._last_n = len(config["_live_npcs"])
         self._last_score = 0.0
         self._config = config
+        # Restore safe zone SWITCH objects (may have been overwritten)
+        for sx, sy in self._safe_zone_set:
+            if grid.objects[sy, sx] == ObjectType.NONE:
+                grid.objects[sy, sx] = ObjectType.SWITCH
         for nx, ny in config["_live_npcs"]:
             grid.objects[ny, nx] = ObjectType.ENEMY
+            grid.metadata[ny, nx] = 2  # default facing down
 
     def _is_safe_zone(self, pos, grid):
-        x, y = pos
-        return grid.terrain[y, x] == CellType.ICE
+        return tuple(pos) in self._safe_zone_set
 
     def on_agent_moved(self, pos, agent, grid):
         config = getattr(self, "_config", {})
@@ -211,6 +212,17 @@ class CompetitiveTagTask(TaskSpec):
             ]
             config["_score"] = config.get("_score", 0) + 1.0
 
+    def _is_npc_walkable(self, x, y, grid):
+        """Check if an NPC can walk to (x, y) — EMPTY terrain or safe zone."""
+        if not (0 < x < grid.width - 1 and 0 < y < grid.height - 1):
+            return False
+        if grid.terrain[y, x] != CellType.EMPTY:
+            return False
+        obj = grid.objects[y, x]
+        if obj == ObjectType.ENEMY:
+            return False
+        return True
+
     def on_env_step(self, agent, grid, config, step_count):
         npcs = config.get("_live_npcs", [])
         rng = config.get("_npc_rng")
@@ -226,6 +238,7 @@ class CompetitiveTagTask(TaskSpec):
         for nx, ny in npcs:
             if grid.objects[ny, nx] == ObjectType.ENEMY:
                 grid.objects[ny, nx] = ObjectType.NONE
+                grid.metadata[ny, nx] = 0
 
         new_npcs = []
         for nx, ny in npcs:
@@ -237,12 +250,7 @@ class CompetitiveTagTask(TaskSpec):
                 best, best_d = (nx, ny), dist
                 for dx, dy in self._DIRS:
                     cx, cy = nx + dx, ny + dy
-                    if (
-                        0 < cx < grid.width - 1
-                        and 0 < cy < grid.height - 1
-                        and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
-                        and grid.objects[cy, cx] != ObjectType.ENEMY
-                    ):
+                    if self._is_npc_walkable(cx, cy, grid):
                         d = abs(cx - ax) + abs(cy - ay)
                         if d < best_d:
                             best_d, best = d, (cx, cy)
@@ -252,12 +260,7 @@ class CompetitiveTagTask(TaskSpec):
                 best, best_d = (nx, ny), dist
                 for dx, dy in self._DIRS:
                     cx, cy = nx + dx, ny + dy
-                    if (
-                        0 < cx < grid.width - 1
-                        and 0 < cy < grid.height - 1
-                        and grid.terrain[cy, cx] in (CellType.EMPTY, CellType.ICE)
-                        and grid.objects[cy, cx] != ObjectType.ENEMY
-                    ):
+                    if self._is_npc_walkable(cx, cy, grid):
                         d = abs(cx - ax) + abs(cy - ay)
                         if d > best_d:
                             best_d, best = d, (cx, cy)
@@ -268,18 +271,13 @@ class CompetitiveTagTask(TaskSpec):
                 valid = [
                     (x, y)
                     for x, y in moves
-                    if (
-                        0 < x < grid.width - 1
-                        and 0 < y < grid.height - 1
-                        and grid.terrain[y, x] in (CellType.EMPTY, CellType.ICE)
-                        and grid.objects[y, x] != ObjectType.ENEMY
-                    )
+                    if self._is_npc_walkable(x, y, grid)
                 ]
                 new_npcs.append(valid[int(rng.integers(len(valid)))] if valid else (nx, ny))
 
         # Check for NPC-tags-agent (bidirectional tagging)
         final = []
-        for nx, ny in new_npcs:
+        for idx, (nx, ny) in enumerate(new_npcs):
             if (nx, ny) == (ax, ay):
                 # NPC tags agent (unless agent in safe zone or has cooldown)
                 if (
@@ -292,8 +290,28 @@ class CompetitiveTagTask(TaskSpec):
                 pass  # NPC removed
             else:
                 grid.objects[ny, nx] = ObjectType.ENEMY
+                # Store movement direction in metadata for directional sprites
+                old_nx, old_ny = npcs[idx] if idx < len(npcs) else (nx, ny)
+                ddx, ddy = nx - old_nx, ny - old_ny
+                if ddx > 0:
+                    grid.metadata[ny, nx] = 1  # right
+                elif ddx < 0:
+                    grid.metadata[ny, nx] = 3  # left
+                elif ddy < 0:
+                    grid.metadata[ny, nx] = 0  # up
+                elif ddy > 0:
+                    grid.metadata[ny, nx] = 2  # down
+                else:
+                    grid.metadata[ny, nx] = 2  # default down
                 final.append((nx, ny))
         config["_live_npcs"] = final
+
+        # Restore safe zone SWITCH objects that may have been overwritten
+        safe_zones = getattr(self, "_safe_zone_set", set())
+        for sx, sy in safe_zones:
+            if grid.objects[sy, sx] == ObjectType.NONE:
+                grid.objects[sy, sx] = ObjectType.SWITCH
+                grid.metadata[sy, sx] = 0  # reset metadata for switch_off
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01

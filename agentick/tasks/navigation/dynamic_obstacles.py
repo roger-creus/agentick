@@ -134,7 +134,9 @@ class DynamicObstaclesTask(TaskSpec):
         config["_live_dirs"] = list(config["_obstacle_dirs"])
         config["_obs_rng"] = np.random.default_rng(config["_obs_seed"])
         config["_collision"] = False
-        self._draw_obstacles(grid, config["_live_obstacles"], draw=True)
+        self._draw_obstacles(
+            grid, config["_live_obstacles"], config["_live_dirs"], draw=True,
+        )
 
     def on_env_step(self, agent, grid, config, step_count):
         obstacles = config["_live_obstacles"]
@@ -145,7 +147,7 @@ class DynamicObstaclesTask(TaskSpec):
         pursue_prob = config.get("_pursue_prob", 1.0)
         ax, ay = agent.position
 
-        self._draw_obstacles(grid, obstacles, draw=False)
+        self._draw_obstacles(grid, obstacles, dirs, draw=False)
 
         new_obs, new_dirs = [], []
         for i, (ox, oy) in enumerate(obstacles):
@@ -202,25 +204,25 @@ class DynamicObstaclesTask(TaskSpec):
 
         config["_live_obstacles"] = new_obs
         config["_live_dirs"] = new_dirs
-        self._draw_obstacles(grid, new_obs, draw=True)
+        self._draw_obstacles(grid, new_obs, new_dirs, draw=True)
 
         # Collision check: use GRID OBJECT (robust, no X,Y flip bug)
-        # Obstacle is drawn as BLOCKER — if agent cell has BLOCKER, collision!
-        if "agent" in dir(agent):
-            pass
         cur_ax, cur_ay = agent.position
         # Check if any obstacle is now on the agent's cell
-        if grid.objects[cur_ay, cur_ax] == ObjectType.BLOCKER:
+        if grid.objects[cur_ay, cur_ax] == ObjectType.NPC:
             config["_collision"] = True
 
-    def _draw_obstacles(self, grid, obstacles, draw: bool):
-        for ox, oy in obstacles:
+    def _draw_obstacles(self, grid, obstacles, dirs, draw: bool):
+        for idx, (ox, oy) in enumerate(obstacles):
             if 0 <= ox < grid.width and 0 <= oy < grid.height:
                 if draw:
                     if grid.objects[oy, ox] != ObjectType.GOAL:
-                        grid.objects[oy, ox] = ObjectType.BLOCKER
-                elif grid.objects[oy, ox] == ObjectType.BLOCKER:
-                    grid.objects[oy, ox] = ObjectType.NONE
+                        grid.objects[oy, ox] = ObjectType.NPC
+                        grid.metadata[oy, ox] = dirs[idx] if idx < len(dirs) else 0
+                else:
+                    if grid.objects[oy, ox] == ObjectType.NPC:
+                        grid.objects[oy, ox] = ObjectType.NONE
+                        grid.metadata[oy, ox] = 0
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01

@@ -343,6 +343,15 @@ class TaskEnv(AgentickEnv):
     def _move_agent(self, action_type) -> None:
         """Move agent, delegating task-specific entry rules to the task."""
         from agentick.core.actions import get_move_delta
+        from agentick.core.types import ActionType as AT
+        from agentick.core.types import Direction
+
+        _ACTION_DIR = {
+            AT.MOVE_UP: Direction.NORTH,
+            AT.MOVE_DOWN: Direction.SOUTH,
+            AT.MOVE_LEFT: Direction.WEST,
+            AT.MOVE_RIGHT: Direction.EAST,
+        }
 
         # Allow tasks to remap actions (e.g. DistributionShift swaps directions)
         remap = self.task_config.get("_action_remap")
@@ -352,6 +361,10 @@ class TaskEnv(AgentickEnv):
         delta = get_move_delta(action_type)
         if delta is None:
             return
+
+        # Update orientation to face movement direction
+        if action_type in _ACTION_DIR:
+            self.agent.orientation = _ACTION_DIR[action_type]
 
         dx, dy = delta
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)

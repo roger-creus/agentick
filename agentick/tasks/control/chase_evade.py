@@ -136,6 +136,7 @@ class ChaseEvadeTask(TaskSpec):
 
         for ex, ey in enemy_positions:
             grid.objects[ey, ex] = ObjectType.ENEMY
+            grid.metadata[ey, ex] = 2  # default facing down
 
         # Solvability: ensure connected
         reachable = grid.flood_fill(agent_pos)
@@ -251,6 +252,7 @@ class ChaseEvadeTask(TaskSpec):
         for ex, ey in enemies:
             if grid.objects[ey, ex] == ObjectType.ENEMY:
                 grid.objects[ey, ex] = ObjectType.NONE
+                grid.metadata[ey, ex] = 0
 
         # Move enemies
         new_enemies = []
@@ -262,11 +264,24 @@ class ChaseEvadeTask(TaskSpec):
 
         # Place enemies and check for catching agent
         final = []
-        for ex, ey in new_enemies:
+        for i, (ex, ey) in enumerate(new_enemies):
             if (ex, ey) == (ax, ay):
                 config["_caught"] = True
             else:
                 grid.objects[ey, ex] = ObjectType.ENEMY
+                # Store movement direction in metadata for directional sprites
+                old_ex, old_ey = enemies[i] if i < len(enemies) else (ex, ey)
+                dx, dy = ex - old_ex, ey - old_ey
+                if dx > 0:
+                    grid.metadata[ey, ex] = 1  # right
+                elif dx < 0:
+                    grid.metadata[ey, ex] = 3  # left
+                elif dy < 0:
+                    grid.metadata[ey, ex] = 0  # up
+                elif dy > 0:
+                    grid.metadata[ey, ex] = 2  # down
+                else:
+                    grid.metadata[ey, ex] = 2  # default down
                 final.append((ex, ey))
 
         config["_enemies"] = final

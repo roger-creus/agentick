@@ -244,8 +244,9 @@ class SwitchCircuitTask(TaskSpec):
         if switch_color in active:
             # Toggle OFF: close barrier[switch_color], open barrier[(switch_color+1)%n]
             active.discard(switch_color)
-            # Restore the switch visual
+            # Keep switch visible, mark as OFF
             grid.objects[ay, ax] = ObjectType.SWITCH
+            grid.metadata[ay, ax] = switch_color  # plain = OFF
 
             # Close barrier of this switch's color
             self._close_barrier(grid, switch_color, barrier_cells)
@@ -256,8 +257,9 @@ class SwitchCircuitTask(TaskSpec):
         else:
             # Toggle ON: open barrier[switch_color], close barrier[(switch_color+1)%n]
             active.add(switch_color)
-            # Visual: switch stays as SWITCH object (or remove it to show activated)
-            grid.objects[ay, ax] = ObjectType.NONE
+            # Keep switch visible, mark as ON
+            grid.objects[ay, ax] = ObjectType.SWITCH
+            grid.metadata[ay, ax] = switch_color + 100  # +100 = ON
 
             # Open barrier of this switch's color
             self._open_barrier(grid, switch_color, barrier_cells)
@@ -265,8 +267,6 @@ class SwitchCircuitTask(TaskSpec):
             # Close the complementary barrier: (switch_color + 1) % n
             comp = (switch_color + 1) % n
             self._close_barrier(grid, comp, barrier_cells)
-            # If complementary switch was ON, it is now blocked again but remains ON
-            # (the barrier state is physical; the switch logical state is independent)
 
         config["_switches_on"] = active
 

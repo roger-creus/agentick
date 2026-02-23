@@ -390,9 +390,22 @@ class AgentickEnv(gym.Env):
 
     def _move_agent(self, action_type: ActionType) -> None:
         """Move agent based on action."""
+        from agentick.core.types import Direction
+
+        _ACTION_DIR = {
+            ActionType.MOVE_UP: Direction.NORTH,
+            ActionType.MOVE_DOWN: Direction.SOUTH,
+            ActionType.MOVE_LEFT: Direction.WEST,
+            ActionType.MOVE_RIGHT: Direction.EAST,
+        }
+
         delta = get_move_delta(action_type)
         if delta is None:
             return
+
+        # Update orientation to face movement direction
+        if action_type in _ACTION_DIR:
+            self.agent.orientation = _ACTION_DIR[action_type]
 
         dx, dy = delta
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)

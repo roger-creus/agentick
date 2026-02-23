@@ -251,7 +251,7 @@ class RuleInductionTask(TaskSpec):
 
         # Check if agent is on the switch
         if grid.objects[y, x] == ObjectType.SWITCH and not config.get("_rule_revealed", False):
-            grid.objects[y, x] = ObjectType.NONE
+            grid.metadata[y, x] = 100  # mark as pressed/on
             phase = config.get("_current_phase", 0)
             rules = config.get("phase_rules", [])
             if phase < len(rules):

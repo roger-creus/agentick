@@ -64,7 +64,7 @@ class InstructionFollowingOracle(OracleAgent):
         wrong_zones = set()
         for y in range(grid.height):
             for x in range(grid.width):
-                if grid.objects[y, x] == ObjectType.TARGET:
+                if grid.objects[y, x] in (ObjectType.TARGET, ObjectType.LEVER):
                     if true_goal is None or (x, y) != true_goal:
                         if (x, y) not in wp_zones:
                             wrong_zones.add((x, y))

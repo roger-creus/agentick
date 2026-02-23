@@ -205,10 +205,8 @@ class SequenceMemoryTask(TaskSpec):
                     # the SEQUENCE (order) not just the positions
                     pass  # Shuffle is about testing memory of the sequence order
 
-            # Place distractors as SWITCH objects (visual noise during reproduce)
-            for dx, dy in config.get("distractors", []):
-                if grid.objects[dy, dx] == ObjectType.NONE:
-                    grid.objects[dy, dx] = ObjectType.SWITCH
+            # Distractors are tracked by position only (no visual objects)
+            # Stepping on a distractor position incurs a penalty
 
     def on_agent_moved(self, pos, agent, grid):
         """Handle position visits during reproduce phase."""
@@ -231,10 +229,11 @@ class SequenceMemoryTask(TaskSpec):
             # Correct! Flash GOAL briefly (will be cleared next step)
             grid.objects[y, x] = ObjectType.GOAL
             config["_seq_progress"] = progress + 1
-        elif grid.objects[y, x] == ObjectType.SWITCH:
-            # Hit a distractor
-            config["_wrong_visit"] = True
-            grid.objects[y, x] = ObjectType.NONE
+        else:
+            # Check if position is a distractor
+            distractor_set = {tuple(d) for d in config.get("distractors", [])}
+            if (x, y) in distractor_set and not config.get("_wrong_visit", False):
+                config["_wrong_visit"] = True
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
