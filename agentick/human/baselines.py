@@ -334,6 +334,23 @@ HUMAN_BASELINES: dict[str, dict[str, Any]] = {
         "difficulty": "very-hard",
         "notes": "Abstract programming, high cognitive load",
     },
+    # Exploration Tasks (added in TASK_REVIEW_3)
+    "CuriosityMaze-v0": {
+        "success_rate": 0.72,
+        "avg_steps": 44.5,
+        "optimal_ratio": 1.48,
+        "learning_curve": [0.48, 0.62, 0.69, 0.72],
+        "difficulty": "medium-hard",
+        "notes": "Exploration incentive, requires systematic coverage",
+    },
+    "TreasureHunt-v0": {
+        "success_rate": 0.76,
+        "avg_steps": 38.2,
+        "optimal_ratio": 1.42,
+        "learning_curve": [0.55, 0.66, 0.73, 0.76],
+        "difficulty": "medium",
+        "notes": "Search task with partial observability, rewarding exploration",
+    },
 }
 
 

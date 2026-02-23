@@ -1,11 +1,17 @@
 """TileSorting - Sliding puzzle (15-puzzle style).
 
 MECHANICS:
-  - A compact NxN grid of numbered tiles with one empty slot
-  - Agent moves to an adjacent tile to slide it into the empty slot
-  - Tiles must be arranged in ascending order (row-major)
-  - Success = all tiles in correct positions
-  - NOT Sokoban — this is a classic sliding/15-puzzle
+  - A compact NxN grid of numbered tiles with one empty slot.
+  - The agent IS the empty slot. Moving the agent toward an adjacent tile
+    causes that tile to slide into the empty slot (swap positions).
+    For example, if the agent is at (3,3) and moves UP toward tile 5 at (3,2),
+    tile 5 slides down to (3,3) and the agent (empty slot) moves to (3,2).
+  - Each tile has a unique number (1, 2, 3, ... up to N*N-1).
+  - Target positions are marked on the floor in green, showing which numbered
+    tile belongs there (e.g., a green "3" means tile 3 should end up there).
+  - When a tile is sitting on its correct target, the target marker is hidden.
+  - Success = all tiles in their correct (ascending row-major) positions.
+  - NOT Sokoban — this is a classic sliding/15-puzzle.
 """
 
 import numpy as np
@@ -22,7 +28,10 @@ class TileSortingTask(TaskSpec):
     """Solve a sliding puzzle by arranging tiles in order."""
 
     name = "TileSorting-v0"
-    description = "Sliding puzzle: arrange tiles in order"
+    description = (
+        "Sliding puzzle: move into adjacent numbered tiles to swap them with the "
+        "empty slot. Green floor markers show where each tile belongs."
+    )
     capability_tags = ["combinatorial_logic", "planning"]
 
     difficulty_configs = {
@@ -104,15 +113,20 @@ class TileSortingTask(TaskSpec):
                     empty = slide_pos
                     break
 
+        # Build reverse lookup: position -> expected tile number
+        goal_pos_to_tile = {pos: tn for tn, pos in goal_positions_map.items()}
+
         # Place tiles on grid using metadata for tile numbers
         # Use BOX for tiles, TARGET for goal positions (where tiles should go)
         for tn, (tx, ty) in current.items():
             grid.objects[ty, tx] = ObjectType.BOX
             grid.metadata[ty, tx] = tn  # tile number stored in metadata
 
-        # Mark goal positions with TARGET (where tiles should end up)
+        # Mark goal positions with TARGET (where tiles should end up).
+        # TARGET shows the expected tile number so the agent can see
+        # "green 3 means tile 3 goes here".  Hidden under tiles that
+        # are currently occupying the position.
         for tn, (gx, gy) in goal_positions_map.items():
-            # Only show TARGET if no tile is there
             if grid.objects[gy, gx] == ObjectType.NONE:
                 grid.objects[gy, gx] = ObjectType.TARGET
                 grid.metadata[gy, gx] = tn
@@ -138,6 +152,10 @@ class TileSortingTask(TaskSpec):
             "offset_y": offset_y,
             "n_tiles": n_tiles,
             "goal_map": {str(k): list(v) for k, v in goal_positions_map.items()},
+            # Reverse lookup: "x,y" -> tile_number expected at that position
+            "goal_pos_to_tile": {
+                f"{pos[0]},{pos[1]}": tn for pos, tn in goal_pos_to_tile.items()
+            },
             "max_steps": self.get_max_steps(),
         }
 

@@ -8,6 +8,10 @@ MECHANICS:
   - The destruction mechanic means order matters: collecting wrong type first
     can make the task unsolvable
   - Interference walls appear when first goal is completed
+  - Physical interference: at medium+, collecting a COIN places a WALL where
+    the destroyed GEM was; at hard+, collecting a GEM also places a WALL where
+    the destroyed COIN was. Walls are only placed if remaining items stay
+    reachable from the agent position.
   - Tests planning under competing objectives and interference resistance
 """
 
@@ -33,25 +37,49 @@ class TaskInterferenceTask(TaskSpec):
             name="easy",
             grid_size=9,
             max_steps=150,
-            params={"n_coins": 2, "n_gems": 2, "interference": False},
+            params={
+                "n_coins": 2,
+                "n_gems": 2,
+                "interference": False,
+                "wall_on_coin_pickup": False,
+                "wall_on_gem_pickup": False,
+            },
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=11,
             max_steps=250,
-            params={"n_coins": 3, "n_gems": 3, "interference": True},
+            params={
+                "n_coins": 3,
+                "n_gems": 3,
+                "interference": True,
+                "wall_on_coin_pickup": True,
+                "wall_on_gem_pickup": False,
+            },
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=13,
             max_steps=400,
-            params={"n_coins": 4, "n_gems": 4, "interference": True},
+            params={
+                "n_coins": 4,
+                "n_gems": 4,
+                "interference": True,
+                "wall_on_coin_pickup": True,
+                "wall_on_gem_pickup": True,
+            },
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=15,
             max_steps=600,
-            params={"n_coins": 5, "n_gems": 5, "interference": True},
+            params={
+                "n_coins": 5,
+                "n_gems": 5,
+                "interference": True,
+                "wall_on_coin_pickup": True,
+                "wall_on_gem_pickup": True,
+            },
         ),
     }
 
@@ -124,6 +152,9 @@ class TaskInterferenceTask(TaskSpec):
                     if (wx, y) not in used and grid.terrain[y, wx] == CellType.EMPTY:
                         interference_walls.append((wx, y))
 
+        wall_on_coin = self.difficulty_config.params.get("wall_on_coin_pickup", False)
+        wall_on_gem = self.difficulty_config.params.get("wall_on_gem_pickup", False)
+
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [coin_goal, gem_goal],
@@ -134,6 +165,8 @@ class TaskInterferenceTask(TaskSpec):
             "n_coins": n_coins,
             "n_gems": n_gems,
             "interference": interference,
+            "wall_on_coin_pickup": wall_on_coin,
+            "wall_on_gem_pickup": wall_on_gem,
             "interference_walls": interference_walls,
             "max_steps": self.get_max_steps(),
         }
@@ -149,11 +182,54 @@ class TaskInterferenceTask(TaskSpec):
         self._last_delivered = 0
         self._config = config
 
+    def _check_all_reachable(self, grid, agent_pos, positions):
+        """Check that all positions in the list are reachable from agent_pos."""
+        if not positions:
+            return True
+        reachable = grid.flood_fill(agent_pos)
+        return all(p in reachable for p in positions)
+
+    def _try_place_interference_wall(self, grid, wall_pos, agent_pos, config):
+        """Place a wall at wall_pos if remaining items stay reachable from agent.
+
+        Returns True if the wall was placed, False if skipped.
+        """
+        wx, wy = wall_pos
+        # Only place on empty terrain that has no object
+        if grid.terrain[wy, wx] != CellType.EMPTY:
+            return False
+        if grid.objects[wy, wx] != ObjectType.NONE:
+            return False
+
+        # Tentatively place the wall
+        grid.terrain[wy, wx] = CellType.WALL
+
+        # Collect all positions that must remain reachable: live coins, live gems,
+        # coin goal, gem goal
+        must_reach = []
+        must_reach.extend(config.get("_live_coins", []))
+        must_reach.extend(config.get("_live_gems", []))
+        coin_goal = config.get("coin_goal")
+        gem_goal = config.get("gem_goal")
+        if coin_goal:
+            must_reach.append(coin_goal)
+        if gem_goal:
+            must_reach.append(gem_goal)
+
+        if self._check_all_reachable(grid, agent_pos, must_reach):
+            return True
+
+        # Revert — wall would block a needed path
+        grid.terrain[wy, wx] = CellType.EMPTY
+        return False
+
     def on_agent_moved(self, pos, agent, grid):
         config = getattr(self, "_config", {})
         x, y = pos
         obj = grid.objects[y, x]
         interference = config.get("interference", False)
+        wall_on_coin = config.get("wall_on_coin_pickup", False)
+        wall_on_gem = config.get("wall_on_gem_pickup", False)
 
         # Collect coin
         if obj == ObjectType.COIN:
@@ -173,6 +249,12 @@ class TaskInterferenceTask(TaskSpec):
                     live_gems.remove(nearest)
                     config["_live_gems"] = live_gems
 
+                    # Physical interference: place wall where the gem was destroyed
+                    if wall_on_coin:
+                        self._try_place_interference_wall(
+                            grid, (gx, gy), pos, config
+                        )
+
         # Collect gem
         elif obj == ObjectType.GEM:
             grid.objects[y, x] = ObjectType.NONE
@@ -190,6 +272,12 @@ class TaskInterferenceTask(TaskSpec):
                         grid.objects[cy, cx] = ObjectType.NONE
                     live_coins.remove(nearest)
                     config["_live_coins"] = live_coins
+
+                    # Physical interference: place wall where the coin was destroyed
+                    if wall_on_gem:
+                        self._try_place_interference_wall(
+                            grid, (cx, cy), pos, config
+                        )
 
         # Deliver at coin goal
         elif obj == ObjectType.GOAL:

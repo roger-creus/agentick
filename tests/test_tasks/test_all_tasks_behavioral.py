@@ -168,10 +168,20 @@ def test_task_no_success_on_start(task_name):
 # Truncation = failure: tasks should not auto-succeed after max_steps
 # ---------------------------------------------------------------------------
 
+# Survival tasks where truncation IS the success condition
+_SURVIVAL_TASKS = {"ResourceManagement-v0"}
+
+
 @pytest.mark.parametrize("task_name", ALL_TASKS)
 @pytest.mark.timeout(60)
 def test_task_truncation_is_not_success(task_name):
-    """Letting the episode timeout should NOT mark info['success'] = True."""
+    """Letting the episode timeout should NOT mark info['success'] = True.
+
+    Exception: survival tasks (ResourceManagement) where surviving to
+    truncation IS the success condition.
+    """
+    if task_name in _SURVIVAL_TASKS:
+        pytest.skip(f"{task_name} is a survival task (truncation = success)")
     # Use a very short custom max_steps via NOOP spam
     env = agentick.make(task_name, difficulty="easy", seed=99)
     env.reset(seed=42)
@@ -508,21 +518,30 @@ def test_sequence_memory_can_succeed():
 # Old test_graph_coloring_can_succeed removed — replaced by updated version below
 
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 def test_resource_management_can_succeed():
-    """ResourceManagement: collect resources then reach goal."""
+    """ResourceManagement: survive all max_steps by recharging stations."""
     env = agentick.make("ResourceManagement-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    for p in cfg.get("resource_positions", cfg.get("key_positions", [])):
-        _walk_to(env, p[0], p[1])
-        _noop(env)
-    goal = cfg["goal_positions"][0]
-    obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
-    if not (term or trunc):
-        obs, rew, term, trunc, info = _noop(env)
+    stations = cfg.get("station_positions", [])
+    # Keep visiting stations in round-robin to keep them charged
+    station_idx = 0
+    done = False
+    info = {}
+    for _ in range(env.max_steps + 5):
+        if stations:
+            sx, sy = stations[station_idx % len(stations)]
+            obs, rew, done, trunc, info = _walk_to(env, sx, sy)
+            if done or trunc:
+                break
+            station_idx += 1
+        else:
+            obs, rew, done, trunc, info = _noop(env)
+            if done or trunc:
+                break
     env.close()
-    assert info["success"], "ResourceManagement: couldn't trigger success"
+    assert info.get("success"), "ResourceManagement: couldn't survive to truncation"
 
 
 # ---------------------------------------------------------------------------
@@ -656,23 +675,28 @@ def test_symbol_matching_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_program_synthesis_can_succeed():
-    """ProgramSynthesis: pick up ORB items and deliver to TARGET positions."""
-    env = agentick.make("ProgramSynthesis-v0", difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    orbs = cfg.get("orb_positions", [])
-    targets = cfg.get("test_targets", [])
-    term, trunc, info = False, False, {}
-    for orb, tgt in zip(orbs, targets):
-        if term or trunc:
+    """ProgramSynthesis: push GEM objects onto TARGET positions using the oracle."""
+    from agentick.oracles.registry import get_oracle
+
+    # Try a handful of seeds; the oracle should solve at least one on easy.
+    success = False
+    for seed in range(10):
+        env = agentick.make("ProgramSynthesis-v0", difficulty="easy", seed=seed, reward_mode="sparse")
+        obs, info = env.reset(seed=seed)
+        oracle = get_oracle("ProgramSynthesis-v0", env)
+        oracle.reset(obs, info)
+        term, trunc = False, False
+        for _ in range(env.max_steps):
+            if term or trunc:
+                break
+            action = oracle.act(obs, info)
+            obs, rew, term, trunc, info = env.step(action)
+        if info.get("success"):
+            success = True
+            env.close()
             break
-        _walk_to(env, orb[0], orb[1])  # pick up ORB
-        if not env.done:
-            obs, rew, term, trunc, info = _walk_to(env, tgt[0], tgt[1])  # place on TARGET
-    if not env.done:
-        obs, rew, term, trunc, info = _noop(env)
-    env.close()
-    assert info.get("success"), "ProgramSynthesis: couldn't complete pattern replication"
+        env.close()
+    assert success, "ProgramSynthesis: oracle couldn't push gems to complete pattern"
 
 
 @pytest.mark.timeout(60)

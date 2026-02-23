@@ -83,3 +83,8 @@ sft_model/
 videos/
 paper/
 .project_docs
+
+TASK_REVIEW_3.md
+
+# Isometric gallery output (regenerated)
+gallery_iso/

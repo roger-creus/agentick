@@ -1,12 +1,14 @@
-"""SymbolMatching - Match diverse symbol pairs by carrying items to matching targets.
+"""SymbolMatching - Match visually distinct colored paired symbols.
 
 MECHANICS:
   - N pairs of symbols using 6 different object types (GEM, POTION, SCROLL, COIN, ORB, LEVER)
-  - Each symbol type has one item and one matching target zone
-  - Agent picks up one item at a time, carries it to the matching target
-  - Must match by symbol type: GEM→GEM target, POTION→POTION target, etc.
-  - Placing wrong type on target = penalty (target remains)
-  - Fake items (wrong type with no matching target) add visual noise
+  - Each pair has one item (left side) and one matching target (right side), SAME ObjectType
+  - The matching is purely visual: same character/sprite = same pair
+  - Agent auto-picks up an item by walking onto it (one at a time)
+  - Agent delivers to the matching target (same ObjectType) on the other side
+  - Placing on wrong type = mismatch penalty, item lost
+  - Fake items use types with no matching target (visually distinct, no pair)
+  - Metadata tracks match state only: 0=unmatched target, 1=matched
   - Success = all pairs matched correctly
 """
 
@@ -31,10 +33,10 @@ _SYMBOL_TYPES = [
 
 @register_task("SymbolMatching-v0", tags=["reasoning", "pattern_recognition"])
 class SymbolMatchingTask(TaskSpec):
-    """Match diverse symbol items to their corresponding target zones."""
+    """Match visually distinct symbol items to their matching targets by type."""
 
     name = "SymbolMatching-v0"
-    description = "Match symbol items to their target zones by type"
+    description = "Match symbol items to their matching targets by type"
     capability_tags = ["reasoning", "pattern_recognition"]
 
     difficulty_configs = {
@@ -77,40 +79,58 @@ class SymbolMatchingTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        # Agent starts in the middle
+        mid_x = size // 2
+        agent_pos = (mid_x, 1)
 
-        free = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) != agent_pos
+        # Divide the interior into left and right halves for items and targets
+        # Left half: columns 1..mid_x-1  (items to pick up)
+        # Right half: columns mid_x+1..size-2  (targets to deliver to)
+        left_cells = [
+            (x, y)
+            for x in range(1, mid_x)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos
         ]
-        rng.shuffle(free)
+        right_cells = [
+            (x, y)
+            for x in range(mid_x + 1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) != agent_pos
+        ]
+        rng.shuffle(left_cells)
+        rng.shuffle(right_cells)
 
         # Choose n different symbol types for the pairs
         n_types = min(n, len(_SYMBOL_TYPES))
         chosen_indices = list(range(len(_SYMBOL_TYPES)))
         rng.shuffle(chosen_indices)
         pair_types = [_SYMBOL_TYPES[i] for i in chosen_indices[:n_types]]
-        # If n > len(_SYMBOL_TYPES), reuse types
+        # If n > len(_SYMBOL_TYPES), reuse types (shouldn't happen with max 5 pairs)
         while len(pair_types) < n:
             pair_types.append(_SYMBOL_TYPES[int(rng.integers(len(_SYMBOL_TYPES)))])
 
-        # Place items (the symbol objects) and targets (TARGET with metadata encoding type)
-        item_positions = free[:n]
-        target_positions = free[n : 2 * n]
+        # Place items on left, targets on right - both using the SAME ObjectType
+        item_positions = left_cells[:n]
+        target_positions = right_cells[:n]
         used = {agent_pos} | set(item_positions) | set(target_positions)
 
-        # Store pair info: [(item_pos, target_pos, symbol_type), ...]
         pair_info = []
+        target_pos_set = set()
         for i in range(n):
             ix, iy = item_positions[i]
             tx, ty = target_positions[i]
             sym_type = pair_types[i]
 
-            # Place item as its symbol type
+            # Place item as its symbol type (left side)
             grid.objects[iy, ix] = sym_type
-            # Place target as TARGET; encode which symbol type it expects in metadata
-            grid.objects[ty, tx] = ObjectType.TARGET
-            grid.metadata[ty, tx] = int(sym_type)
 
+            # Place target as the SAME symbol type (right side)
+            # metadata=0 means unmatched target
+            grid.objects[ty, tx] = sym_type
+            grid.metadata[ty, tx] = 0
+
+            target_pos_set.add((tx, ty))
             pair_info.append(
                 {
                     "item_pos": list(item_positions[i]),
@@ -119,25 +139,29 @@ class SymbolMatchingTask(TaskSpec):
                 }
             )
 
-        # Fake items: use symbol types not in the current pair set (or random)
+        # Fake items: use symbol types NOT in the current pair set
+        # They are visually distinct because no matching target exists for them
         fake_positions = []
-        remaining_free = [p for p in free[2 * n :] if p not in used]
+        remaining_left = [p for p in left_cells[n:] if p not in used]
         unused_types = [t for t in _SYMBOL_TYPES if t not in pair_types]
-        for i in range(min(n_fakes, len(remaining_free))):
-            fx, fy = remaining_free[i]
-            if unused_types:
-                fake_type = unused_types[i % len(unused_types)]
-            else:
-                fake_type = _SYMBOL_TYPES[int(rng.integers(len(_SYMBOL_TYPES)))]
+        for i in range(min(n_fakes, len(remaining_left), len(unused_types))):
+            fx, fy = remaining_left[i]
+            fake_type = unused_types[i % len(unused_types)]
             grid.objects[fy, fx] = fake_type
-            fake_positions.append(remaining_free[i])
-            used.add(remaining_free[i])
+            fake_positions.append(remaining_left[i])
+            used.add(remaining_left[i])
 
-        # Obstacle walls with flood-fill check
+        # Obstacle walls with flood-fill reachability check
         wall_positions = []
-        wall_candidates = [p for p in free if p not in used]
+        all_free = [
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(1, size - 1)
+            if (x, y) not in used
+        ]
+        rng.shuffle(all_free)
         critical = [agent_pos] + list(item_positions) + list(target_positions)
-        for p in wall_candidates:
+        for p in all_free:
             if len(wall_positions) >= n_obstacles:
                 break
             wx, wy = p
@@ -154,40 +178,50 @@ class SymbolMatchingTask(TaskSpec):
             "goal_positions": target_positions,
             "pair_info": pair_info,
             "fake_positions": fake_positions,
+            "target_positions": [list(p) for p in target_positions],
             "n_pairs": n,
             "max_steps": self.get_max_steps(),
         }
 
     def on_env_reset(self, agent, grid, config):
         config["_items_placed"] = 0
-        config["_carrying"] = None  # ObjectType int or None
+        config["_carrying"] = None
         config["_mismatches"] = 0
         self._items_placed = 0
-        self._carrying = None
+        self._carrying = None  # ObjectType int or None
         self._last_placed_for_reward = 0
+        # Build a set of target positions for quick lookup
+        self._target_pos_set = set()
+        for p in config.get("pair_info", []):
+            self._target_pos_set.add(tuple(p["target_pos"]))
 
     def on_agent_moved(self, pos, agent, grid):
-        """Pickup symbol item / Place on matching TARGET."""
+        """Auto-pickup symbol item / deliver to matching target (same ObjectType)."""
         x, y = pos
-        obj = grid.objects[y, x]
+        obj = int(grid.objects[y, x])
 
-        if self._carrying is None and obj in _SYMBOL_TYPES:
-            # Pick up symbol item
+        if obj == ObjectType.NONE or obj == ObjectType.GOAL:
+            return
+
+        is_target = (x, y) in self._target_pos_set
+
+        if self._carrying is None and not is_target and obj in [int(t) for t in _SYMBOL_TYPES]:
+            # Pick up an item (not a target)
             grid.objects[y, x] = ObjectType.NONE
-            self._carrying = int(obj)
-        elif self._carrying is not None and obj == ObjectType.TARGET:
-            expected = int(grid.metadata[y, x])
-            if self._carrying == expected:
-                # Correct match: mark as completed (GOAL visual)
+            self._carrying = obj
+
+        elif self._carrying is not None and is_target and obj in [int(t) for t in _SYMBOL_TYPES]:
+            # Attempting to deliver to a target
+            if self._carrying == obj:
+                # Correct match: same ObjectType = visual match
                 grid.objects[y, x] = ObjectType.GOAL
-                grid.metadata[y, x] = 0
+                grid.metadata[y, x] = 1  # metadata 1 = matched
+                self._target_pos_set.discard((x, y))
                 self._carrying = None
                 self._items_placed += 1
             else:
-                # Wrong match: drop the item here (penalty but item returned)
-                # Place the carried item back somewhere, or just drop on ground
-                grid.objects[y, x] = ObjectType.TARGET  # target stays
-                self._carrying = None  # item lost (penalty for mismatch)
+                # Wrong match: mismatch penalty, item lost
+                self._carrying = None
                 config = getattr(self, "_config", {})
                 if config:
                     config["_mismatches"] = config.get("_mismatches", 0) + 1
@@ -206,21 +240,22 @@ class SymbolMatchingTask(TaskSpec):
             ox, oy = old_state.get("agent_position", (ax, ay))
             g = new_state["grid"]
             if self._carrying is None:
-                # Guide toward nearest uncollected symbol item
+                # Guide toward nearest uncollected symbol item (not on target positions)
                 items = [
-                    (x, y)
-                    for y in range(g.height)
-                    for x in range(g.width)
-                    if g.objects[y, x] in _SYMBOL_TYPES
+                    (cx, cy)
+                    for cy in range(g.height)
+                    for cx in range(g.width)
+                    if int(g.objects[cy, cx]) in [int(t) for t in _SYMBOL_TYPES]
+                    and (cx, cy) not in self._target_pos_set
                 ]
             else:
-                # Guide toward the matching TARGET
+                # Guide toward the matching target (same ObjectType, still unmatched)
                 items = [
-                    (x, y)
-                    for y in range(g.height)
-                    for x in range(g.width)
-                    if g.objects[y, x] == ObjectType.TARGET
-                    and int(g.metadata[y, x]) == self._carrying
+                    (cx, cy)
+                    for cy in range(g.height)
+                    for cx in range(g.width)
+                    if (cx, cy) in self._target_pos_set
+                    and int(g.objects[cy, cx]) == self._carrying
                 ]
             if items:
                 d_new = min(abs(ax - ix) + abs(ay - iy) for ix, iy in items)
