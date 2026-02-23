@@ -120,7 +120,13 @@ class ShowcaseWebApp:
 
         @self.app.route("/gallery/<path:filename>")
         def serve_gallery(filename):
-            """Serve gallery GIF files."""
+            """Serve gallery GIF files (iso or 2D)."""
+            # Prefer isometric GIFs from showcase/videos/iso/
+            iso_dir = _project_root() / "showcase" / "videos" / "iso"
+            iso_path = iso_dir / filename
+            if iso_path.is_file():
+                return send_from_directory(str(iso_dir), filename)
+            # Fall back to 2D gallery
             gallery_dir = _project_root() / "gallery"
             return send_from_directory(str(gallery_dir), filename)
 
@@ -336,22 +342,36 @@ def _find_gallery_gif(
 ) -> dict[str, str] | None:
     """Return dict of difficulty -> gallery-relative GIF path, or None.
 
-    Looks for ``gallery/{difficulty}/{task_name}.gif`` for each difficulty.
-    Falls back to ``gallery/{task_name}.gif`` (flat layout) under key ``"easy"``.
+    Prefers isometric GIFs from ``showcase/videos/iso/`` (served via the
+    same ``/gallery/`` route).  Falls back to 2D GIFs in the ``gallery/``
+    directory.
     """
-    if not gallery_dir.is_dir():
-        return None
     result: dict[str, str] = {}
-    for diff in ("easy", "medium", "hard", "expert"):
-        gif = gallery_dir / diff / f"{task_name}.gif"
-        if gif.is_file():
-            result[diff] = f"{diff}/{task_name}.gif"
+
+    # 1. Prefer isometric oracle GIFs (showcase/videos/iso/{task}_{diff}.gif)
+    iso_dir = _project_root() / "showcase" / "videos" / "iso"
+    if iso_dir.is_dir():
+        for diff in ("easy", "medium", "hard", "expert"):
+            gif = iso_dir / f"{task_name}_{diff}.gif"
+            if gif.is_file():
+                # Served via /gallery/ route which checks iso_dir first
+                result[diff] = f"{task_name}_{diff}.gif"
     if result:
         return result
-    # Flat fallback
-    gif = gallery_dir / f"{task_name}.gif"
-    if gif.is_file():
-        return {"easy": gif.name}
+
+    # 2. Fall back to 2D gallery (gallery/{diff}/{task}.gif)
+    if gallery_dir.is_dir():
+        for diff in ("easy", "medium", "hard", "expert"):
+            gif = gallery_dir / diff / f"{task_name}.gif"
+            if gif.is_file():
+                result[diff] = f"{diff}/{task_name}.gif"
+        if result:
+            return result
+        # Flat fallback
+        gif = gallery_dir / f"{task_name}.gif"
+        if gif.is_file():
+            return {"easy": gif.name}
+
     return None
 
 
