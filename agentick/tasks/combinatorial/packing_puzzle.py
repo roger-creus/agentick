@@ -69,7 +69,7 @@ class PackingPuzzleTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        agent_pos = (size - 2, 1)
 
         # Choose piece types
         available_types = list(_PIECE_TYPES[:n_types])
@@ -79,28 +79,28 @@ class PackingPuzzleTask(TaskSpec):
         for i in range(n):
             piece_types.append(available_types[i % len(available_types)])
 
-        # Target zone at bottom of grid
-        target_row = size - 2
+        # Target zone at left column (x=1), vertically centred
+        target_col = 1
 
         # Place targets with metadata encoding expected type
         target_positions = []
         piece_positions = []
         used = {agent_pos}
 
-        # Interior cells for pieces (not on border, not on target row)
+        # Interior cells for pieces (not on border, not on target column)
         interior = [
             (x, y)
             for x in range(2, size - 2)
-            for y in range(2, target_row - 1)
+            for y in range(2, size - 2)
             if (x, y) != agent_pos
         ]
         rng.shuffle(interior)
 
         for i in range(n):
-            # Target position along bottom row
-            tx = 1 + i + (size - 2 - n) // 2  # center targets
-            tx = max(1, min(size - 2, tx))
-            ty = target_row
+            # Target position along left column, vertically centred
+            ty = 1 + i + (size - 2 - n) // 2  # centre targets
+            ty = max(1, min(size - 2, ty))
+            tx = target_col
             target_positions.append((tx, ty))
 
             # Encode expected piece type in metadata

@@ -46,6 +46,12 @@ _GC_TINTS: dict[int, tuple[float, float, float]] = {
     4: (1.0, 0.87, 0.0),   # yellow
 }
 
+# Door color names by metadata value (KeyDoorPuzzle color-coding)
+_DOOR_COLOR_NAMES: dict[int, str] = {0: "golden", 1: "red", 2: "blue"}
+
+# Direction enum -> directional sprite suffix
+_DIRECTION_SUFFIX: dict[int, str] = {0: "up", 1: "right", 2: "down", 3: "left"}
+
 # Ghost tile mapping: TARGET metadata (ObjectType int) -> tile name to ghost
 _GHOST_TILE_MAP: dict[int, str] = {
     5: "box",      # BOX
@@ -57,39 +63,23 @@ _GHOST_TILE_MAP: dict[int, str] = {
     19: "orb",     # ORB
 }
 
-# Target slot labels (for non-ghost fallback)
-_TARGET_SLOT_LABELS: dict[int, str] = {
-    5: "B", 14: "d", 15: "L", 16: "P", 17: "?", 18: "c", 19: "O",
-}
-
-# TaskInterference GOAL tints: metadata == ObjectType int -> color tint
-_GOAL_TYPE_TINTS: dict[int, tuple[float, float, float]] = {
-    int(ObjectType.COIN): (1.0, 0.85, 0.2),   # gold for coin delivery
-    int(ObjectType.GEM): (0.65, 0.2, 1.0),     # purple for gem delivery
-}
-
-# Energy station color thresholds (ResourceManagement)
-def _energy_tint(level: int) -> tuple[float, float, float]:
-    """Return RGB tint for energy level 0-100."""
-    if level >= 80:
-        return (0.0, 0.87, 0.27)
-    elif level >= 60:
-        return (0.53, 0.87, 0.0)
-    elif level >= 40:
-        return (1.0, 0.87, 0.0)
-    elif level >= 20:
-        return (1.0, 0.53, 0.0)
-    else:
-        return (1.0, 0.13, 0.0)
-
 # --------------------------------------------------------------------------- #
 # Elevation: which entities sit ON TOP of floor (elevated by one cube height)
 # --------------------------------------------------------------------------- #
 _ELEVATED_ENTITIES: set[str] = {
-    "agent", "goal", "key", "door", "door_open", "box", "enemy",
-    "switch", "switch_on", "npc", "tool", "resource", "sheep",
-    "blocker", "gem", "lever", "potion", "scroll", "coin", "orb",
-    "breadcrumb",
+    "agent", "agent_up", "agent_down", "agent_left", "agent_right",
+    "goal", "key", "golden_key", "red_key", "blue_key",
+    "door", "door_open",
+    "golden_door_ud", "golden_door_rl", "golden_door_open_ud", "golden_door_open_rl",
+    "red_door_ud", "red_door_rl", "red_door_open_ud", "red_door_open_rl",
+    "blue_door_ud", "blue_door_rl", "blue_door_open_ud", "blue_door_open_rl",
+    "box", "enemy", "enemy_up", "enemy_down", "enemy_left", "enemy_right",
+    "switch", "switch_on", "switch_off",
+    "npc", "npc_up", "npc_down", "npc_left", "npc_right",
+    "tool", "resource",
+    "sheep", "sheep_up", "sheep_down", "sheep_left", "sheep_right",
+    "blocker", "gem", "lever", "lever_on", "lever_off",
+    "potion", "scroll", "coin", "orb", "breadcrumb",
 }
 
 # Extra floating offset for pickups (on top of elevation)
@@ -99,7 +89,7 @@ _FLOAT_EXTRA: dict[str, int] = {
 
 # Ground-level entities (NOT elevated — drawn at floor level)
 _GROUND_LEVEL: set[str] = {
-    "floor", "wall", "hazard", "water", "ice", "hole",
+    "floor", "wall", "border_wall", "hazard", "water", "ice", "hole",
     "fog", "fog_partial", "target", "empty",
 }
 
@@ -263,16 +253,10 @@ class IsometricRenderer:
                 terrain_val = int(grid.terrain[row, col])
                 terrain_name = atlas._int_to_name(terrain_val)
 
-                # LightsOut / InstructionFollowing special terrain via metadata
-                if meta == META_LIT:
-                    # Lit cell — use yellow-tinted floor
-                    floor_tile = atlas.get_tile("goal")  # bright yellow/green
-                elif meta == META_LIGHT_POS:
-                    # Unlit light position — use dark tile
-                    floor_tile = atlas.get_tile("switch")  # dark
-                elif meta == META_CAGE:
-                    # Cage border — use brown/dark door tile
-                    floor_tile = atlas.get_tile("door")  # brown cage
+                # InstructionFollowing special terrain via metadata
+                if meta == META_CAGE:
+                    # Cage border — use cage tile (InstructionFollowing)
+                    floor_tile = atlas.get_tile("cage")
                 elif terrain_name in ("water", "ice", "hazard", "hole"):
                     floor_tile = atlas.get_tile(terrain_name)
                 else:
@@ -281,15 +265,26 @@ class IsometricRenderer:
                 # Floor is always at ground level, no alpha occlusion
                 self._safe_paste(canvas, floor_tile, draw_x, draw_y)
 
-                # --- Walls (slightly elevated above floor) ---
+                # --- Walls ---
                 if terrain_name == "wall":
-                    wall_tile = atlas.get_tile("wall")
-                    wall_lift = int(cube_h * 0.2)
-                    self._safe_paste(canvas, wall_tile, draw_x, draw_y - wall_lift)
+                    is_border = (
+                        row == 0 or row == rows - 1
+                        or col == 0 or col == cols - 1
+                    )
+                    if is_border:
+                        # Border walls: flat gray solid block (no elevation)
+                        border_tile = atlas.get_tile("border_wall")
+                        self._safe_paste(canvas, border_tile, draw_x, draw_y)
+                    else:
+                        wall_tile = atlas.get_tile("wall")
+                        wall_lift = int(cube_h * 0.2)
+                        self._safe_paste(
+                            canvas, wall_tile, draw_x, draw_y - wall_lift,
+                        )
 
                 # --- Track cage goal for background annotation (FIX 7) ---
                 obj_val = int(grid.objects[row, col])
-                if meta == META_CAGE and obj_val == ObjectType.GOAL:
+                if meta == META_CAGE and obj_val == ObjectType.LEVER:
                     cage_goal_pos = (col, row)
                     # Skip rendering this GOAL in the grid — show in background
                     continue
@@ -298,22 +293,33 @@ class IsometricRenderer:
                 if obj_val != ObjectType.NONE:
                     self._draw_object(
                         canvas, atlas, obj_val, meta, draw_x, draw_y,
-                        cube_h,
+                        cube_h, grid, col, row,
                     )
 
-                # --- Draw entities (NPCs, enemies from entity list) ---
+                # --- Draw entities (NPCs, enemies, sheep from entity list) ---
                 ent = entity_map.get((col, row))
                 if ent is not None:
                     ent_name = ent.entity_type
-                    ent_tile = atlas.get_tile(ent_name)
+                    # Use directional sprite if entity has orientation or metadata
+                    if ent_name in ("npc", "enemy", "sheep"):
+                        ent_dir = getattr(ent, "orientation", None)
+                        if ent_dir is not None:
+                            suffix = _DIRECTION_SUFFIX.get(int(ent_dir), "down")
+                        else:
+                            # Fall back to metadata direction
+                            suffix = _DIRECTION_SUFFIX.get(meta, "down")
+                        ent_tile = atlas.get_tile(f"{ent_name}_{suffix}")
+                    else:
+                        ent_tile = atlas.get_tile(ent_name)
                     elev = cube_h if ent_name in _ELEVATED_ENTITIES else 0
                     self._safe_paste(canvas, ent_tile, draw_x, draw_y - elev)
 
                 # --- Draw agent (always elevated, never alpha-reduced) ---
                 if col == ax and row == ay:
-                    agent_tile = atlas.get_tile("agent")
-                    if agent.orientation == Direction.WEST:
-                        agent_tile = agent_tile.transpose(Image.FLIP_LEFT_RIGHT)
+                    dir_suffix = _DIRECTION_SUFFIX.get(
+                        int(agent.orientation), "down"
+                    )
+                    agent_tile = atlas.get_tile(f"agent_{dir_suffix}")
                     self._safe_paste(canvas, agent_tile, draw_x, draw_y - cube_h)
 
         # --- Draw direction arrows on canvas border (FIX 2) ---
@@ -344,6 +350,9 @@ class IsometricRenderer:
         draw_x: int,
         draw_y: int,
         cube_h: int,
+        grid: Grid | None = None,
+        col: int = 0,
+        row: int = 0,
     ) -> None:
         """Draw a grid object with metadata-driven visuals and elevation."""
         obj_name = atlas._obj_int_to_name(obj_val)
@@ -351,78 +360,87 @@ class IsometricRenderer:
         elev = cube_h if is_elevated else 0
         float_extra = int(_FLOAT_EXTRA.get(obj_name, 0) * atlas._tile_scale)
 
-        # --- SWITCH with GraphColoring metadata (0-4) ---
-        if obj_val == ObjectType.SWITCH and meta in _GC_TINTS:
-            tint = _GC_TINTS[meta]
-            tile = atlas.get_tile("switch")
-            tile = atlas._apply_tint(tile, tint)
-            if atlas._tile_scale != 1.0:
-                tile = tile.resize(
-                    (atlas._scaled_w, atlas._scaled_h), Image.LANCZOS
-                )
-            self._safe_paste(canvas, tile, draw_x, draw_y - elev)
-            # Draw label: "0" for uncolored, number for colored
-            label = str(meta)
-            self._draw_tile_label(canvas, label, draw_x, draw_y - elev, atlas)
-            return
-
-        # --- SWITCH on/off (non-GraphColoring) ---
+        # --- SWITCH rendering (no color tinting — use sprites as-is) ---
         if obj_val == ObjectType.SWITCH:
-            tile_name = "switch_on" if meta > 0 else "switch"
+            # GraphColoring: meta 0-4 (0=uncolored, 1-4=colors)
+            # LightsOut: meta 1 = on (lit), meta 2 = off (unlit position)
+            # SwitchCircuit: meta >= 100 = on, meta < 100 = off
+            # FewShotAdaptation: meta 0 = default
+            if meta >= 100 or meta == 1:
+                tile_name = "switch_on"
+            else:
+                tile_name = "switch_off"
             tile = atlas.get_tile(tile_name)
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
+            # GraphColoring label (meta 0-4)
+            if 0 <= meta <= 4:
+                self._draw_tile_label(
+                    canvas, str(meta), draw_x, draw_y - elev, atlas,
+                )
             return
 
-        # --- DOOR open/closed ---
+        # --- DOOR (color-coded + orientation-aware, supports open state) ---
         if obj_val == ObjectType.DOOR:
-            tile_name = "door_open" if meta == 1 else "door"
+            orientation = (
+                self._detect_door_orientation(grid, col, row) if grid is not None
+                else "ud"
+            )
+            if meta >= 10:
+                # Open door: meta = color + 10
+                color = _DOOR_COLOR_NAMES.get(meta - 10, "golden")
+                tile_name = f"{color}_door_open_{orientation}"
+            else:
+                color = _DOOR_COLOR_NAMES.get(meta, "golden")
+                tile_name = f"{color}_door_{orientation}"
             tile = atlas.get_tile(tile_name)
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
             return
 
-        # --- TARGET with ghost tiles (FIX 8) ---
+        # --- KEY (color-coded) ---
+        if obj_val == ObjectType.KEY:
+            color = _DOOR_COLOR_NAMES.get(meta, "golden")
+            tile = atlas.get_tile(f"{color}_key")
+            self._safe_paste(
+                canvas, tile, draw_x, draw_y - elev - float_extra
+            )
+            return
+
+        # --- LEVER on/off ---
+        if obj_val == ObjectType.LEVER:
+            tile_name = "lever_on" if meta > 0 else "lever_off"
+            tile = atlas.get_tile(tile_name)
+            self._safe_paste(canvas, tile, draw_x, draw_y - elev)
+            return
+
+        # --- NPC / ENEMY / SHEEP (directional from metadata) ---
+        if obj_val in (ObjectType.NPC, ObjectType.ENEMY, ObjectType.SHEEP):
+            suffix = _DIRECTION_SUFFIX.get(meta, "down")
+            tile = atlas.get_tile(f"{obj_name}_{suffix}")
+            self._safe_paste(canvas, tile, draw_x, draw_y - elev)
+            return
+
+        # --- TARGET with ghost tiles (typed slots — PackingPuzzle, etc.) ---
         if obj_val == ObjectType.TARGET and meta in _GHOST_TILE_MAP:
             ghost_name = _GHOST_TILE_MAP[meta]
             ghost_tile = atlas.get_tile(ghost_name)
-            # Render at 35% alpha as a ghost at floor level
-            ghost_tile = self._reduce_alpha(ghost_tile, 90)  # ~35%
-            self._safe_paste(canvas, ghost_tile, draw_x, draw_y)
+            # Transparent ghost at elevated level (on-floor, not buried)
+            ghost_tile = self._reduce_alpha(ghost_tile, 100)  # ~40%
+            self._safe_paste(canvas, ghost_tile, draw_x, draw_y - cube_h)
             return
 
-        # --- TARGET (default rendering) ---
+        # --- TARGET (default rendering — transparent ghost block) ---
         if obj_val == ObjectType.TARGET:
+            # If terrain is HOLE, the hole_block tile IS the target visual
+            if grid is not None and int(grid.terrain[row, col]) == int(CellType.HOLE):
+                return  # hole_block already rendered as floor
             tile = atlas.get_tile("target")
+            tile = self._reduce_alpha(tile, 120)  # ~47% ghost
             self._safe_paste(canvas, tile, draw_x, draw_y)  # at floor level
-            return
-
-        # --- GOAL with type metadata (TaskInterference color-coding) ---
-        if obj_val == ObjectType.GOAL and meta in _GOAL_TYPE_TINTS:
-            tint = _GOAL_TYPE_TINTS[meta]
-            tile = atlas.get_tile("goal")
-            tile = atlas._apply_tint(tile, tint)
-            if atlas._tile_scale != 1.0:
-                tile = tile.resize(
-                    (atlas._scaled_w, atlas._scaled_h), Image.LANCZOS
-                )
-            self._safe_paste(canvas, tile, draw_x, draw_y - elev)
-            # Draw type label
-            label = _TARGET_SLOT_LABELS.get(meta, "")
-            if label:
-                self._draw_tile_label(canvas, label, draw_x, draw_y - elev, atlas)
             return
 
         # --- BOX with numbered tile (TileSorting, meta != 0) ---
         if obj_val == ObjectType.BOX and meta != 0:
-            # Vary hue slightly per tile number
-            hue_shift = (meta * 37) % 60
-            r_shift = min(1.0, 0.7 + hue_shift / 200)
-            g_shift = min(1.0, 0.5 + hue_shift / 200)
             tile = atlas.get_tile("box")
-            tile = atlas._apply_tint(tile, (r_shift, g_shift, 0.4))
-            if atlas._tile_scale != 1.0:
-                tile = tile.resize(
-                    (atlas._scaled_w, atlas._scaled_h), Image.LANCZOS
-                )
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
             label = str(meta) if meta <= 9 else chr(ord("A") + meta - 10)
             self._draw_tile_label(canvas, label, draw_x, draw_y - elev, atlas)
@@ -430,13 +448,7 @@ class IsometricRenderer:
 
         # --- RESOURCE with energy level (1-100) ---
         if obj_val == ObjectType.RESOURCE and 1 <= meta <= 100:
-            tint = _energy_tint(meta)
             tile = atlas.get_tile("resource")
-            tile = atlas._apply_tint(tile, tint)
-            if atlas._tile_scale != 1.0:
-                tile = tile.resize(
-                    (atlas._scaled_w, atlas._scaled_h), Image.LANCZOS
-                )
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
             self._draw_tile_label(canvas, str(meta), draw_x, draw_y - elev, atlas)
             return
@@ -446,6 +458,38 @@ class IsometricRenderer:
         self._safe_paste(
             canvas, obj_tile, draw_x, draw_y - elev - float_extra
         )
+
+    @staticmethod
+    def _detect_door_orientation(grid: Grid, col: int, row: int) -> str:
+        """Detect door orientation from adjacent walls.
+
+        Returns "ud" (up-down passage, walls east+west) or "rl" (right-left
+        passage, walls north+south).
+        """
+        rows, cols = grid.height, grid.width
+        wall_east = (
+            col + 1 < cols
+            and int(grid.terrain[row, col + 1]) == int(CellType.WALL)
+        )
+        wall_west = (
+            col - 1 >= 0
+            and int(grid.terrain[row, col - 1]) == int(CellType.WALL)
+        )
+        wall_north = (
+            row - 1 >= 0
+            and int(grid.terrain[row - 1, col]) == int(CellType.WALL)
+        )
+        wall_south = (
+            row + 1 < rows
+            and int(grid.terrain[row + 1, col]) == int(CellType.WALL)
+        )
+
+        if wall_north and wall_south:
+            return "rl"
+        if wall_east and wall_west:
+            return "ud"
+        # Default: up-down passage
+        return "ud"
 
     def _draw_tile_label(
         self,
@@ -519,15 +563,17 @@ class IsometricRenderer:
         left = screen_center(rows - 1, 0)
 
         # Edge midpoints (arrows placed at midpoints, pushed well into background)
-        margin = max(20, int(45 * (self._atlas._tile_scale if self._atlas else 1.0)))
+        margin = max(20, int(85 * (self._atlas._tile_scale if self._atlas else 1.0)))
 
         # UP arrow: top-right edge midpoint (between top and right corners)
         up_x = (top[0] + right[0]) // 2 + margin
         up_y = (top[1] + right[1]) // 2 - margin
 
         # DOWN arrow: bottom-left edge midpoint (between left and bottom corners)
-        down_x = (left[0] + bottom[0]) // 2 - margin
-        down_y = (left[1] + bottom[1]) // 2 + margin
+        # Extra offset so the label doesn't crowd the bottom-left map edge
+        down_margin = int(margin * 1.5)
+        down_x = (left[0] + bottom[0]) // 2 - down_margin
+        down_y = (left[1] + bottom[1]) // 2 + down_margin
 
         # LEFT arrow: top-left edge midpoint (between top and left corners)
         left_x = (top[0] + left[0]) // 2 - margin
@@ -607,9 +653,9 @@ class IsometricRenderer:
                     )
         draw.text((label_x, label_y), "Target:", fill=(255, 255, 255, 230), font=font)
 
-        # Draw the goal tile below the label, centered
-        goal_tile = atlas.get_tile("goal")
-        small_tile = goal_tile.resize((small_w, small_h), Image.LANCZOS)
+        # Draw the lever tile below the label, centered
+        lever_tile = atlas.get_tile("lever_on")
+        small_tile = lever_tile.resize((small_w, small_h), Image.LANCZOS)
         tile_x = label_x + (text_w - small_w) // 2
         tile_y = label_y + text_h + 4
         self._safe_paste(canvas, small_tile, tile_x, tile_y)

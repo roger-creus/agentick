@@ -181,6 +181,7 @@ class CooperativeTransportTask(TaskSpec):
         grid.objects[by, bx] = ObjectType.BOX
         if grid.terrain[ny, nx] == CellType.EMPTY:
             grid.objects[ny, nx] = ObjectType.NPC
+            grid.metadata[ny, nx] = 2  # default facing down
         grid.objects[ty, tx] = ObjectType.TARGET
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
@@ -252,12 +253,14 @@ class CooperativeTransportTask(TaskSpec):
     def on_env_step(self, agent, grid, config, step_count):
         bx, by = config["_box_pos"]
         nx, ny = config["_npc_pos"]
+        old_nx, old_ny = nx, ny  # save for direction calculation
         tx, ty = config["target_pos"]
         ax, ay = agent.position
 
         # Clear old NPC position
         if grid.objects[ny, nx] == ObjectType.NPC:
             grid.objects[ny, nx] = ObjectType.NONE
+            grid.metadata[ny, nx] = 0
 
         # Try NPC push first (every other step to avoid constant pushing)
         pushed = False
@@ -291,10 +294,21 @@ class CooperativeTransportTask(TaskSpec):
                         best_d, best = d, (cx, cy)
             config["_npc_pos"] = list(best)
 
-        # Redraw NPC
+        # Redraw NPC with direction metadata
         nx2, ny2 = config["_npc_pos"]
         if grid.terrain[ny2, nx2] == CellType.EMPTY:
             grid.objects[ny2, nx2] = ObjectType.NPC
+            ddx, ddy = nx2 - old_nx, ny2 - old_ny
+            if ddx > 0:
+                grid.metadata[ny2, nx2] = 1  # right
+            elif ddx < 0:
+                grid.metadata[ny2, nx2] = 3  # left
+            elif ddy < 0:
+                grid.metadata[ny2, nx2] = 0  # up
+            elif ddy > 0:
+                grid.metadata[ny2, nx2] = 2  # down
+            else:
+                grid.metadata[ny2, nx2] = 2  # default down
 
         # Restore TARGET if box moved off it
         bx, by = config["_box_pos"]

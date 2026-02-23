@@ -25,15 +25,12 @@ class CompetitiveTagOracle(OracleAgent):
         grid = self.api.grid
         nearest = min(enemies, key=lambda e: e.distance)
 
-        # Avoid ICE cells (safe zones where we can't tag)
-        ice_cells = set()
-        for y in range(grid.height):
-            for x in range(grid.width):
-                if int(grid.terrain[y, x]) == int(CellType.ICE):
-                    ice_cells.add((x, y))
+        # Avoid safe zone positions (can't tag there)
+        config = self.api.task_config
+        safe_zones = set(map(tuple, config.get("safe_zone_positions", [])))
 
-        # BFS to enemy, avoiding ICE cells (except the enemy position itself)
-        avoid = ice_cells - {nearest.position}
+        # BFS to enemy, avoiding safe zones (except the enemy position itself)
+        avoid = safe_zones - {nearest.position}
         path = self.api.bfs_path_positions(
             (ax, ay),
             nearest.position,

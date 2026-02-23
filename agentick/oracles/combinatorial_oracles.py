@@ -135,12 +135,15 @@ class LightsOutOracle(OracleAgent):
         super().reset(obs, info)
 
     def _get_lit_positions(self):
-        """Return set of currently lit positions."""
+        """Return set of currently lit positions (metadata == 1)."""
         grid = self.api.grid
         lit = set()
         for pos in self._all_light_positions:
             px, py = pos
-            if grid.objects[py, px] == ObjectType.SWITCH:
+            if (
+                grid.objects[py, px] == ObjectType.SWITCH
+                and int(grid.metadata[py, px]) == 1
+            ):
                 lit.add(pos)
         return lit
 

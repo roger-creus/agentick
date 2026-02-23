@@ -266,13 +266,18 @@ class LightsOutTask(TaskSpec):
             else:
                 grid.terrain[wy, wx] = CellType.EMPTY
 
-        # Place lights: SWITCH for lit cells (on), NONE for off (tracked via metadata)
+        # Place SWITCH at ALL light positions; metadata distinguishes on/off
+        # meta=1 (META_LIT) = on/lit, meta=2 (META_LIGHT_POS) = off/unlit
         for pos in puzzle_cells:
             lx, ly = pos
+            grid.objects[ly, lx] = ObjectType.SWITCH
             if light_state.get(pos, False):
-                grid.objects[ly, lx] = ObjectType.SWITCH
+                grid.metadata[ly, lx] = 1  # lit (on)
+            else:
+                grid.metadata[ly, lx] = 2  # unlit (off)
         for dx, dy in decoy_positions:
-            grid.objects[dy, dx] = ObjectType.SWITCH  # decoys look identical to lights
+            grid.objects[dy, dx] = ObjectType.SWITCH
+            grid.metadata[dy, dx] = 1  # decoys start lit (on)
 
         return grid, {
             "agent_start": agent_pos,
@@ -295,23 +300,18 @@ class LightsOutTask(TaskSpec):
             self._light_grid.add((lx, ly))
         for dx, dy in config.get("decoy_positions", []):
             self._light_grid.add((dx, dy))
+        # Also include all puzzle cells for adjacent toggle mode
+        for px, py in config.get("puzzle_cells", []):
+            self._light_grid.add((px, py))
+        # Count lit lights by metadata (meta==1 means lit/on)
         self._lights_remaining = sum(
             1
             for y in range(grid.height)
             for x in range(grid.width)
             if grid.objects[y, x] == ObjectType.SWITCH
+            and int(grid.metadata[y, x]) == 1
         )
         self._lights_remaining_last = self._lights_remaining
-        # Set metadata for visual rendering: lit cells = 1 (bright yellow)
-        self._update_light_metadata(grid)
-
-    def _update_light_metadata(self, grid):
-        """Update metadata layer for lit/unlit rendering."""
-        for lx, ly in self._light_grid:
-            if grid.objects[ly, lx] == ObjectType.SWITCH:
-                grid.metadata[ly, lx] = 1  # META_LIT: bright yellow
-            else:
-                grid.metadata[ly, lx] = 2  # META_LIGHT_POS: dark gray (unlit)
 
     def on_agent_moved(self, pos, agent, grid):
         """Toggle lights immediately on step — fires BEFORE reward computation."""
@@ -325,16 +325,20 @@ class LightsOutTask(TaskSpec):
                 if 0 < nx < grid.width - 1 and 0 < ny < grid.height - 1:
                     self._toggle_cell(nx, ny, grid)
 
-        # Update visual metadata after toggling
-        self._update_light_metadata(grid)
-
     def _toggle_cell(self, x, y, grid):
-        """Toggle a single cell: ON→OFF or OFF→ON, but only at light grid positions."""
-        if grid.objects[y, x] == ObjectType.SWITCH:
-            grid.objects[y, x] = ObjectType.NONE
+        """Toggle a single cell: ON→OFF or OFF→ON via metadata, SWITCH always stays."""
+        if (x, y) not in self._light_grid:
+            return
+        if grid.objects[y, x] != ObjectType.SWITCH:
+            return
+        meta = int(grid.metadata[y, x])
+        if meta == 1:
+            # ON → OFF
+            grid.metadata[y, x] = 2
             self._lights_remaining -= 1
-        elif (x, y) in self._light_grid and grid.objects[y, x] == ObjectType.NONE:
-            grid.objects[y, x] = ObjectType.SWITCH
+        elif meta == 2:
+            # OFF → ON
+            grid.metadata[y, x] = 1
             self._lights_remaining += 1
 
     # ── Reward & success ─────────────────────────────────────────────────────
@@ -347,7 +351,7 @@ class LightsOutTask(TaskSpec):
         if new_rem < old_rem:
             reward += 0.3 * (old_rem - new_rem)  # reward per light turned off
         self._lights_remaining_last = new_rem
-        # Approach shaping: toward nearest remaining SWITCH
+        # Approach shaping: toward nearest remaining lit SWITCH
         if "agent_position" in new_state and "grid" in new_state:
             ax, ay = new_state["agent_position"]
             ox, oy = old_state.get("agent_position", (ax, ay))
@@ -357,6 +361,7 @@ class LightsOutTask(TaskSpec):
                 for y in range(g.height)
                 for x in range(g.width)
                 if g.objects[y, x] == ObjectType.SWITCH
+                and int(g.metadata[y, x]) == 1
             ]
             if lights:
                 d_new = min(abs(ax - lx) + abs(ay - ly) for lx, ly in lights)
@@ -367,13 +372,16 @@ class LightsOutTask(TaskSpec):
         return reward
 
     def check_success(self, state):
-        """All lights must be off (no SWITCH objects on grid)."""
+        """All lights must be off (no cell with metadata==1 on grid)."""
         if "grid" not in state:
             return False
         grid = state["grid"]
         for y in range(grid.height):
             for x in range(grid.width):
-                if grid.objects[y, x] == ObjectType.SWITCH:
+                if (
+                    grid.objects[y, x] == ObjectType.SWITCH
+                    and int(grid.metadata[y, x]) == 1
+                ):
                     return False
         return True
 

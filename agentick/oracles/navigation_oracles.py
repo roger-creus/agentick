@@ -143,13 +143,92 @@ class GoToGoalOracle(OracleAgent):
 
 @register_oracle("MazeNavigation-v0")
 class MazeNavigationOracle(OracleAgent):
-    """BFS to the goal through the maze, avoiding guards. Re-plans each step."""
+    """BFS to the goal through the maze, avoiding guards. Handles key/door mechanics."""
 
     def plan(self):
+        ax, ay = self.api.agent_position
+        grid = self.api.grid
+        config = self.api.task_config
+        agent = self.api.agent
+
+        # Check for locked doors blocking the path
+        doors = self.api.get_entities_of_type("door")
+        locked_doors = set()
+        for d in doors:
+            dx, dy = d.position
+            meta = int(grid.metadata[dy, dx])
+            if meta < 10:  # closed door
+                locked_doors.add(d.position)
+
+        # Check if agent has keys
+        held_colors = {
+            e.properties.get("color") for e in agent.inventory if e.entity_type == "key"
+        }
+
+        # Find keys on the grid
+        keys = self.api.get_entities_of_type("key")
+
+        # If there are locked doors, try to find matching keys first
+        if locked_doors:
+            # Which door colors are locked?
+            locked_colors = {}
+            for d in doors:
+                dx, dy = d.position
+                meta = int(grid.metadata[dy, dx])
+                if meta < 10:
+                    locked_colors[meta] = d.position
+
+            # Find keys we don't have yet
+            needed_key = None
+            for color, door_pos in locked_colors.items():
+                if color not in held_colors:
+                    # Find key with this color
+                    for k in keys:
+                        kx, ky = k.position
+                        if int(grid.metadata[ky, kx]) == color:
+                            needed_key = k
+                            break
+                    if needed_key:
+                        break
+
+            if needed_key:
+                # Navigate to needed key (avoid locked doors we can't open)
+                avoid_wide = _get_npc_cells(self.api)
+                avoid_exact = _get_npc_exact(self.api)
+                unopenable = {
+                    pos
+                    for color, pos in locked_colors.items()
+                    if color not in held_colors
+                }
+                self.action_queue = _navigate_with_fallback(
+                    self.api,
+                    ax,
+                    ay,
+                    needed_key.position,
+                    avoid_wide | unopenable,
+                    avoid_exact | unopenable,
+                )
+                return
+
+            # Have a matching key — go to the door
+            for color in held_colors:
+                if color in locked_colors:
+                    avoid_wide = _get_npc_cells(self.api)
+                    avoid_exact = _get_npc_exact(self.api)
+                    self.action_queue = _navigate_with_fallback(
+                        self.api,
+                        ax,
+                        ay,
+                        locked_colors[color],
+                        avoid_wide,
+                        avoid_exact,
+                    )
+                    return
+
+        # No locked doors (or all open) — standard goal navigation
         goal = self.api.get_nearest("goal")
         if not goal:
             return
-        ax, ay = self.api.agent_position
         avoid_wide = _get_npc_cells(self.api)
         avoid_exact = _get_npc_exact(self.api)
         self.action_queue = _navigate_with_fallback(
