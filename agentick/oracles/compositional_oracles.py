@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentick.core.types import ObjectType
+from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
 from agentick.oracles.registry import register_oracle
 
@@ -167,54 +167,143 @@ class InstructionFollowingOracle(OracleAgent):
 
 @register_oracle("ProgramSynthesis-v0")
 class ProgramSynthesisOracle(OracleAgent):
-    """Pick up ORB items and place on predicted TARGET outputs.
+    """Push GEM objects onto TARGET positions to complete a geometric pattern.
 
-    Alternates between picking up nearest ORB and delivering to nearest TARGET.
+    Strategy: align gem on one axis first (push horizontally until same column
+    as target OR vertically until same row), then push along the other axis.
+    Uses config gem_target_pairs for assignment. One action per call.
     """
 
-    def __init__(self, env):
-        super().__init__(env)
-        self._carrying = False
-        self._last_orb_count = 0
-
-    def reset(self, obs, info):
-        self._carrying = False
-        self._last_orb_count = 0
-        super().reset(obs, info)
-
     def plan(self):
+        cfg = self.api.task_config
+        all_targets = {tuple(t) for t in cfg.get("target_positions", [])}
         grid = self.api.grid
+        ax, ay = self.api.agent_position
 
-        # Count current ORBs on grid
-        orb_count = 0
+        # Find current gem positions and which targets are satisfied
+        gems = []
         for y in range(grid.height):
             for x in range(grid.width):
-                if grid.objects[y, x] == ObjectType.ORB:
-                    orb_count += 1
+                if grid.objects[y, x] == ObjectType.GEM:
+                    gems.append((x, y))
 
-        if orb_count < self._last_orb_count:
-            self._carrying = True
-        self._last_orb_count = orb_count
+        unsatisfied = [t for t in all_targets if grid.objects[t[1], t[0]] != ObjectType.GEM]
+        if not unsatisfied:
+            self.action_queue = [0]
+            return
 
-        if not self._carrying:
-            orbs = self.api.get_entities_of_type("orb")
-            if orbs:
-                nearest = min(orbs, key=lambda o: o.distance)
-                self.action_queue = self.api.move_to(*nearest.position)
-                return
+        free_gems = [g for g in gems if g not in all_targets]
+        settled = {t for t in all_targets if grid.objects[t[1], t[0]] == ObjectType.GEM}
+        if not free_gems:
+            self.action_queue = [0]
+            return
+
+        # Pick the gem-target pair with smallest Manhattan distance
+        # Prefer aligned pairs (same row or column) for easier pushing
+        best_gem, best_target, best_score = None, None, float("inf")
+        for tpos in unsatisfied:
+            for gpos in free_gems:
+                d = abs(gpos[0] - tpos[0]) + abs(gpos[1] - tpos[1])
+                # Give bonus to aligned pairs (same row/col = easier push)
+                aligned = 1 if gpos[0] == tpos[0] or gpos[1] == tpos[1] else 0
+                score = d - aligned * 100  # heavily prefer aligned
+                if score < best_score:
+                    best_score = score
+                    best_gem = gpos
+                    best_target = tpos
+
+        if not best_gem or not best_target:
+            self.action_queue = [0]
+            return
+
+        gx, gy = best_gem
+        tx, ty = best_target
+
+        # Determine push direction: prefer aligning on one axis first
+        # If same column, push vertically toward target
+        # If same row, push horizontally toward target
+        # Otherwise, push horizontally first to align columns
+        if gx == tx:
+            push_dir = (0, 1) if ty > gy else (0, -1)
+        elif gy == ty:
+            push_dir = (1, 0) if tx > gx else (-1, 0)
         else:
-            targets = self.api.get_entities_of_type("target")
-            if targets:
-                nearest = min(targets, key=lambda t: t.distance)
-                path = self.api.move_to(*nearest.position)
-                if path:
-                    self.action_queue = path
-                    self._carrying = False
+            # Not aligned — push along horizontal axis first
+            push_dir = (1, 0) if tx > gx else (-1, 0)
+
+        push_pos = (gx - push_dir[0], gy - push_dir[1])
+
+        # Verify push is valid: push_pos must be walkable AND the gem's
+        # destination (gem + push_dir) must also be walkable/empty.
+        def _push_ok(d):
+            pp = (gx - d[0], gy - d[1])  # agent stands here
+            dest = (gx + d[0], gy + d[1])  # gem lands here
+            if not (0 <= pp[0] < grid.width and 0 <= pp[1] < grid.height):
+                return False
+            if not (0 <= dest[0] < grid.width and 0 <= dest[1] < grid.height):
+                return False
+            if int(grid.terrain[pp[1], pp[0]]) == int(CellType.WALL):
+                return False
+            if grid.objects[pp[1], pp[0]] in (ObjectType.SCROLL, ObjectType.GEM):
+                return False
+            if int(grid.terrain[dest[1], dest[0]]) == int(CellType.WALL):
+                return False
+            if grid.objects[dest[1], dest[0]] in (ObjectType.SCROLL, ObjectType.GEM):
+                return False
+            return True
+
+        if not _push_ok(push_dir):
+            # Try all 4 directions, prefer ones that reduce distance to target
+            all_dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+            best_alt = None
+            best_alt_score = float("inf")
+            for d in all_dirs:
+                if d == push_dir:
+                    continue
+                if _push_ok(d):
+                    # Score: Manhattan distance from gem's new position to target
+                    new_gx, new_gy = gx + d[0], gy + d[1]
+                    score = abs(new_gx - tx) + abs(new_gy - ty)
+                    if score < best_alt_score:
+                        best_alt_score = score
+                        best_alt = d
+            if best_alt:
+                push_dir = best_alt
+                push_pos = (gx - best_alt[0], gy - best_alt[1])
+
+        # Navigate to push position or push
+        # Avoid ALL gems (not just the target one) to prevent accidental pushes
+        all_gem_positions = set(gems)
+        avoid = all_gem_positions | settled
+        if (ax, ay) == push_pos:
+            # We're in position — push the gem
+            dx, dy = gx - ax, gy - ay
+            delta_map = {(0, -1): "move_up", (0, 1): "move_down",
+                         (-1, 0): "move_left", (1, 0): "move_right"}
+            aname = delta_map.get((dx, dy))
+            if aname:
+                a = self.api.action_name_to_int.get(aname)
+                if a is not None:
+                    self.action_queue = [a]
                     return
 
-        goal = self.api.get_nearest("goal")
-        if goal:
-            self.action_queue = self.api.move_to(*goal.position)
+        # Navigate to push position (avoid all gems to prevent accidental pushes)
+        path = self.api.bfs_path_positions((ax, ay), push_pos, avoid=avoid)
+        if not path:
+            # Relax: only avoid non-target gems
+            path = self.api.bfs_path_positions(
+                (ax, ay), push_pos, avoid=all_gem_positions - {best_gem}
+            )
+        if not path:
+            path = self.api.bfs_path_positions((ax, ay), push_pos)
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                self.action_queue = [actions[0]]
+                return
+
+        # Fallback: move toward gem
+        self.action_queue = self.api.move_toward(*best_gem) or [0]
 
 
 @register_oracle("RecursiveRooms-v0")

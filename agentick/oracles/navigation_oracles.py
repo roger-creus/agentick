@@ -174,16 +174,6 @@ class MultiGoalRouteOracle(OracleAgent):
         self.action_queue = self.api.move_to(*nearest.position)
 
 
-@register_oracle("FogOfWarExploration-v0")
-class FogOfWarOracle(OracleAgent):
-    """BFS to goal (oracle has full grid access despite fog)."""
-
-    def plan(self):
-        goal = self.api.get_nearest("goal")
-        if goal:
-            self.action_queue = self.api.move_to(*goal.position)
-
-
 _MOVE_DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 _ACTION_DELTAS = [(0, 0), (0, -1), (0, 1), (-1, 0), (1, 0)]
 

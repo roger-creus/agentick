@@ -77,13 +77,35 @@ _META_OBJ_LABELS = {
     19: "O",  # ORB
 }
 
-# GraphColoring node colors (metadata 1-4 on SWITCH objects = color assigned)
+# GraphColoring / SwitchCircuit node colors (metadata 1-5 on SWITCH objects)
 _META_GC_COLORS = {
     0: "#888888",  # uncolored → gray
     1: "#FF4444",  # color 1 → red
     2: "#4488FF",  # color 2 → blue
     3: "#44BB44",  # color 3 → green
     4: "#FFDD00",  # color 4 → yellow
+    5: "#AA44FF",  # color 5 → purple
+}
+
+# SwitchCircuit colored walls (metadata 1-5 on WALL terrain = gate color)
+_META_COLORED_WALL = {
+    1: "#8B2222",  # red wall
+    2: "#22448B",  # blue wall
+    3: "#228B22",  # green wall
+    4: "#8B8B00",  # yellow wall
+    5: "#5522AA",  # purple wall
+}
+
+# KeyDoorPuzzle color-coded keys/doors (metadata 0-2)
+_META_KEY_COLORS = {
+    0: "#FFD700",  # gold key
+    1: "#FF4444",  # red key
+    2: "#4488FF",  # blue key
+}
+_META_DOOR_COLORS = {
+    0: "#B8860B",  # gold door (dark goldenrod)
+    1: "#8B2222",  # red door
+    2: "#22448B",  # blue door
 }
 
 # ResourceManagement energy stations (RESOURCE object, metadata = energy 0-100)
@@ -190,6 +212,8 @@ class SimpleGridRenderer:
                     bg = "#2A2A3A"  # dark gray for unlit light positions
                 elif meta == META_CAGE:
                     bg = "#4A2A10"  # brown cage border
+                elif cell == CellType.WALL and meta in _META_COLORED_WALL:
+                    bg = _META_COLORED_WALL[meta]  # SwitchCircuit colored gate wall
                 else:
                     bg = TERRAIN_COLORS.get(cell, TERRAIN_COLORS[CellType.EMPTY])
 
@@ -301,6 +325,36 @@ class SimpleGridRenderer:
                     draw.text(
                         (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
                         energy_label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.KEY and meta in _META_KEY_COLORS:
+                    key_color = _META_KEY_COLORS[meta]
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=key_color, outline="#000000", width=2,
+                    )
+                    text_color = _contrast_text(key_color)
+                    bbox = draw.textbbox((0, 0), "K", font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        "K", font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.DOOR and meta in _META_DOOR_COLORS:
+                    door_color = _META_DOOR_COLORS[meta]
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=door_color, outline="#000000", width=2,
+                    )
+                    text_color = _contrast_text(door_color)
+                    bbox = draw.textbbox((0, 0), "D", font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        "D", font=self._font_big, fill=text_color,
                     )
                 elif obj != ObjectType.NONE and obj in OBJECT_LABELS:
                     label, obj_color = OBJECT_LABELS[obj]

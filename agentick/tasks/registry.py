@@ -278,6 +278,11 @@ class TaskEnv(AgentickEnv):
         # _last_success was set in _check_success() to reflect true goal achievement.
         if terminated and hasattr(self, "_last_success"):
             info["success"] = self._last_success
+        # For survival tasks (no explicit done): check success on truncation too
+        if truncated and not terminated:
+            state = self._get_state_for_reward()
+            state.update({"grid": self.grid, "agent": self.agent, "config": self.task_config})
+            info["success"] = bool(self.task.check_success(state))
         # Allow task to update world after agent acts (NPCs, obstacles, etc.)
         if hasattr(self.task, "on_env_step"):
             self.task.on_env_step(self.agent, self.grid, self.task_config, self.step_count)

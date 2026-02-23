@@ -130,11 +130,15 @@ class ASCIIRenderer:
                     char_grid[y, x] = "G"
                     color_grid[y, x] = "goal"
                 elif obj_val == ObjectType.KEY:
+                    meta_val = int(grid.metadata[y, x])
+                    _KEY_COLORS = {0: "key", 1: "hazard", 2: "agent"}
                     char_grid[y, x] = "K"
-                    color_grid[y, x] = "key"
+                    color_grid[y, x] = _KEY_COLORS.get(meta_val, "key")
                 elif obj_val == ObjectType.DOOR:
+                    meta_val = int(grid.metadata[y, x])
+                    _DOOR_COLORS = {0: "door", 1: "hazard", 2: "agent"}
                     char_grid[y, x] = "D"
-                    color_grid[y, x] = "door"
+                    color_grid[y, x] = _DOOR_COLORS.get(meta_val, "door")
                 elif obj_val == ObjectType.SWITCH:
                     meta_val = int(grid.metadata[y, x])
                     # GraphColoring: show assigned color as digit; 0 = uncolored

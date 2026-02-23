@@ -121,6 +121,24 @@ class GraphColoringTask(TaskSpec):
                 return False
         return True
 
+    def _is_graph_connected(self, adj, n_nodes):
+        """Check that all nodes are reachable from node 0 via adjacency edges."""
+        if n_nodes <= 1:
+            return True
+        visited = {0}
+        stack = [0]
+        while stack:
+            node = stack.pop()
+            for nb in adj[node]:
+                if nb not in visited:
+                    visited.add(nb)
+                    stack.append(nb)
+        return len(visited) == n_nodes
+
+    def _all_nodes_have_edges(self, adj, n_nodes):
+        """Verify every node has at least one adjacency edge (no isolated nodes)."""
+        return all(len(adj[i]) > 0 for i in range(n_nodes))
+
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
@@ -128,7 +146,7 @@ class GraphColoringTask(TaskSpec):
         n_colors = self.difficulty_config.params.get("n_colors", 2)
         n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
 
-        for attempt in range(30):
+        for attempt in range(20):
             grid = Grid(size, size)
             grid.terrain[0, :] = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
@@ -153,7 +171,9 @@ class GraphColoringTask(TaskSpec):
                 else:
                     grid.terrain[oy, ox] = CellType.EMPTY
 
-            # Place nodes spread out
+            # Place nodes spread out — use a reduced min_dist so nodes can
+            # stay within the adjacency threshold (Manhattan ≤ 4) while still
+            # being separated enough to avoid overlap.
             free = [
                 (x, y) for x in range(2, size - 2) for y in range(2, size - 2)
                 if grid.terrain[y, x] == CellType.EMPTY and (x, y) != agent_pos
@@ -161,7 +181,7 @@ class GraphColoringTask(TaskSpec):
             rng.shuffle(free)
 
             node_positions = []
-            min_dist = max(2, (size - 2) // (n_nodes + 1))
+            min_dist = max(2, min(4, (size - 2) // (n_nodes + 1)))
             for pos in free:
                 if len(node_positions) >= n_nodes:
                     break
@@ -171,17 +191,30 @@ class GraphColoringTask(TaskSpec):
                 ):
                     node_positions.append(pos)
 
+            # If spaced placement didn't get enough nodes, relax to any free cells
             if len(node_positions) < n_nodes:
                 node_positions = free[:n_nodes]
 
             if len(node_positions) < n_nodes:
                 continue
 
+            # All nodes must be walkable from the agent start
             reachable = grid.flood_fill(agent_pos)
             if not all(p in reachable for p in node_positions):
                 continue
 
             adj = self._compute_adjacency(node_positions, grid)
+
+            # --- Connectivity and isolation checks ---
+            # Every node must have at least one edge (no trivially isolated nodes)
+            if not self._all_nodes_have_edges(adj, len(node_positions)):
+                continue
+
+            # The adjacency graph must be fully connected
+            if not self._is_graph_connected(adj, len(node_positions)):
+                continue
+
+            # The graph must be k-colorable with the given number of colors
             if not self._has_valid_coloring(len(node_positions), n_colors, adj):
                 continue
 
@@ -201,14 +234,27 @@ class GraphColoringTask(TaskSpec):
                 "max_steps": self.get_max_steps(),
             }
 
-        # Fallback: simple linear graph
+        # Fallback: linear chain graph — guaranteed connected, every node has
+        # at least one edge, and trivially 2-colorable.
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
         agent_pos = (1, 1)
-        nodes = [(3, 3), (5, 3), (7, 3)] if size > 8 else [(2, 2), (4, 2)]
+        # Build a chain of nodes spaced 2 apart horizontally, wrapping rows
+        nodes = []
+        x_start, y_start = 3, 3
+        cx, cy = x_start, y_start
+        for _ in range(n_nodes):
+            if cx >= size - 2:
+                cx = x_start
+                cy += 2
+            if cy >= size - 2:
+                break
+            nodes.append((cx, cy))
+            cx += 2
+        # If we couldn't fit enough, just take what we have
         nodes = nodes[:n_nodes]
         for nx2, ny2 in nodes:
             if 0 < nx2 < size - 1 and 0 < ny2 < size - 1:
