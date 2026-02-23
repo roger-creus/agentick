@@ -1,0 +1,39 @@
+{
+    "_comment": "Entity-to-tile mapping for Kenney Isometric Blocks. Keys are game entity types, values are relative paths under tiles/.",
+
+    "floor": "voxel/voxelTile_20.png",
+    "wall": "voxel/voxelTile_30.png",
+    "agent": "agent.png",
+    "goal": "abstract/abstractTile_04.png",
+    "hazard": "voxel/voxelTile_08.png",
+    "water": "abstract/abstractTile_26.png",
+    "ice": "voxel/voxelTile_06.png",
+    "hole": "abstract/abstractTile_31.png",
+
+    "key": "abstract/abstractTile_29.png",
+    "door": "abstract/abstractTile_01.png",
+    "door_open": "voxel/voxelTile_25.png",
+    "switch": "abstract/abstractTile_09.png",
+    "switch_on": "abstract/abstractTile_14.png",
+    "box": "platformer/platformerTile_09.png",
+    "target": "abstract/abstractTile_15.png",
+    "tool": "voxel/voxelTile_17.png",
+    "resource": "voxel/voxelTile_35.png",
+    "breadcrumb": "abstract/abstractTile_19.png",
+
+    "npc": "platformer/platformerTile_05.png",
+    "enemy": "abstract/abstractTile_20.png",
+    "sheep": "platformer/platformerTile_02.png",
+    "blocker": "abstract/abstractTile_32.png",
+
+    "gem": "voxel/voxelTile_36.png",
+    "lever": "platformer/platformerTile_17.png",
+    "potion": "abstract/abstractTile_27.png",
+    "scroll": "voxel/voxelTile_15.png",
+    "coin": "voxel/voxelTile_35.png",
+    "orb": "abstract/abstractTile_30.png",
+
+    "fog": "abstract/abstractTile_31.png",
+    "fog_partial": "abstract/abstractTile_22.png",
+    "empty": null
+}
