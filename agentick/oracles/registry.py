@@ -61,6 +61,7 @@ def _import_all_oracles() -> None:
     import agentick.oracles.combinatorial_oracles  # noqa: F401
     import agentick.oracles.compositional_oracles  # noqa: F401
     import agentick.oracles.control_oracles  # noqa: F401
+    import agentick.oracles.exploration_oracles  # noqa: F401
     import agentick.oracles.memory_oracles  # noqa: F401
     import agentick.oracles.meta_oracles  # noqa: F401
     import agentick.oracles.multi_agent_oracles  # noqa: F401

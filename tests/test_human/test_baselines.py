@@ -213,7 +213,7 @@ def test_estimate_performance_edge_cases():
 
 def test_all_tasks_covered():
     """Verify we have exactly the expected tasks."""
-    expected_count = 38  # Update if tasks are added
+    expected_count = 40  # Update if tasks are added
 
     assert len(HUMAN_BASELINES) == expected_count, (
         f"Expected {expected_count} tasks, found {len(HUMAN_BASELINES)}"

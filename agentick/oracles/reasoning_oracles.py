@@ -340,122 +340,161 @@ class CausalChainOracle(OracleAgent):
 
 @register_oracle("SwitchCircuit-v0")
 class SwitchCircuitOracle(OracleAgent):
-    """Activate switches in dependency order, then reach goal chamber.
+    """Toggle color-coded switches in order 0..N-1, then reach the goal.
 
-    Effect cells are initially walls/hazards. They become EMPTY only when
-    their switch is activated. Only use extra_passable for already-activated
-    switch effects. Takes ONE step at a time.
+    Strategy:
+    1. Find the next switch to activate (lowest color index not yet ON).
+    2. Navigate to it via BFS; the currently-open barrier cells are treated
+       as extra_passable so the oracle can walk through them.
+    3. After all switches are ON, navigate to the goal.
+
+    The oracle avoids stepping on already-active switches because doing so
+    would toggle them OFF and close previously opened barriers. The agent's
+    current position is excluded from the avoidance set (already standing
+    on a switch does not re-trigger it on the same step).
+
+    One step is queued at a time so the plan is re-evaluated each turn,
+    which lets the oracle react to barrier state changes immediately.
     """
+
+    def _get_open_barrier_cells(self, config):
+        """Return the set of barrier cells that are currently EMPTY (open).
+
+        A barrier cell belonging to color i is open when switch i is ON
+        (the toggle turned it EMPTY). We read the live grid terrain rather
+        than inferring from the logical switch state to stay in sync with
+        whatever physical state the grid is actually in.
+        """
+        grid = self.api.grid
+        barrier_cells_cfg = config.get("barrier_cells", {})
+        open_cells: set[tuple[int, int]] = set()
+        for _color_str, cells in barrier_cells_cfg.items():
+            for cell in cells:
+                cx, cy = cell[0], cell[1]
+                if int(grid.terrain[cy, cx]) != int(CellType.WALL):
+                    open_cells.add((cx, cy))
+        return open_cells
 
     def plan(self):
         config = self.api.task_config
         active = config.get("_switches_on", set())
         switches = config.get("switch_positions", [])
-        deps = config.get("circuit_deps", {})
-        effects = config.get("switch_effects", [])
-        gate_pos = config.get("gate_pos")
         ax, ay = self.api.agent_position
 
-        # Build passable cells from ALREADY-activated effects only
-        extra = set()
-        for i in active:
-            if i < len(effects):
-                for cell in effects[i].get("cells", []):
-                    extra.add(tuple(cell))
+        n = len(switches)
+        if n == 0:
+            return
 
-        if gate_pos and len(active) >= len(switches):
-            extra.add(tuple(gate_pos))
+        # Cells that are physically open right now (passable despite being
+        # barrier cells) — treat them as extra_passable in BFS.
+        extra = self._get_open_barrier_cells(config)
 
-        # Build set of active switch positions to avoid when not targeting
-        # them. Stepping on an active switch toggles it OFF, which breaks
-        # the circuit and causes infinite re-activation loops.
-        # Exclude the agent's current position — it is already there and
-        # leaving it will not toggle anything (only *entering* triggers).
-        active_switch_positions = set()
+        # Build the set of active-switch positions to avoid while routing.
+        # Stepping on an active switch toggles it OFF, which re-closes its
+        # barrier and opens the complementary one — disrupting the plan.
+        # Exclude the agent's own cell; standing there already is harmless.
+        active_switch_positions: set[tuple[int, int]] = set()
         for i in active:
-            if i < len(switches):
+            if i < n:
                 pos = tuple(switches[i])
                 if pos != (ax, ay):
                     active_switch_positions.add(pos)
 
-        # Find next activatable switch
-        for i, spos in enumerate(switches):
-            sx, sy = spos
-            if i in active:
-                continue
-            prereqs = deps.get(i, deps.get(str(i), []))
-            if all(p in active for p in prereqs):
-                # Avoid other active switches while navigating to this one
-                avoid = active_switch_positions - {(sx, sy)}
-                # Try with currently-active effects as passable
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    (sx, sy),
-                    extra_passable=extra,
-                    avoid=avoid,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                # Retry without avoid (in case avoiding creates no path)
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    (sx, sy),
-                    extra_passable=extra,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                # Try plain BFS (no extra passable)
-                path = self.api.bfs_path_positions((ax, ay), (sx, sy))
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                # Switch unreachable — skip to next or noop
-                continue
+        # Determine the next switch that needs to be activated.
+        # The canonical order is 0, 1, 2, ..., N-1.
+        next_target: tuple[int, int] | None = None
+        next_idx: int = -1
+        for i in range(n):
+            if i not in active:
+                next_target = tuple(switches[i])
+                next_idx = i
+                break
 
-        # All switches active — go to goal through gate, avoiding switches
-        if len(active) >= len(switches):
-            goal = self.api.get_nearest("goal")
-            if goal:
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    goal.position,
-                    extra_passable=extra,
-                    avoid=active_switch_positions,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                # Fallback: try without avoid (better than stuck forever)
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    goal.position,
-                    extra_passable=extra,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                self.action_queue = self.api.move_toward(*goal.position)
+        if next_target is not None:
+            sx, sy = next_target
+            avoid = active_switch_positions - {(sx, sy)}
+
+            # Primary attempt: avoid active switches, use open barriers.
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                (sx, sy),
+                extra_passable=extra,
+                avoid=avoid,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+            # Retry without avoid constraint (path may route through active
+            # switch positions if there is no other way).
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                (sx, sy),
+                extra_passable=extra,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+            # Last resort: plain BFS ignoring extra_passable hints.
+            path = self.api.bfs_path_positions((ax, ay), (sx, sy))
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+            # Switch is unreachable — fall back to move_toward.
+            fallback = self.api.move_toward(sx, sy)
+            if fallback:
+                self.action_queue = fallback
+            return
+
+        # All switches are ON — navigate to the goal.
+        goal = self.api.get_nearest("goal")
+        if goal:
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                goal.position,
+                extra_passable=extra,
+                avoid=active_switch_positions,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+            # Retry without avoid (in case all routes pass through a switch).
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                goal.position,
+                extra_passable=extra,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+            # Final fallback.
+            fallback = self.api.move_toward(*goal.position)
+            if fallback:
+                self.action_queue = fallback
 
 
 @register_oracle("SymbolMatching-v0")
 class SymbolMatchingOracle(OracleAgent):
-    """Pick up symbol items and deliver to matching targets.
+    """Pick up symbol items and deliver to matching targets (same ObjectType).
 
-    Uses config pair_info for oracle knowledge of which item matches which target.
-    Reads task internal _carrying state directly for reliable carrying detection.
-    Avoids fake items and wrong targets during navigation.
+    Items are on the left side, targets on the right side. Both use the same
+    ObjectType per pair (e.g., GEM item -> GEM target). The oracle uses
+    pair_info from config to know which positions are items vs targets.
+    Fake items use types with no matching target.
     """
 
     _SYMBOL_TYPES = [
@@ -468,25 +507,17 @@ class SymbolMatchingOracle(OracleAgent):
     ]
     _SYMBOL_SET = {int(t) for t in _SYMBOL_TYPES}
 
-    def _get_all_target_positions(self):
-        """Return set of all TARGET cell positions on grid."""
-        grid = self.api.grid
-        targets = set()
-        for y in range(grid.height):
-            for x in range(grid.width):
-                if grid.objects[y, x] == ObjectType.TARGET:
-                    targets.add((x, y))
-        return targets
-
-    def _get_all_symbol_positions(self):
-        """Return set of all symbol item positions on the grid."""
-        grid = self.api.grid
-        symbols = set()
-        for y in range(grid.height):
-            for x in range(grid.width):
-                if int(grid.objects[y, x]) in self._SYMBOL_SET:
-                    symbols.add((x, y))
-        return symbols
+    def _get_task_target_pos_set(self):
+        """Get the set of target positions from the task object."""
+        task = getattr(self.api._env, "task", None)
+        if task is not None:
+            return getattr(task, "_target_pos_set", set())
+        # Fallback: build from config
+        config = self.api.task_config
+        target_pos_set = set()
+        for p in config.get("pair_info", []):
+            target_pos_set.add(tuple(p["target_pos"]))
+        return target_pos_set
 
     def _get_task_carrying(self):
         """Read carrying state directly from the task object."""
@@ -505,20 +536,29 @@ class SymbolMatchingOracle(OracleAgent):
         # Read carrying state from the task directly (most reliable)
         carrying = self._get_task_carrying()
 
-        # Build set of all target positions for avoidance when navigating
-        all_targets = self._get_all_target_positions()
-        # Build set of all symbol positions (for avoiding fakes)
-        all_symbols = self._get_all_symbol_positions()
+        # Build target position set (unmatched targets still have symbol ObjectType)
+        target_pos_set = self._get_task_target_pos_set()
 
-        # Build set of pair item positions (legitimate items)
+        # Build set of all symbol positions on the grid (items + unmatched targets)
+        all_symbol_positions = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if int(grid.objects[y, x]) in self._SYMBOL_SET:
+                    all_symbol_positions.add((x, y))
+
+        # Separate into item positions and target positions
+        all_targets = all_symbol_positions & target_pos_set
+        all_items = all_symbol_positions - target_pos_set
+
+        # Build set of legitimate pair item positions
         pair_item_positions = set()
         for p in pair_info:
             ix, iy = p["item_pos"]
-            if grid.objects[iy, ix] == ObjectType(p["symbol_type"]):
+            if int(grid.objects[iy, ix]) == p["symbol_type"]:
                 pair_item_positions.add((ix, iy))
 
-        # Fake items = all symbols NOT in pair_item_positions
-        fake_positions = all_symbols - pair_item_positions
+        # Fake items = items not in pair_item_positions
+        fake_positions = all_items - pair_item_positions
 
         if carrying is None:
             # Not carrying — find an uncollected item to pick up
@@ -528,9 +568,11 @@ class SymbolMatchingOracle(OracleAgent):
                 ix, iy = p["item_pos"]
                 sym_type = p["symbol_type"]
                 tx, ty = p["target_pos"]
+                # Item still present and target still unmatched
                 if (
-                    grid.objects[iy, ix] == ObjectType(sym_type)
-                    and grid.objects[ty, tx] == ObjectType.TARGET
+                    int(grid.objects[iy, ix]) == sym_type
+                    and (tx, ty) in target_pos_set
+                    and int(grid.objects[ty, tx]) == sym_type
                 ):
                     d = abs(ix - ax) + abs(iy - ay)
                     if d < best_dist:
@@ -538,8 +580,7 @@ class SymbolMatchingOracle(OracleAgent):
                         best_pair = p
             if best_pair:
                 ix, iy = best_pair["item_pos"]
-                # Avoid: all targets + all fake symbol positions
-                # (stepping on fakes picks them up, breaking the plan)
+                # Avoid: all targets + fake items (stepping on them picks them up)
                 avoid = (all_targets | fake_positions) - {(ix, iy)}
                 path = self.api.bfs_path_positions(
                     (ax, ay),
@@ -572,19 +613,19 @@ class SymbolMatchingOracle(OracleAgent):
                 return
             self.action_queue = [0]
         else:
-            # Carrying — deliver to the CORRECT matching target
+            # Carrying — deliver to the matching target (same ObjectType)
             correct_target = None
             for p in pair_info:
                 if p["symbol_type"] == carrying:
                     tx, ty = p["target_pos"]
-                    if grid.objects[ty, tx] == ObjectType.TARGET:
+                    if (tx, ty) in target_pos_set and int(grid.objects[ty, tx]) == carrying:
                         correct_target = (tx, ty)
                         break
 
             if correct_target:
-                # Avoid: all OTHER targets + all symbol items (don't pick up more)
+                # Avoid: all OTHER targets + all remaining items (don't pick up more)
                 wrong_targets = all_targets - {correct_target}
-                avoid = wrong_targets | all_symbols
+                avoid = wrong_targets | all_items
                 path = self.api.bfs_path_positions(
                     (ax, ay),
                     correct_target,
@@ -614,10 +655,11 @@ class SymbolMatchingOracle(OracleAgent):
                 self.action_queue = self.api.move_toward(*correct_target)
                 return
 
-            # Carrying a fake or unknown item — try to drop on any target
-            # or just move toward a pair item (fake will be lost on mismatch)
+            # Carrying a fake or unknown item — dump on any remaining target
             if all_targets:
-                nearest_target = min(all_targets, key=lambda t: abs(t[0] - ax) + abs(t[1] - ay))
+                nearest_target = min(
+                    all_targets, key=lambda t: abs(t[0] - ax) + abs(t[1] - ay)
+                )
                 path = self.api.bfs_path_positions(
                     (ax, ay),
                     nearest_target,
