@@ -77,6 +77,12 @@ def main() -> None:
         default=None,
         help="Override output directory (all results go here)",
     )
+    parser.add_argument(
+        "--render-mode",
+        type=str,
+        default=None,
+        help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+    )
     args = parser.parse_args()
 
     # Check dependencies
@@ -102,6 +108,8 @@ def main() -> None:
         config.training.total_timesteps = args.timesteps
     if args.device and config.training:
         config.training.device = args.device
+    if args.render_mode:
+        config.render_modes = [args.render_mode]
 
     # Run
     runner = TrainingBenchmarkRunner(config)

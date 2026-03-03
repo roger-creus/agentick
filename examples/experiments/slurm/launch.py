@@ -146,6 +146,7 @@ def build_runner_command(
     config_path: Path | str,
     task: str | None = None,
     output_dir: str | None = None,
+    render_mode: str | None = None,
 ) -> str:
     """Build the runner command string (to be prefixed with 'uv run').
 
@@ -154,6 +155,7 @@ def build_runner_command(
         config_path: Path to the YAML config (relative to project root)
         task: If set, run only this single task
         output_dir: Optional output directory override
+        render_mode: Optional render mode override (e.g. 'rgb_array_flat')
     """
     if runner_type == "ppo":
         # PPO training: use train_and_eval_ppo.py
@@ -162,6 +164,8 @@ def build_runner_command(
             cmd += f" --tasks {task}"
         if output_dir:
             cmd += f" --output-dir {output_dir}"
+        if render_mode:
+            cmd += f" --render-mode {render_mode}"
         return cmd
 
     if runner_type == "module":
@@ -529,6 +533,9 @@ Relaunch failed jobs:
     parser.add_argument("--conda-env", help="Override conda env name")
     parser.add_argument("--output-dir", help="Override results output directory")
     parser.add_argument(
+        "--render-mode", help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+    )
+    parser.add_argument(
         "--no-split", action="store_true",
         help="Don't split by task — one SLURM job per config (old behavior)",
     )
@@ -667,14 +674,16 @@ Relaunch failed jobs:
                 # Whole-config mode — use original config file directly
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
-                    runner_type, rel_config, output_dir=shared_output
+                    runner_type, rel_config, output_dir=shared_output,
+                    render_mode=args.render_mode,
                 )
                 display_config = config_path.name
             elif runner_type == "ppo":
                 # PPO: use --tasks flag on original config
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
-                    runner_type, rel_config, task=task, output_dir=shared_output
+                    runner_type, rel_config, task=task, output_dir=shared_output,
+                    render_mode=args.render_mode,
                 )
                 display_config = f"{config_path.name} [{task}]"
             else:
@@ -682,7 +691,8 @@ Relaunch failed jobs:
                 inline_yaml = make_per_task_config_yaml(config, task)
                 # Runner will use $_AGENTICK_CFG (set by inline heredoc)
                 runner_cmd = build_runner_command(
-                    runner_type, "$_AGENTICK_CFG", output_dir=shared_output
+                    runner_type, "$_AGENTICK_CFG", output_dir=shared_output,
+                    render_mode=args.render_mode,
                 )
                 display_config = f"{config_path.name} [{task}]"
 

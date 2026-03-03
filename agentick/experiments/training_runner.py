@@ -163,6 +163,8 @@ class TrainingBenchmarkRunner:
         print(f"  Timesteps per run: {self.training_config.total_timesteps:,}")
         print(f"  Parallel envs: {self.training_config.n_envs}")
         print(f"  Reward mode: {self.config.reward_mode}")
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+        print(f"  Render mode: {render_mode}")
         print(f"  Output: {output_dir}")
         print()
 
@@ -386,6 +388,8 @@ class TrainingBenchmarkRunner:
 
         from agentick.wrappers.atari_preprocessing import make_atari_env
 
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+
         def make_env(env_seed: int):
             def _init():
                 env = make_atari_env(
@@ -393,6 +397,7 @@ class TrainingBenchmarkRunner:
                     seed=env_seed,
                     difficulty=difficulty,
                     reward_mode=self.config.reward_mode,
+                    render_mode=render_mode,
                 )
                 env = Monitor(env)
                 return env
@@ -428,12 +433,15 @@ class TrainingBenchmarkRunner:
             eval_model = model
 
         # Create eval env
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+
         def make_env():
             env = make_atari_env(
                 task_name,
                 seed=seed,
                 difficulty=difficulty,
                 reward_mode=self.config.reward_mode,
+                render_mode=render_mode,
             )
             env = Monitor(env)
             return env
