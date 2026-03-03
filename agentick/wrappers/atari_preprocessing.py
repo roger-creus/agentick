@@ -109,20 +109,22 @@ def make_atari_env(task_name: str, seed: int = 0, **kwargs) -> gym.Env:
     """
     Create an Agentick env with standard Atari preprocessing.
 
-    Applies: rgb_array → resize 84x84 → grayscale → frame stack 4.
+    Applies: pixels → resize 84x84 → grayscale → frame stack 4.
 
     Args:
         task_name: Agentick task name (e.g., "GoToGoal-v0")
         seed: Random seed
-        **kwargs: Additional args passed to agentick.make()
+        **kwargs: Additional args passed to agentick.make(), including render_mode
+            (e.g. "rgb_array_flat" or "rgb_array"). Defaults to "rgb_array_flat"
+            if not specified.
 
     Returns:
         Wrapped gymnasium environment with (84, 84, 4) uint8 observations.
     """
     import agentick
 
-    kwargs.pop("render_mode", None)
-    env = agentick.make(task_name, render_mode="rgb_array", **kwargs)
+    kwargs.setdefault("render_mode", "rgb_array_flat")
+    env = agentick.make(task_name, **kwargs)
     env = ResizeObservation(env, size=(84, 84))
     env = GrayscaleObservation(env)
     env = FrameStack(env, n_frames=4)

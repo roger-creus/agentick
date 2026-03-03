@@ -44,7 +44,7 @@ class PPOConfig:
 
     # Environment
     env_id: str = "GoToGoal-v0"
-    num_envs: int = 4
+    num_envs: int = 8
     num_steps: int = 128
 
     # Training

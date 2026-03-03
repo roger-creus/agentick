@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     parser.add_argument("--total-timesteps", type=int, default=100000, help="Total timesteps")
     parser.add_argument("--learning-rate", type=float, default=2.5e-4, help="Learning rate")
-    parser.add_argument("--num-envs", type=int, default=4, help="Number of parallel envs")
+    parser.add_argument("--num-envs", type=int, default=8, help="Number of parallel envs")
     parser.add_argument("--num-steps", type=int, default=128, help="Steps per rollout")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--gae-lambda", type=float, default=0.95, help="GAE lambda")
@@ -56,9 +56,9 @@ def parse_args():
     return args
 
 
-def make_env(task_id, difficulty, seed, idx):
+def make_env(task_id, difficulty, seed, idx, render_mode="rgb_array_flat"):
     def thunk():
-        env = make_atari_env(task_id, difficulty=difficulty, render_mode="rgb_array")
+        env = make_atari_env(task_id, difficulty=difficulty, render_mode=render_mode)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env.action_space.seed(seed + idx)
         env.observation_space.seed(seed + idx)

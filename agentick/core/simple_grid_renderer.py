@@ -87,6 +87,20 @@ _META_GC_COLORS = {
     5: "#AA44FF",  # color 5 → purple
 }
 
+# EmergentStrategy NPC colors (NPC metadata 1,3-5)
+_EMERGENT_NPC_COLORS = {
+    1: "#11AAEE",  # Follower — cyan
+    3: "#44CC44",  # Fearful — green
+    4: "#AA44FF",  # Mirror — purple
+    5: "#FFCC00",  # Contrarian — gold
+}
+_EMERGENT_NPC_LABELS = {
+    1: "F",  # Follower
+    3: "X",  # Fearful
+    4: "M",  # Mirror
+    5: "C",  # Contrarian
+}
+
 # SwitchCircuit colored walls (metadata 1-5 on WALL terrain = gate color)
 _META_COLORED_WALL = {
     1: "#8B2222",  # red wall
@@ -183,6 +197,91 @@ class SimpleGridRenderer:
         hdr_text = f"{task_name}  step={step}" if step != "" else task_name
         draw.text((4, 3), hdr_text, font=self._font_small, fill=(220, 220, 100))
 
+        # ── InstructionFollowing: show target type icon (bottom-right) ──
+        task_config = info.get("task_config", {})
+        if "target_type" in task_config and "InstructionFollowing" in task_name:
+            target_obj = ObjectType(task_config["target_type"])
+            label_entry = OBJECT_LABELS.get(target_obj)
+            if label_entry and label_entry[0]:
+                tgt_label, tgt_color = label_entry
+                # Draw a prominent colored icon tile in the bottom-right corner
+                icon_size = max(ts, 28)
+                icon_x = W * ts - icon_size - 6
+                icon_y = H * ts + header - icon_size - 6
+                draw.rectangle(
+                    [icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1],
+                    fill=tgt_color, outline="#000000", width=2,
+                )
+                text_color = _contrast_text(tgt_color)
+                bbox = draw.textbbox((0, 0), tgt_label, font=self._font_big)
+                lw = bbox[2] - bbox[0]
+                lh = bbox[3] - bbox[1]
+                draw.text(
+                    (icon_x + (icon_size - lw) // 2,
+                     icon_y + (icon_size - lh) // 2 - 1),
+                    tgt_label, font=self._font_big, fill=text_color,
+                )
+
+        # ── TaskInterference: show GEM/ORB meters ────────────────────────
+        if "TaskInterference" in task_name:
+            red = task_config.get("_red_meter", 0.0)
+            blue = task_config.get("_blue_meter", 0.0)
+            bar_w, bar_h = 60, 8
+            bar_y = header - bar_h - 4
+            # Gem meter
+            draw.rectangle([4, bar_y, 4 + bar_w, bar_y + bar_h], outline=(180, 60, 60))
+            red_x1 = max(5, 4 + int(red * (bar_w - 1)))
+            draw.rectangle(
+                [5, bar_y + 1, red_x1, bar_y + bar_h - 1],
+                fill=(220, 50, 50),
+            )
+            draw.text((4 + bar_w + 4, bar_y - 1), f"GEM {red:.0%}",
+                       font=self._font_small, fill=(220, 80, 80))
+            # Orb meter
+            bx = W * ts // 2
+            draw.rectangle([bx, bar_y, bx + bar_w, bar_y + bar_h], outline=(60, 60, 180))
+            blue_x1 = max(bx + 1, bx + int(blue * (bar_w - 1)))
+            draw.rectangle(
+                [bx + 1, bar_y + 1, blue_x1, bar_y + bar_h - 1],
+                fill=(50, 50, 220),
+            )
+            draw.text((bx + bar_w + 4, bar_y - 1), f"ORB {blue:.0%}",
+                       font=self._font_small, fill=(80, 80, 220))
+
+        # ── TreasureHunt: show discovered clues ──────────────────────────
+        if "TreasureHunt" in task_name:
+            clue_info = task_config.get("_clue_info", {})
+            clues_read = task_config.get("_clues_read", [])
+            dir_labels = {0: "N", 1: "E", 2: "S", 3: "W"}
+            clue_parts = []
+            for cpos in clues_read:
+                key = (
+                    f"{cpos[0]},{cpos[1]}"
+                    if isinstance(cpos, (list, tuple)) else cpos
+                )
+                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                if ci:
+                    d = dir_labels.get(ci.get("direction", 0), "?")
+                    dist = ci.get("distance", "?")
+                    clue_parts.append(f"{d}{dist}")
+            if clue_parts:
+                # Wrap clues: max 5 per line to avoid running off-screen.
+                # Stack rows upward from the bottom of the header area.
+                max_per_line = 5
+                n_rows = (len(clue_parts) + max_per_line - 1) // max_per_line
+                base_y = header - 14
+                for ri in range(n_rows):
+                    start = ri * max_per_line
+                    row = clue_parts[start:start + max_per_line]
+                    clue_text = "Clue: " + "  ".join(row)
+                    y_pos = base_y - (n_rows - 1 - ri) * 12
+                    if y_pos < 0:
+                        break
+                    draw.text(
+                        (4, y_pos), clue_text,
+                        font=self._font_small, fill=(200, 200, 100),
+                    )
+
         # ── Terrain ───────────────────────────────────────────────────────
         for y in range(H):
             for x in range(W):
@@ -238,6 +337,15 @@ class SimpleGridRenderer:
                     cy2 = py + ts // 2
                     r2 = max(3, ts // 6)
                     draw.ellipse([cx2 - r2, cy2 - r2, cx2 + r2, cy2 + r2], fill="#888888")
+                elif (
+                    obj == ObjectType.NPC
+                    and meta in _EMERGENT_NPC_COLORS
+                    and "EmergentStrategy" in task_name
+                ):
+                    # EmergentStrategy: color-coded NPC by behavior type
+                    npc_color = _EMERGENT_NPC_COLORS[meta]
+                    npc_letter = _EMERGENT_NPC_LABELS.get(meta, "N")
+                    self._draw_entity(draw, x, y, npc_color, header, letter=npc_letter)
                 elif obj in CIRCLE_OBJECTS:
                     # Draw as entity circle
                     letter, color = CIRCLE_OBJECTS[obj]
@@ -260,6 +368,27 @@ class SimpleGridRenderer:
                     draw.text(
                         (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
                         label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.TARGET and meta >= 200:
+                    # TileSorting: goal slot with tile number = meta - 200
+                    slot_tile = meta - 200
+                    tile_label = (
+                        str(slot_tile) if slot_tile <= 9
+                        else chr(ord("A") + slot_tile - 10)
+                    )
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill="#AAFFAA", outline="#44AA44", width=2,
+                    )
+                    bbox = draw.textbbox(
+                        (0, 0), tile_label, font=self._font_big
+                    )
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        tile_label, font=self._font_big, fill="#226622",
                     )
                 elif obj == ObjectType.TARGET and meta in _META_OBJ_LABELS:
                     # Typed target slot: show expected piece type color + label
@@ -286,21 +415,36 @@ class SimpleGridRenderer:
                     )
                 elif obj == ObjectType.BOX and meta != 0:
                     # Numbered tile (TileSorting) — show tile number instead of "B"
-                    _, obj_color = OBJECT_LABELS[obj]
-                    # Vary the shade slightly by tile number for more distinction
-                    hue_shift = (meta * 37) % 60  # small hue variation
-                    r2, g2, b2 = _hex_to_rgb(obj_color)
-                    shifted = "#{:02X}{:02X}{:02X}".format(
-                        min(255, r2 + hue_shift - 30),
-                        min(255, g2 + hue_shift - 30),
-                        b2,
-                    )
+                    # meta >= 100 means tile is in its correct position (green tint)
+                    correct_pos = meta >= 100
+                    real_tile = meta - 100 if correct_pos else meta
+                    if correct_pos:
+                        # Green tint for correctly placed tiles
+                        hue_shift = (real_tile * 37) % 40
+                        shifted = "#{:02X}{:02X}{:02X}".format(
+                            40 + hue_shift,
+                            min(255, 180 + hue_shift),
+                            40 + hue_shift,
+                        )
+                    else:
+                        _, obj_color = OBJECT_LABELS[obj]
+                        # Vary the shade slightly by tile number for more distinction
+                        hue_shift = (real_tile * 37) % 60  # small hue variation
+                        r2, g2, b2 = _hex_to_rgb(obj_color)
+                        shifted = "#{:02X}{:02X}{:02X}".format(
+                            min(255, r2 + hue_shift - 30),
+                            min(255, g2 + hue_shift - 30),
+                            b2,
+                        )
                     m = max(2, ts // 8)
                     draw.rectangle(
                         [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
                         fill=shifted, outline="#000000", width=2,
                     )
-                    tile_label = str(meta) if meta <= 9 else chr(ord("A") + meta - 10)
+                    tile_label = (
+                        str(real_tile) if real_tile <= 9
+                        else chr(ord("A") + real_tile - 10)
+                    )
                     text_color = _contrast_text(shifted)
                     bbox = draw.textbbox((0, 0), tile_label, font=self._font_big)
                     tw = bbox[2] - bbox[0]
@@ -308,6 +452,47 @@ class SimpleGridRenderer:
                     draw.text(
                         (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
                         tile_label, font=self._font_big, fill=text_color,
+                    )
+                elif obj == ObjectType.SCROLL and meta > 0:
+                    # TreasureHunt directional scroll clue.
+                    # Metadata encoding: direction * 10 + distance
+                    # direction: 0=N, 1=E, 2=S, 3=W
+                    # distance: 1-9 (Manhattan distance to nearest treasure, capped)
+                    scroll_dir = meta // 10
+                    scroll_dist = meta % 10
+                    arrow_chars = {0: "\u2191", 1: "\u2192", 2: "\u2193", 3: "\u2190"}
+                    arrow = arrow_chars.get(scroll_dir, "?")
+
+                    # Color intensity based on distance: closer = brighter green
+                    if scroll_dist <= 1:
+                        arrow_bg = "#00EE00"  # bright green (very close)
+                    elif scroll_dist <= 2:
+                        arrow_bg = "#00CC00"
+                    elif scroll_dist <= 3:
+                        arrow_bg = "#00AA00"
+                    elif scroll_dist <= 4:
+                        arrow_bg = "#008800"
+                    else:
+                        arrow_bg = "#006600"  # dim green (far)
+
+                    # Draw parchment background with distance-colored inner rect
+                    m = max(2, ts // 8)
+                    draw.rectangle(
+                        [px + m, py + m, px + ts - m - 1, py + ts - m - 1],
+                        fill=arrow_bg,
+                        outline="#000000",
+                        width=2,
+                    )
+                    # Draw the arrow character
+                    text_color = _contrast_text(arrow_bg)
+                    bbox = draw.textbbox((0, 0), arrow, font=self._font_big)
+                    tw = bbox[2] - bbox[0]
+                    th = bbox[3] - bbox[1]
+                    draw.text(
+                        (px + (ts - tw) // 2, py + (ts - th) // 2 - 1),
+                        arrow,
+                        font=self._font_big,
+                        fill=text_color,
                     )
                 elif obj == ObjectType.RESOURCE and 1 <= meta <= 100:
                     # Energy station (ResourceManagement) — energy level shown as color
@@ -391,6 +576,9 @@ class SimpleGridRenderer:
         ax, ay = agent.position
         self._draw_entity(draw, ax, ay, ENTITY_COLORS["player"], header, letter="A")
 
+        # Resize to fixed 512x512 for consistent observation space
+        if img.size != (512, 512):
+            img = img.resize((512, 512), Image.LANCZOS)
         return np.array(img)
 
     # ── Helpers ───────────────────────────────────────────────────────────────

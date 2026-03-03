@@ -1,12 +1,16 @@
-"""CooperativeTransport - Push a heavy box to the target with NPC cooperation.
+"""CooperativeTransport - Push heavy boxes into holes with NPC cooperation.
 
 MECHANICS:
-  - Heavy BOX requires cooperative pushing: agent pushes, NPC helps from other side
-  - NPC actively pushes box toward target when adjacent and on correct side
-  - Box moves when agent pushes (standard Sokoban push)
-  - NPC also pushes box toward target independently when positioned correctly
-  - Success = box reaches TARGET position
+  - Multiple heavy BOX objects that CANNOT be pushed by the agent alone.
+  - Destinations are HOLE terrain (CellType.HOLE) - push boxes INTO holes.
+  - Push mechanic: Agent pushes box only when NPC is ALSO adjacent to the
+    same box. Agent pushes toward the box; NPC must be on any adjacent side.
+  - NPC behavior: wanders randomly. When agent is adjacent to a box, NPC
+    pathfinds to the opposite side of that box.
+  - Success = all boxes pushed into holes (box on HOLE -> both disappear).
 """
+
+from collections import deque
 
 import numpy as np
 
@@ -19,286 +23,502 @@ from agentick.tasks.registry import register_task
 
 @register_task("CooperativeTransport-v0", tags=["multi_agent", "cooperation"])
 class CooperativeTransportTask(TaskSpec):
-    """Push the box to the target zone with your NPC partner."""
+    """Push heavy boxes into holes with NPC cooperation."""
 
     name = "CooperativeTransport-v0"
-    description = "Cooperatively push box to target zone"
+    description = "Push heavy boxes into holes with NPC cooperation"
     capability_tags = ["multi_agent", "cooperation"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy",
-            grid_size=7,
+            grid_size=9,
             max_steps=100,
-            params={"n_obstacles": 0},
+            params={"n_boxes": 1, "n_holes": 1, "n_obstacles": 0},
         ),
         "medium": DifficultyConfig(
             name="medium",
-            grid_size=10,
+            grid_size=12,
             max_steps=200,
-            params={"n_obstacles": 2},
+            params={"n_boxes": 2, "n_holes": 2, "n_obstacles": 3},
         ),
         "hard": DifficultyConfig(
             name="hard",
-            grid_size=13,
+            grid_size=15,
             max_steps=350,
-            params={"n_obstacles": 4},
+            params={"n_boxes": 3, "n_holes": 3, "n_obstacles": 6},
         ),
         "expert": DifficultyConfig(
             name="expert",
-            grid_size=15,
+            grid_size=18,
             max_steps=500,
-            params={"n_obstacles": 6},
+            params={"n_boxes": 4, "n_holes": 4, "n_obstacles": 9},
         ),
     }
 
     _DIRS = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
+    # ------------------------------------------------------------------
+    # Generation
+    # ------------------------------------------------------------------
+
     def generate(self, seed):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        n_obs = self.difficulty_config.params.get("n_obstacles", 0)
+        params = self.difficulty_config.params
+        n_boxes = params.get("n_boxes", 1)
+        n_holes = params.get("n_holes", 1)
+        n_obs = params.get("n_obstacles", 0)
 
-        for attempt in range(30):
+        for _attempt in range(50):
             grid = Grid(size, size)
+            # Border walls
             grid.terrain[0, :] = CellType.WALL
             grid.terrain[-1, :] = CellType.WALL
             grid.terrain[:, 0] = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
 
-            # Place box near center, target farther away
+            # Inner positions: boxes and holes need 2+ cells from wall so they
+            # can be pushed from at least one side.
+            inner = [
+                (x, y)
+                for x in range(2, size - 2)
+                for y in range(2, size - 2)
+            ]
+            rng.shuffle(inner)
+            # Outer ring (1 cell from wall) for NPC placement
+            interior = [
+                (x, y)
+                for x in range(1, size - 1)
+                for y in range(1, size - 1)
+            ]
+
+            # Place agent near center
             mid = size // 2
-            box_pos = (mid, mid)
+            agent_pos = (mid, mid)
 
-            # Target in a random direction from box
-            direction = int(rng.integers(0, 4))
-            dx, dy = self._DIRS[direction]
-            dist = int(rng.integers(2, max(3, size // 2)))
-            tx = max(1, min(size - 2, box_pos[0] + dx * dist))
-            ty = max(1, min(size - 2, box_pos[1] + dy * dist))
-            target_pos = (tx, ty)
+            # Allocate positions for boxes and holes from inner area
+            reserved = {agent_pos}
+            box_hole_placed = []
+            for pos in inner:
+                if pos in reserved:
+                    continue
+                box_hole_placed.append(pos)
+                reserved.add(pos)
+                if len(box_hole_placed) >= n_boxes + n_holes:
+                    break
 
-            if target_pos == box_pos:
+            if len(box_hole_placed) < n_boxes + n_holes:
                 continue
 
-            # Agent behind box (opposite of push direction)
-            # NPC starts beside the box (perpendicular axis) so it doesn't
-            # block the push path between box and target.
-            push_dx = 1 if tx > box_pos[0] else (-1 if tx < box_pos[0] else 0)
-            push_dy = 1 if ty > box_pos[1] else (-1 if ty < box_pos[1] else 0)
+            # NPC from full interior
+            npc_placed = None
+            rng.shuffle(interior)
+            for pos in interior:
+                if pos not in reserved:
+                    npc_placed = pos
+                    reserved.add(pos)
+                    break
 
-            if push_dx != 0:
-                agent_pos = (box_pos[0] - push_dx, box_pos[1])
-                # NPC beside box on perpendicular axis (not blocking push path)
-                npc_pos = (box_pos[0], box_pos[1] + (1 if rng.random() > 0.5 else -1))
-            else:
-                agent_pos = (box_pos[0], box_pos[1] - push_dy)
-                # NPC beside box on perpendicular axis
-                npc_pos = (box_pos[0] + (1 if rng.random() > 0.5 else -1), box_pos[1])
-
-            # Clamp positions
-            agent_pos = (
-                max(1, min(size - 2, agent_pos[0])),
-                max(1, min(size - 2, agent_pos[1])),
-            )
-            npc_pos = (
-                max(1, min(size - 2, npc_pos[0])),
-                max(1, min(size - 2, npc_pos[1])),
-            )
-
-            positions = [agent_pos, box_pos, npc_pos, target_pos]
-            if len(set(positions)) < 4:
-                continue
-            if not all(0 < p[0] < size - 1 and 0 < p[1] < size - 1 for p in positions):
+            if npc_placed is None:
                 continue
 
-            # Place obstacles
-            placed_obs = 0
+            placed = box_hole_placed + [npc_placed]
+
+            box_positions = [list(placed[i]) for i in range(n_boxes)]
+            hole_positions = [list(placed[n_boxes + i]) for i in range(n_holes)]
+            npc_pos = list(placed[n_boxes + n_holes])
+
+            # Place holes as HOLE terrain
+            for hx, hy in hole_positions:
+                grid.terrain[hy, hx] = CellType.HOLE
+
+            # Place boxes as BOX objects
+            for bx, by in box_positions:
+                grid.objects[by, bx] = ObjectType.BOX
+
+            # Place obstacles (walls), verify reachability after each
+            all_key = set()
+            all_key.add(agent_pos)
+            all_key.add(tuple(npc_pos))
+            for bx, by in box_positions:
+                all_key.add((bx, by))
+            # For reachability we need to check that agent can reach
+            # all boxes and that boxes can (in principle) reach holes.
+            # We use a custom flood fill that treats HOLE as impassable
+            # for walking but we still need boxes adjacent to holes.
+
             obs_candidates = [
                 (x, y)
                 for x in range(1, size - 1)
                 for y in range(1, size - 1)
-                if (x, y) not in set(positions)
+                if (x, y) not in reserved
             ]
             rng.shuffle(obs_candidates)
+            placed_obs = 0
             for ox, oy in obs_candidates:
                 if placed_obs >= n_obs:
                     break
                 grid.terrain[oy, ox] = CellType.WALL
-                reachable = grid.flood_fill(agent_pos)
-                if box_pos not in reachable or target_pos not in reachable:
+                # Check agent can reach all boxes and NPC position
+                reachable = self._flood_fill_walk(grid, agent_pos)
+                ok = True
+                for bx, by in box_positions:
+                    if (bx, by) not in reachable:
+                        ok = False
+                        break
+                if ok and tuple(npc_pos) not in reachable:
+                    ok = False
+                # Also check each hole has at least one walkable neighbor
+                # (so a box could potentially be pushed into it)
+                if ok:
+                    for hx, hy in hole_positions:
+                        has_neighbor = False
+                        for dx, dy in self._DIRS:
+                            nx, ny = hx + dx, hy + dy
+                            if (nx, ny) in reachable:
+                                has_neighbor = True
+                                break
+                        if not has_neighbor:
+                            ok = False
+                            break
+                if not ok:
                     grid.terrain[oy, ox] = CellType.EMPTY
                 else:
                     placed_obs += 1
 
-            # Verify solvability
-            reachable = grid.flood_fill(agent_pos)
-            if box_pos not in reachable:
+            # Final reachability check
+            reachable = self._flood_fill_walk(grid, agent_pos)
+            ok = True
+            for bx, by in box_positions:
+                if (bx, by) not in reachable:
+                    ok = False
+                    break
+            if ok and tuple(npc_pos) not in reachable:
+                ok = False
+            if ok:
+                for hx, hy in hole_positions:
+                    has_neighbor = False
+                    for dx, dy in self._DIRS:
+                        nx, ny = hx + dx, hy + dy
+                        if (nx, ny) in reachable:
+                            has_neighbor = True
+                            break
+                    if not has_neighbor:
+                        ok = False
+                        break
+            if not ok:
                 continue
-
-            grid.objects[box_pos[1], box_pos[0]] = ObjectType.BOX
-            grid.objects[target_pos[1], target_pos[0]] = ObjectType.TARGET
 
             return grid, {
                 "agent_start": agent_pos,
-                "goal_positions": [target_pos],
-                "box_pos": list(box_pos),
-                "npc_pos": list(npc_pos),
-                "target_pos": list(target_pos),
+                "goal_positions": [],
+                "npc_start": npc_pos,
+                "box_positions": box_positions,
+                "hole_positions": hole_positions,
+                "n_boxes": n_boxes,
                 "max_steps": self.get_max_steps(),
             }
 
-        # Fallback
+        # Fallback: minimal valid layout
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
         mid = size // 2
-        agent_pos = (1, mid)
-        box_pos = (mid, mid)
-        npc_pos = (size - 2, mid)
-        target_pos = (mid, size - 2)
-        grid.objects[mid, mid] = ObjectType.BOX
-        grid.objects[size - 2, mid] = ObjectType.TARGET
+        agent_pos = (mid, mid)
+        box_positions = [[mid, mid - 2]]
+        hole_positions = [[mid, 1]]
+        npc_pos = [mid + 1, mid]
+        grid.objects[mid - 2, mid] = ObjectType.BOX
+        grid.terrain[1, mid] = CellType.HOLE
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": [target_pos],
-            "box_pos": list(box_pos),
-            "npc_pos": list(npc_pos),
-            "target_pos": list(target_pos),
+            "goal_positions": [],
+            "npc_start": npc_pos,
+            "box_positions": box_positions,
+            "hole_positions": hole_positions,
+            "n_boxes": 1,
             "max_steps": self.get_max_steps(),
         }
 
+    @staticmethod
+    def _flood_fill_walk(grid, start):
+        """Flood fill that treats HOLE and WALL as impassable (walking only)."""
+        if not grid.in_bounds(start):
+            return set()
+        sx, sy = start
+        if grid.terrain[sy, sx] in (CellType.WALL, CellType.HOLE):
+            return set()
+        visited = {start}
+        queue = deque([start])
+        while queue:
+            cx, cy = queue.popleft()
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = cx + dx, cy + dy
+                if (nx, ny) not in visited and grid.in_bounds((nx, ny)):
+                    if grid.terrain[ny, nx] not in (CellType.WALL, CellType.HOLE):
+                        visited.add((nx, ny))
+                        queue.append((nx, ny))
+        return visited
+
+    # ------------------------------------------------------------------
+    # Reset
+    # ------------------------------------------------------------------
+
     def on_env_reset(self, agent, grid, config):
-        config["_box_pos"] = list(config["box_pos"])
-        config["_npc_pos"] = list(config["npc_pos"])
-        self._last_box_pos = list(config["_box_pos"])
         self._config = config
-        bx, by = config["_box_pos"]
-        nx, ny = config["_npc_pos"]
-        tx, ty = config["target_pos"]
-        grid.objects[by, bx] = ObjectType.BOX
-        if grid.terrain[ny, nx] == CellType.EMPTY:
+        self._npc_pos = list(config["npc_start"])
+        self._box_positions = [list(b) for b in config["box_positions"]]
+        self._hole_positions = [list(h) for h in config["hole_positions"]]
+        self._boxes_delivered = 0
+        self._n_boxes = config["n_boxes"]
+
+        # Place boxes on grid
+        for bx, by in self._box_positions:
+            grid.objects[by, bx] = ObjectType.BOX
+
+        # Place holes on grid (terrain)
+        for hx, hy in self._hole_positions:
+            grid.terrain[hy, hx] = CellType.HOLE
+
+        # Place NPC
+        nx, ny = self._npc_pos
+        if grid.terrain[ny, nx] not in (CellType.WALL, CellType.HOLE):
             grid.objects[ny, nx] = ObjectType.NPC
-            grid.metadata[ny, nx] = 2  # default facing down
-        grid.objects[ty, tx] = ObjectType.TARGET
+            grid.metadata[ny, nx] = 2  # facing down
+
+        # Store in config for state access
+        config["_box_positions"] = self._box_positions
+        config["_hole_positions"] = self._hole_positions
+        config["_npc_pos"] = self._npc_pos
+        config["_boxes_delivered"] = 0
+
+    # ------------------------------------------------------------------
+    # Movement
+    # ------------------------------------------------------------------
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
         x, y = pos
-        if grid.objects[y, x] != ObjectType.BOX:
+        obj = int(grid.objects[y, x])
+
+        # Allow walking through NPC
+        if obj == int(ObjectType.NPC):
             return True
+
+        # Handle BOX pushing
+        if obj == int(ObjectType.BOX):
+            return self._try_push_box(x, y, agent, grid)
+
+        # Normal walkability (HOLE terrain is rejected by is_walkable in TaskEnv)
+        return True
+
+    def _try_push_box(self, bx, by, agent, grid) -> bool:
+        """Attempt to push box at (bx, by). Requires NPC adjacent to same box."""
         ax, ay = agent.position
-        dx, dy = x - ax, y - ay
-        nbx, nby = x + dx, y + dy
+        nx, ny = self._npc_pos
+
+        # Check NPC is adjacent to this box
+        if abs(nx - bx) + abs(ny - by) != 1:
+            return False  # NPC not adjacent -> can't push
+
+        # Push direction: from agent toward box
+        dx, dy = bx - ax, by - ay
+        nbx, nby = bx + dx, by + dy
+
+        # Check destination in bounds (interior)
         if not (0 < nbx < grid.width - 1 and 0 < nby < grid.height - 1):
             return False
-        if grid.terrain[nby, nbx] == CellType.WALL:
+
+        dest_terrain = int(grid.terrain[nby, nbx])
+        dest_obj = int(grid.objects[nby, nbx])
+
+        # Destination is a HOLE -> deliver box!
+        if dest_terrain == int(CellType.HOLE):
+            # Remove box from current position
+            grid.objects[by, bx] = ObjectType.NONE
+            # Clear the hole terrain and any object on it
+            grid.terrain[nby, nbx] = CellType.EMPTY
+            grid.objects[nby, nbx] = ObjectType.NONE
+            # Update tracking
+            self._boxes_delivered += 1
+            self._config["_boxes_delivered"] = self._boxes_delivered
+            # Remove from position lists
+            if [bx, by] in self._box_positions:
+                self._box_positions.remove([bx, by])
+            if [nbx, nby] in self._hole_positions:
+                self._hole_positions.remove([nbx, nby])
+            self._config["_box_positions"] = self._box_positions
+            self._config["_hole_positions"] = self._hole_positions
+            return True
+
+        # Destination must be empty floor with no blocking object
+        if dest_terrain == int(CellType.WALL):
             return False
-        if grid.objects[nby, nbx] not in (ObjectType.NONE, ObjectType.TARGET):
+        # Allow pushing into NPC position (NPC dodges) or empty
+        if dest_obj not in (int(ObjectType.NONE), int(ObjectType.NPC)):
             return False
-        grid.objects[y, x] = ObjectType.NONE
-        grid.objects[nby, nbx] = ObjectType.BOX
-        if hasattr(self, "_config") and self._config is not None:
-            self._config["_box_pos"] = [nbx, nby]
-            self._last_box_pos = [nbx, nby]
-        return True
-
-    def _npc_push_box(self, grid, config, agent_pos):
-        """NPC pushes box toward target only when agent is also adjacent (cooperation)."""
-        bx, by = config["_box_pos"]
-        nx, ny = config["_npc_pos"]
-        tx, ty = config["target_pos"]
-        ax, ay = agent_pos
-
-        # NPC must be adjacent to box
-        if abs(nx - bx) + abs(ny - by) != 1:
-            return False
-
-        # Agent must also be adjacent to box for cooperative push
-        if abs(ax - bx) + abs(ay - by) > 2:
-            return False
-
-        # Determine push direction (from NPC toward box)
-        push_dx = bx - nx
-        push_dy = by - ny
-
-        # Only push if it moves box closer to target
-        new_bx, new_by = bx + push_dx, by + push_dy
-        old_dist = abs(bx - tx) + abs(by - ty)
-        new_dist = abs(new_bx - tx) + abs(new_by - ty)
-        if new_dist >= old_dist:
+        # Also reject if another box is at destination
+        if self._is_box_at(nbx, nby):
             return False
 
-        # Check if push destination is valid
-        if not (0 < new_bx < grid.width - 1 and 0 < new_by < grid.height - 1):
-            return False
-        if grid.terrain[new_by, new_bx] == CellType.WALL:
-            return False
-        if grid.objects[new_by, new_bx] not in (ObjectType.NONE, ObjectType.TARGET):
-            return False
+        # If NPC is at destination, displace it to a free adjacent cell
+        if dest_obj == int(ObjectType.NPC):
+            self._displace_npc(grid, nbx, nby, agent.position)
 
-        # Execute push
+        # Move box
         grid.objects[by, bx] = ObjectType.NONE
-        grid.objects[new_by, new_bx] = ObjectType.BOX
-
-        # NPC moves into box's old position
-        if grid.objects[ny, nx] == ObjectType.NPC:
-            grid.objects[ny, nx] = ObjectType.NONE
-        config["_box_pos"] = [new_bx, new_by]
-        config["_npc_pos"] = [bx, by]
-
+        grid.objects[nby, nbx] = ObjectType.BOX
+        # Update tracking
+        for i, bp in enumerate(self._box_positions):
+            if bp == [bx, by]:
+                self._box_positions[i] = [nbx, nby]
+                break
+        self._config["_box_positions"] = self._box_positions
         return True
+
+    def _displace_npc(self, grid, nx, ny, agent_pos):
+        """Move NPC from (nx, ny) to any free adjacent cell."""
+        grid.objects[ny, nx] = ObjectType.NONE
+        grid.metadata[ny, nx] = 0
+        for ddx, ddy in self._DIRS:
+            cx, cy = nx + ddx, ny + ddy
+            if (
+                0 < cx < grid.width - 1
+                and 0 < cy < grid.height - 1
+                and grid.terrain[cy, cx] not in (CellType.WALL, CellType.HOLE)
+                and grid.objects[cy, cx] == ObjectType.NONE
+                and (cx, cy) != agent_pos
+                and not self._is_box_at(cx, cy)
+            ):
+                self._npc_pos = [cx, cy]
+                self._config["_npc_pos"] = self._npc_pos
+                grid.objects[cy, cx] = ObjectType.NPC
+                grid.metadata[cy, cx] = 2
+                return
+        # If no free cell, just place NPC at same spot (will be overwritten by box)
+        self._npc_pos = [nx, ny]
+        self._config["_npc_pos"] = self._npc_pos
+
+    # ------------------------------------------------------------------
+    # NPC step
+    # ------------------------------------------------------------------
 
     def on_env_step(self, agent, grid, config, step_count):
-        bx, by = config["_box_pos"]
-        nx, ny = config["_npc_pos"]
-        old_nx, old_ny = nx, ny  # save for direction calculation
-        tx, ty = config["target_pos"]
         ax, ay = agent.position
+        nx, ny = self._npc_pos
+        old_nx, old_ny = nx, ny
 
         # Clear old NPC position
         if grid.objects[ny, nx] == ObjectType.NPC:
             grid.objects[ny, nx] = ObjectType.NONE
             grid.metadata[ny, nx] = 0
 
-        # Try NPC push first (every other step to avoid constant pushing)
-        pushed = False
-        if step_count % 2 == 0:
-            pushed = self._npc_push_box(grid, config, (ax, ay))
+        # Determine NPC target: if agent is adjacent to any box, pathfind
+        # to an adjacent side of that box (ideal cooperative position).
+        target_pos = None
+        agent_adj_box = None
+        for bx, by in self._box_positions:
+            if abs(ax - bx) + abs(ay - by) == 1:
+                agent_adj_box = (bx, by)
+                break
 
-        if not pushed:
-            # NPC moves toward box (to get into push position)
-            bx, by = config["_box_pos"]
-            nx, ny = config["_npc_pos"]
-
-            # Find the push position: opposite side of box from target
-            ideal_x = bx - (1 if tx > bx else (-1 if tx < bx else 0))
-            ideal_y = by - (1 if ty > by else (-1 if ty < by else 0))
+        if agent_adj_box is not None:
+            bx, by = agent_adj_box
+            # Collect all valid adjacent-to-box positions (not the agent's cell)
+            adj_candidates = []
+            # Prefer opposite side from agent
+            opp_dx = bx - ax
+            opp_dy = by - ay
+            ideal_x = bx + opp_dx
+            ideal_y = by + opp_dy
             ideal_x = max(1, min(grid.width - 2, ideal_x))
             ideal_y = max(1, min(grid.height - 2, ideal_y))
+            if (
+                grid.terrain[ideal_y, ideal_x] not in (CellType.WALL, CellType.HOLE)
+                and grid.objects[ideal_y, ideal_x]
+                in (ObjectType.NONE, ObjectType.NPC)
+                and (ideal_x, ideal_y) != (ax, ay)
+            ):
+                adj_candidates.insert(0, (ideal_x, ideal_y))  # preferred
 
-            best, best_d = (nx, ny), abs(nx - ideal_x) + abs(ny - ideal_y)
-            for dx, dy in self._DIRS:
-                cx, cy = nx + dx, ny + dy
+            for ddx, ddy in self._DIRS:
+                cx, cy = bx + ddx, by + ddy
+                if (cx, cy) in adj_candidates:
+                    continue
                 if (
                     0 < cx < grid.width - 1
                     and 0 < cy < grid.height - 1
-                    and grid.terrain[cy, cx] == CellType.EMPTY
-                    and (cx, cy) != (bx, by)
+                    and grid.terrain[cy, cx]
+                    not in (CellType.WALL, CellType.HOLE)
+                    and grid.objects[cy, cx]
+                    in (ObjectType.NONE, ObjectType.NPC)
                     and (cx, cy) != (ax, ay)
-                    and grid.objects[cy, cx] in (ObjectType.NONE, ObjectType.TARGET)
                 ):
-                    d = abs(cx - ideal_x) + abs(cy - ideal_y)
+                    adj_candidates.append((cx, cy))
+
+            # BFS from NPC to any of these candidates
+            for cand in adj_candidates:
+                if (nx, ny) == cand:
+                    target_pos = cand
+                    break
+                path = self._npc_bfs(grid, (nx, ny), cand, (ax, ay))
+                if path and len(path) > 1:
+                    target_pos = cand
+                    # Take one step along BFS path
+                    self._npc_pos = list(path[1])
+                    break
+
+            if target_pos is None and adj_candidates:
+                # Greedy fallback
+                target_pos = adj_candidates[0]
+
+        if target_pos is not None and self._npc_pos == [nx, ny]:
+            # If BFS didn't move us, do greedy step
+            best, best_d = (nx, ny), abs(nx - target_pos[0]) + abs(ny - target_pos[1])
+            for ddx, ddy in self._DIRS:
+                cx, cy = nx + ddx, ny + ddy
+                if (
+                    0 < cx < grid.width - 1
+                    and 0 < cy < grid.height - 1
+                    and grid.terrain[cy, cx] not in (CellType.WALL, CellType.HOLE)
+                    and (cx, cy) != (ax, ay)
+                    and grid.objects[cy, cx] in (ObjectType.NONE,)
+                    and not self._is_box_at(cx, cy)
+                ):
+                    d = abs(cx - target_pos[0]) + abs(cy - target_pos[1])
                     if d < best_d:
                         best_d, best = d, (cx, cy)
-            config["_npc_pos"] = list(best)
+            self._npc_pos = list(best)
+        elif target_pos is None:
+            # Wander randomly
+            candidates = []
+            for ddx, ddy in self._DIRS:
+                cx, cy = nx + ddx, ny + ddy
+                if (
+                    0 < cx < grid.width - 1
+                    and 0 < cy < grid.height - 1
+                    and grid.terrain[cy, cx] not in (CellType.WALL, CellType.HOLE)
+                    and grid.objects[cy, cx] in (ObjectType.NONE,)
+                    and (cx, cy) != (ax, ay)
+                    and not self._is_box_at(cx, cy)
+                ):
+                    candidates.append((cx, cy))
+            if candidates:
+                rng = np.random.default_rng(step_count)
+                idx = int(rng.integers(0, len(candidates)))
+                self._npc_pos = list(candidates[idx])
+            # else stay put
 
-        # Redraw NPC with direction metadata
-        nx2, ny2 = config["_npc_pos"]
-        if grid.terrain[ny2, nx2] == CellType.EMPTY:
+        config["_npc_pos"] = self._npc_pos
+
+        # Place NPC with direction metadata
+        nx2, ny2 = self._npc_pos
+        if grid.terrain[ny2, nx2] not in (CellType.WALL, CellType.HOLE):
             grid.objects[ny2, nx2] = ObjectType.NPC
-            ddx, ddy = nx2 - old_nx, ny2 - old_ny
+            ddx = nx2 - old_nx
+            ddy = ny2 - old_ny
             if ddx > 0:
                 grid.metadata[ny2, nx2] = 1  # right
             elif ddx < 0:
@@ -310,37 +530,88 @@ class CooperativeTransportTask(TaskSpec):
             else:
                 grid.metadata[ny2, nx2] = 2  # default down
 
-        # Restore TARGET if box moved off it
-        bx, by = config["_box_pos"]
-        if (bx, by) != (tx, ty):
-            if grid.objects[ty, tx] == ObjectType.NONE:
-                grid.objects[ty, tx] = ObjectType.TARGET
+    def _is_box_at(self, x, y):
+        """Check if any tracked box is at (x, y)."""
+        for bx, by in self._box_positions:
+            if bx == x and by == y:
+                return True
+        return False
+
+    def _npc_bfs(self, grid, start, goal, agent_pos):
+        """BFS for NPC movement, avoiding walls, holes, boxes, and agent."""
+        if start == goal:
+            return [start]
+        visited = {start}
+        queue = deque([(start, [start])])
+        while queue:
+            (cx, cy), path = queue.popleft()
+            for ddx, ddy in self._DIRS:
+                nx, ny = cx + ddx, cy + ddy
+                if (nx, ny) in visited:
+                    continue
+                if not (0 < nx < grid.width - 1 and 0 < ny < grid.height - 1):
+                    continue
+                if grid.terrain[ny, nx] in (CellType.WALL, CellType.HOLE):
+                    continue
+                if (nx, ny) == agent_pos:
+                    continue
+                if self._is_box_at(nx, ny) and (nx, ny) != goal:
+                    continue
+                visited.add((nx, ny))
+                new_path = path + [(nx, ny)]
+                if (nx, ny) == goal:
+                    return new_path
+                queue.append(((nx, ny), new_path))
+        return None
+
+    # ------------------------------------------------------------------
+    # Reward
+    # ------------------------------------------------------------------
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        reward = -0.01
+        reward = -0.01  # step penalty
+
         config = new_state.get("config", {})
-        box = config.get("_box_pos", config.get("box_pos", [0, 0]))
-        target = config.get("target_pos", [0, 0])
-        old_box = self._last_box_pos
-        old_d = abs(old_box[0] - target[0]) + abs(old_box[1] - target[1])
-        new_d = abs(box[0] - target[0]) + abs(box[1] - target[1])
-        if old_d != new_d:
-            reward += 0.15 * (old_d - new_d)
-        self._last_box_pos = list(box)
-        if "agent" in new_state:
+        new_delivered = config.get("_boxes_delivered", 0)
+        old_config = old_state.get("config", {})
+        old_delivered = old_config.get("_boxes_delivered", 0)
+
+        # Reward per box delivered
+        deliveries = new_delivered - old_delivered
+        if deliveries > 0:
+            reward += 0.5 * deliveries
+
+        # Approach shaping: agent distance to nearest undelivered box
+        box_positions = config.get("_box_positions", [])
+        if box_positions and "agent" in new_state:
             ax, ay = new_state["agent"].position
-            ox, oy = old_state.get("agent_position", (ax, ay))
-            bx, by = box
-            reward += 0.05 * ((abs(ox - bx) + abs(oy - by)) - (abs(ax - bx) + abs(ay - by)))
+            min_dist = min(
+                abs(ax - bx) + abs(ay - by) for bx, by in box_positions
+            )
+            # Compare with old distance
+            old_boxes = old_config.get("_box_positions", box_positions)
+            if old_boxes and "agent_position" in old_state:
+                ox, oy = old_state["agent_position"]
+                old_min = min(
+                    abs(ox - bx) + abs(oy - by) for bx, by in old_boxes
+                )
+                reward += 0.02 * (old_min - min_dist)
+
+        # Success bonus
         if self.check_success(new_state):
             reward += 1.0
+
         return reward
+
+    # ------------------------------------------------------------------
+    # Success
+    # ------------------------------------------------------------------
 
     def check_success(self, state):
         config = state.get("config", {})
-        box = config.get("_box_pos", config.get("box_pos", [-1, -1]))
-        target = config.get("target_pos", [-2, -2])
-        return box[0] == target[0] and box[1] == target[1]
+        n_boxes = config.get("n_boxes", getattr(self, "_n_boxes", 1))
+        delivered = config.get("_boxes_delivered", 0)
+        return delivered >= n_boxes
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

@@ -1,14 +1,27 @@
-"""RuleInduction - Infer hidden rules and navigate to the correct goal.
+"""RuleInduction - Pattern Discovery: infer which switches are real from terrain cues.
 
 MECHANICS:
-  - Several candidate targets (TARGET) on the grid
-  - A SWITCH that reveals which target is the correct goal
-  - Agent must first visit the switch to learn the rule, then navigate to the target
-  - At medium+: compound rules (spatial relationship, not just "target #N")
-  - At hard+: multiple rule phases — after finding first goal, new switch + new rule
-  - At expert: mid-episode rule changes where the correct target shifts
-  - Compound rules: "closest to corner", "furthest from switch", "adjacent to wall"
+  - Grid has N switches (SWITCH objects): some REAL, some DECOY.
+  - Activating all real switches (any order) opens a barrier DOOR to the GOAL.
+  - The PATTERN distinguishing real from decoy:
+      Real switches: the cell directly SOUTH has ICE terrain.
+      Decoys: NO ICE directly south.
+  - Easy: real switches also have a GEM placed 1 cell north (obvious cue).
+  - Medium+: only ICE cue (south cell).
+  - Agent uses INTERACT to toggle switches. Wrong switch (decoy) gives a heavy
+    penalty AND deactivates the most recently activated real switch (progress
+    reset). Decoys are single-use: after one wrong activation they become inert.
+  - Barrier: a row of WALLs across the middle with one DOOR that opens when
+    all real switches are activated.
+
+DIFFICULTY:
+  - easy:   9x9, 2 real + 1 decoy, GEM hints + ICE, max_steps=120
+  - medium: 11x11, 3 real + 2 decoy, ICE only, max_steps=220
+  - hard:   13x13, 4 real + 3 decoy, ICE only, max_steps=380
+  - expert: 15x15, 5 real + 4 decoy, ICE only, max_steps=550
 """
+
+from __future__ import annotations
 
 import numpy as np
 
@@ -19,325 +32,409 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
-# Compound rule functions: given targets and grid, return the correct index
-def _rule_closest_corner(targets, grid):
-    """Correct target is the one closest to any corner."""
-    corners = [(1, 1), (grid.width - 2, 1), (1, grid.height - 2), (grid.width - 2, grid.height - 2)]
-    best_idx, best_dist = 0, float("inf")
-    for i, (tx, ty) in enumerate(targets):
-        d = min(abs(tx - cx) + abs(ty - cy) for cx, cy in corners)
-        if d < best_dist:
-            best_dist = d
-            best_idx = i
-    return best_idx
-
-
-def _rule_furthest_from_center(targets, grid):
-    """Correct target is the one furthest from grid center."""
-    cx, cy = grid.width // 2, grid.height // 2
-    best_idx, best_dist = 0, -1
-    for i, (tx, ty) in enumerate(targets):
-        d = abs(tx - cx) + abs(ty - cy)
-        if d > best_dist:
-            best_dist = d
-            best_idx = i
-    return best_idx
-
-
-def _rule_most_adjacent_walls(targets, grid):
-    """Correct target is the one with most adjacent wall cells."""
-    best_idx, best_count = 0, -1
-    for i, (tx, ty) in enumerate(targets):
-        count = 0
-        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
-            nx, ny = tx + dx, ty + dy
-            if 0 <= nx < grid.width and 0 <= ny < grid.height:
-                if grid.terrain[ny, nx] == CellType.WALL:
-                    count += 1
-        if count > best_count:
-            best_count = count
-            best_idx = i
-    return best_idx
-
-
-_COMPOUND_RULES = [
-    ("closest_corner", _rule_closest_corner),
-    ("furthest_center", _rule_furthest_from_center),
-    ("most_walls", _rule_most_adjacent_walls),
-]
-
-
-@register_task("RuleInduction-v0", tags=["reasoning", "memory"])
+@register_task("RuleInduction-v0", tags=["reasoning", "rule_learning"])
 class RuleInductionTask(TaskSpec):
-    """Learn hidden rules from switches, navigate to correct targets."""
+    """Discover which switches are real via terrain cues, activate them all."""
 
     name = "RuleInduction-v0"
-    description = "Induce rules from switches to find correct targets"
-    capability_tags = ["reasoning", "memory"]
+    description = "Infer which switches are real from terrain patterns and activate them all"
+    capability_tags = ["reasoning", "rule_learning"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy",
-            grid_size=7,
-            max_steps=80,
+            grid_size=9,
+            max_steps=120,
             params={
-                "n_targets": 2,
-                "n_decoys": 0,
-                "n_obstacles": 0,
-                "n_phases": 1,
-                "compound_rules": False,
+                "n_real": 2,
+                "n_decoy": 1,
+                "gem_hints": True,
             },
         ),
         "medium": DifficultyConfig(
             name="medium",
-            grid_size=10,
-            max_steps=150,
+            grid_size=11,
+            max_steps=220,
             params={
-                "n_targets": 3,
-                "n_decoys": 1,
-                "n_obstacles": 3,
-                "n_phases": 1,
-                "compound_rules": True,
+                "n_real": 3,
+                "n_decoy": 2,
+                "gem_hints": False,
             },
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=13,
-            max_steps=300,
+            max_steps=380,
             params={
-                "n_targets": 4,
-                "n_decoys": 2,
-                "n_obstacles": 5,
-                "n_phases": 2,
-                "compound_rules": True,
+                "n_real": 4,
+                "n_decoy": 3,
+                "gem_hints": False,
             },
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=15,
-            max_steps=450,
+            max_steps=550,
             params={
-                "n_targets": 5,
-                "n_decoys": 3,
-                "n_obstacles": 8,
-                "n_phases": 3,
-                "compound_rules": True,
+                "n_real": 5,
+                "n_decoy": 4,
+                "gem_hints": False,
             },
         ),
     }
 
-    def generate(self, seed):
+    # ------------------------------------------------------------------ #
+    # Generation
+    # ------------------------------------------------------------------ #
+
+    def generate(self, seed: int):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
-        n = self.difficulty_config.params.get("n_targets", 2)
-        n_decoys = self.difficulty_config.params.get("n_decoys", 0)
-        n_obstacles = self.difficulty_config.params.get("n_obstacles", 0)
-        n_phases = self.difficulty_config.params.get("n_phases", 1)
-        compound = self.difficulty_config.params.get("compound_rules", False)
+        params = self.difficulty_config.params
+        n_real = params["n_real"]
+        n_decoy = params["n_decoy"]
+        gem_hints = params.get("gem_hints", False)
+        n_switches = n_real + n_decoy
 
         grid = Grid(size, size)
+
+        # Border walls
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        # ---- Barrier row ------------------------------------------------
+        # Place barrier wall across the middle of the grid.
+        # The switch area is the top portion (rows 1..barrier_y-1),
+        # the goal area is the bottom portion (rows barrier_y+1..size-2).
+        barrier_y = size // 2
+        for x in range(1, size - 1):
+            grid.terrain[barrier_y, x] = CellType.WALL
 
-        switch_pos = (size // 2, size // 2)
-        grid.objects[switch_pos[1], switch_pos[0]] = ObjectType.SWITCH
+        # One door in the barrier (random x position)
+        door_x = int(rng.integers(2, size - 2))
+        grid.terrain[barrier_y, door_x] = CellType.EMPTY
+        grid.objects[barrier_y, door_x] = ObjectType.DOOR
+        # metadata 0 = locked; we will set >= 10 to mark open
+        grid.metadata[barrier_y, door_x] = 0
+        barrier_door_pos = (door_x, barrier_y)
 
-        outer = [
+        # ---- Goal placement (below barrier) -----------------------------
+        goal_cells = [
             (x, y)
             for x in range(1, size - 1)
-            for y in range(1, size - 1)
-            if (x, y) != agent_pos
-            and (x, y) != switch_pos
-            and (abs(x - size // 2) > 1 or abs(y - size // 2) > 1)
+            for y in range(barrier_y + 1, size - 1)
+            if grid.terrain[y, x] == CellType.EMPTY
         ]
-        rng.shuffle(outer)
-        target_positions = outer[:n]
-        used = {agent_pos, switch_pos} | set(target_positions)
+        rng.shuffle(goal_cells)
+        goal_pos = goal_cells[0]
+        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        for tx, ty in target_positions:
-            grid.objects[ty, tx] = ObjectType.TARGET
+        # ---- Switch placement (above barrier) ---------------------------
+        # Switches need y such that y+1 < barrier_y (room for ICE south).
+        # With gem_hints, also need y-1 >= 1 (room for GEM north).
+        min_switch_y = 2 if gem_hints else 1
+        max_switch_y = barrier_y - 2  # south cell must be < barrier_y
 
-        # Determine true goal
-        if compound and len(target_positions) >= 2:
-            rule_idx = int(rng.integers(0, len(_COMPOUND_RULES)))
-            rule_name, rule_fn = _COMPOUND_RULES[rule_idx]
-            true_goal_idx = rule_fn(target_positions, grid)
-        else:
-            rule_name = "index"
-            true_goal_idx = int(rng.integers(0, n))
-
-        # Decoy zones
-        decoy_positions = []
-        for p in outer[n:]:
-            if len(decoy_positions) >= n_decoys:
-                break
-            if p not in used:
-                dx2, dy2 = p
-                grid.objects[dy2, dx2] = ObjectType.BOX
-                decoy_positions.append(p)
-                used.add(p)
-
-        # Obstacle walls
-        wall_positions = []
-        all_cells = [
-            (x, y) for x in range(1, size - 1) for y in range(1, size - 1) if (x, y) not in used
+        switch_candidates = [
+            (x, y)
+            for x in range(1, size - 1)
+            for y in range(min_switch_y, max_switch_y + 1)
+            if grid.terrain[y, x] == CellType.EMPTY and grid.terrain[y + 1, x] == CellType.EMPTY
         ]
-        rng.shuffle(all_cells)
-        critical = [agent_pos, switch_pos] + target_positions
-        for p in all_cells:
-            if len(wall_positions) >= n_obstacles:
+        rng.shuffle(switch_candidates)
+
+        # Pick switch positions ensuring minimum spacing of 2
+        all_switch_positions: list[tuple[int, int]] = []
+        used: set[tuple[int, int]] = set()
+
+        for pos in switch_candidates:
+            if len(all_switch_positions) >= n_switches:
                 break
-            wx, wy = p
-            grid.terrain[wy, wx] = CellType.WALL
-            reachable = grid.flood_fill(agent_pos)
-            if all(q in reachable for q in critical):
-                wall_positions.append(p)
-                used.add(p)
-            else:
-                grid.terrain[wy, wx] = CellType.EMPTY
+            px, py = pos
+            # Ensure the south cell and (optionally) north cell are free
+            south = (px, py + 1)
+            north = (px, py - 1) if gem_hints else None
+            if south in used or pos in used:
+                continue
+            if north is not None and north in used:
+                continue
+            # Minimum spacing of 2 from other switches
+            too_close = False
+            for sx, sy in all_switch_positions:
+                if abs(px - sx) + abs(py - sy) < 2:
+                    too_close = True
+                    break
+            if too_close:
+                continue
+            all_switch_positions.append(pos)
+            used.add(pos)
+            used.add(south)
+            if north is not None:
+                used.add(north)
 
-        # Extra switch positions for additional phases
-        extra_switch_positions = []
-        if n_phases > 1:
-            sw_candidates = [p for p in outer[n + n_decoys :] if p not in used]
-            rng.shuffle(sw_candidates)
-            for p in sw_candidates[: n_phases - 1]:
-                extra_switch_positions.append(p)
-                used.add(p)
+        # If we couldn't place enough, relax spacing
+        if len(all_switch_positions) < n_switches:
+            for pos in switch_candidates:
+                if len(all_switch_positions) >= n_switches:
+                    break
+                if pos in used:
+                    continue
+                px, py = pos
+                south = (px, py + 1)
+                if south in used:
+                    continue
+                all_switch_positions.append(pos)
+                used.add(pos)
+                used.add(south)
 
-        # Pre-compute rules for each phase
-        phase_rules = [{"rule_name": rule_name, "true_idx": true_goal_idx}]
-        for phase_i in range(1, n_phases):
-            if compound:
-                ri = int(rng.integers(0, len(_COMPOUND_RULES)))
-                rn, rf = _COMPOUND_RULES[ri]
-                ti = rf(target_positions, grid)
-                # Ensure different from previous phase
-                if ti == phase_rules[-1]["true_idx"] and n > 1:
-                    ti = (ti + 1) % len(target_positions)
-            else:
-                ti = int(rng.integers(0, n))
-            phase_rules.append({"rule_name": rn if compound else "index", "true_idx": ti})
+        # Shuffle and split into real / decoy
+        rng.shuffle(all_switch_positions)
+        real_switch_positions = list(all_switch_positions[:n_real])
+        decoy_positions = list(all_switch_positions[n_real : n_real + n_decoy])
+
+        # Assign activation order to real switches (random permutation)
+        switch_order = list(range(n_real))
+        rng.shuffle(switch_order)
+        # switch_order[i] = the activation rank of real_switch_positions[i]
+        # Invert: ordered_real[rank] = position
+        ordered_real = [None] * n_real
+        for i, rank in enumerate(switch_order):
+            ordered_real[rank] = real_switch_positions[i]
+
+        # Place SWITCH objects
+        for pos in all_switch_positions:
+            grid.objects[pos[1], pos[0]] = ObjectType.SWITCH
+
+        # ---- ICE cues for real switches ---------------------------------
+        for pos in real_switch_positions:
+            sx, sy = pos
+            # ICE directly south
+            grid.terrain[sy + 1, sx] = CellType.ICE
+
+        # ---- GEM hints for easy difficulty ------------------------------
+        if gem_hints:
+            for pos in real_switch_positions:
+                sx, sy = pos
+                north_y = sy - 1
+                if north_y >= 1 and grid.objects[north_y, sx] == ObjectType.NONE:
+                    grid.objects[north_y, sx] = ObjectType.GEM
+
+        # ---- Agent start (top-left corner of switch area) ---------------
+        agent_pos = (1, 1)
+        # Make sure agent can reach all switches above barrier
+        reachable = set()
+        from collections import deque
+
+        queue = deque([agent_pos])
+        reachable.add(agent_pos)
+        while queue:
+            cx, cy = queue.popleft()
+            for ddx, ddy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                nx2, ny2 = cx + ddx, cy + ddy
+                if (
+                    (nx2, ny2) not in reachable
+                    and 0 < nx2 < size - 1
+                    and 0 < ny2 < size - 1
+                    and grid.terrain[ny2, nx2] not in (CellType.WALL,)
+                    and grid.objects[ny2, nx2] != ObjectType.DOOR
+                ):
+                    reachable.add((nx2, ny2))
+                    queue.append((nx2, ny2))
+
+        # Verify all switch positions reachable from agent
+        all_reachable = all(p in reachable for p in all_switch_positions)
+        if not all_reachable:
+            # Fallback: clear any blocking ICE (ICE is walkable anyway)
+            pass
 
         return grid, {
             "agent_start": agent_pos,
-            "goal_positions": [target_positions[true_goal_idx]],
-            "target_positions": target_positions,
-            "switch_pos": switch_pos,
-            "true_goal_idx": true_goal_idx,
-            "decoy_positions": decoy_positions,
-            "n_phases": n_phases,
-            "phase_rules": phase_rules,
-            "_extra_switch_positions": extra_switch_positions,
-            "_rng_seed": int(rng.integers(0, 2**31)),
+            "goal_positions": [goal_pos],
+            "real_switch_positions": [list(p) for p in ordered_real],
+            "decoy_positions": [list(p) for p in decoy_positions],
+            "switch_order": switch_order,
+            "barrier_door_pos": list(barrier_door_pos),
+            "n_real": n_real,
+            "n_decoy": n_decoy,
             "max_steps": self.get_max_steps(),
         }
 
+    # ------------------------------------------------------------------ #
+    # Runtime hooks
+    # ------------------------------------------------------------------ #
+
     def on_env_reset(self, agent, grid, config):
-        config["_rule_revealed"] = False
-        config["_current_phase"] = 0
-        config["_phases_completed"] = 0
-        self._last_rule_revealed = False
+        n_real = config["n_real"]
+        config["_activated"] = [False] * n_real
+        config["_activation_order"] = []  # tracks order real switches were activated
+        config["_wrong_attempts"] = 0
+        config["_door_opened"] = False
+        config["_goal_reached"] = False
+        self._prev_activated_count = 0
+        self._prev_wrong = 0
         self._config = config
 
-    def on_agent_moved(self, pos, agent, grid):
-        """Reveal rule when agent steps on switch."""
+    def on_agent_interact(self, pos, agent, grid):
+        """Handle INTERACT on switch positions."""
         config = getattr(self, "_config", {})
         x, y = pos
 
-        # Check if agent is on the switch
-        if grid.objects[y, x] == ObjectType.SWITCH and not config.get("_rule_revealed", False):
-            grid.metadata[y, x] = 100  # mark as pressed/on
-            phase = config.get("_current_phase", 0)
-            rules = config.get("phase_rules", [])
-            if phase < len(rules):
-                true_idx = rules[phase]["true_idx"]
-                targets = config.get("target_positions", [])
-                if true_idx < len(targets):
-                    gx, gy = targets[true_idx]
-                    grid.objects[gy, gx] = ObjectType.GOAL
-            config["_rule_revealed"] = True
+        # Only process if standing on a SWITCH
+        if grid.objects[y, x] != ObjectType.SWITCH:
+            return
 
-        # Check if agent reached the GOAL (correct target after reveal)
-        if grid.objects[y, x] == ObjectType.GOAL and config.get("_rule_revealed", False):
-            n_phases = config.get("n_phases", 1)
-            completed = config.get("_phases_completed", 0) + 1
-            config["_phases_completed"] = completed
+        # Single-use decoys: metadata==99 means already used, ignore
+        if int(grid.metadata[y, x]) == 99:
+            return
 
-            if completed < n_phases:
-                # More phases to go: clear current GOAL, place next switch
-                grid.objects[y, x] = ObjectType.NONE
+        real_positions = [tuple(p) for p in config.get("real_switch_positions", [])]
+        decoy_positions = [tuple(p) for p in config.get("decoy_positions", [])]
+        activated = config.get("_activated", [])
+        activation_order = config.get("_activation_order", [])
 
-                # Restore all targets as TARGET
-                for tx, ty in config.get("target_positions", []):
-                    if grid.objects[ty, tx] == ObjectType.NONE:
-                        grid.objects[ty, tx] = ObjectType.TARGET
+        pos_tuple = (x, y)
 
-                # Place next switch
-                extra = config.get("_extra_switch_positions", [])
-                next_phase = completed
-                if next_phase - 1 < len(extra):
-                    sx, sy = extra[next_phase - 1]
-                    grid.objects[sy, sx] = ObjectType.SWITCH
+        if pos_tuple in decoy_positions:
+            # ---- Decoy switch activated: heavy penalty + progress reset ----
+            # 1. Mark decoy as used (metadata=99) so it cannot be re-activated
+            grid.metadata[y, x] = 99
 
-                config["_rule_revealed"] = False
-                config["_current_phase"] = next_phase
+            # 2. Find most recently activated real switch and deactivate it
+            if activation_order:
+                last_idx = activation_order.pop()
+                activated[last_idx] = False
+                config["_activated"] = activated
+
+                # Reset the deactivated switch's visual metadata back to its index
+                rpos = real_positions[last_idx]
+                rx, ry = rpos
+                grid.metadata[ry, rx] = last_idx
+
+                # 3. If barrier was open and not all switches active, close it
+                if config.get("_door_opened", False) and not all(activated):
+                    self._close_barrier(grid, config)
+
+            # 4. Increment wrong attempts
+            config["_wrong_attempts"] = config.get("_wrong_attempts", 0) + 1
+            return
+
+        if pos_tuple in real_positions:
+            idx = real_positions.index(pos_tuple)
+
+            # Already activated -- no-op
+            if activated[idx]:
+                return
+
+            # Correct activation (any order is valid)
+            activated[idx] = True
+            config["_activated"] = activated
+            activation_order.append(idx)
+            config["_activation_order"] = activation_order
+            grid.metadata[y, x] = 100  # mark as activated
+
+            # Check if all real switches are now active
+            if all(activated):
+                self._open_barrier(grid, config)
+
+    def _open_barrier(self, grid, config):
+        """Open the barrier door."""
+        dx, dy = config["barrier_door_pos"]
+        # Mark door as open via metadata >= 10
+        grid.metadata[dy, dx] = 10
+        config["_door_opened"] = True
+
+    def _close_barrier(self, grid, config):
+        """Close the barrier door (after a decoy penalty deactivated a real switch)."""
+        dx, dy = config["barrier_door_pos"]
+        grid.metadata[dy, dx] = 0
+        config["_door_opened"] = False
+
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """Block passage through locked door; allow when open."""
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.DOOR:
+            return int(grid.metadata[y, x]) >= 10
+        return True
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Check if agent reached the goal."""
+        config = getattr(self, "_config", {})
+        x, y = pos
+        if grid.objects[y, x] == ObjectType.GOAL and config.get("_door_opened", False):
+            config["_goal_reached"] = True
+
+    # ------------------------------------------------------------------ #
+    # Reward
+    # ------------------------------------------------------------------ #
 
     def compute_dense_reward(self, old_state, action, new_state, info):
-        reward = -0.01
+        reward = -0.01  # step penalty
         config = new_state.get("config", {})
-        new_revealed = config.get("_rule_revealed", False)
-        if new_revealed and not self._last_rule_revealed:
-            reward += 0.2
-        self._last_rule_revealed = new_revealed
+
+        activated = config.get("_activated", [])
+        n_activated = sum(activated)
+        wrong = config.get("_wrong_attempts", 0)
+
+        # +0.3 per newly activated real switch
+        delta_activated = n_activated - self._prev_activated_count
+        if delta_activated > 0:
+            reward += 0.3 * delta_activated
+        elif delta_activated < 0:
+            # A real switch was deactivated by decoy penalty — no extra penalty
+            # here (the -0.5 wrong penalty below covers it), but update tracker.
+            pass
+        self._prev_activated_count = n_activated
+
+        # -0.5 per new wrong attempt (decoy activation)
+        delta_wrong = wrong - self._prev_wrong
+        if delta_wrong > 0:
+            reward -= 0.5 * delta_wrong
+        self._prev_wrong = wrong
 
         # Approach shaping
         if "agent" in new_state:
             ax, ay = new_state["agent"].position
             ox, oy = old_state.get("agent_position", (ax, ay))
-            if not new_revealed:
-                # Guide toward switch (find visible switch on grid)
-                g = new_state.get("grid")
-                if g is not None:
-                    for sy in range(g.height):
-                        for sx in range(g.width):
-                            if g.objects[sy, sx] == ObjectType.SWITCH:
-                                d_new = abs(ax - sx) + abs(ay - sy)
-                                d_old = abs(ox - sx) + abs(oy - sy)
-                                reward += 0.05 * (d_old - d_new)
-                                break
-                        else:
-                            continue
-                        break
-            else:
-                # Guide toward true goal
-                g = new_state.get("grid")
-                if g is not None:
-                    for gy2 in range(g.height):
-                        for gx2 in range(g.width):
-                            if g.objects[gy2, gx2] == ObjectType.GOAL:
-                                d_new = abs(ax - gx2) + abs(ay - gy2)
-                                d_old = abs(ox - gx2) + abs(oy - gy2)
-                                reward += 0.05 * (d_old - d_new)
-                                break
-                        else:
-                            continue
-                        break
 
+            door_opened = config.get("_door_opened", False)
+
+            if not door_opened:
+                # Guide toward the next real switch to activate
+                real_positions = config.get("real_switch_positions", [])
+                next_target = None
+                for i, done in enumerate(activated):
+                    if not done:
+                        next_target = tuple(real_positions[i])
+                        break
+                if next_target is not None:
+                    tx, ty = next_target
+                    d_new = abs(ax - tx) + abs(ay - ty)
+                    d_old = abs(ox - tx) + abs(oy - ty)
+                    reward += 0.05 * (d_old - d_new)
+            else:
+                # Guide toward the goal
+                goal_positions = config.get("goal_positions", [])
+                if goal_positions:
+                    gx, gy = goal_positions[0]
+                    d_new = abs(ax - gx) + abs(ay - gy)
+                    d_old = abs(ox - gx) + abs(oy - gy)
+                    reward += 0.05 * (d_old - d_new)
+
+        # Success bonus
         if self.check_success(new_state):
             reward += 1.0
+
         return reward
 
+    # ------------------------------------------------------------------ #
+    # Termination
+    # ------------------------------------------------------------------ #
+
     def check_success(self, state):
-        """All phases completed."""
         config = state.get("config", {})
-        n_phases = config.get("n_phases", 1)
-        completed = config.get("_phases_completed", 0)
-        return completed >= n_phases
+        return bool(config.get("_goal_reached", False))
 
     def check_done(self, state):
         return self.check_success(state)

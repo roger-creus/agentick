@@ -1,104 +1,84 @@
 # Quickstart
 
-Get started with Agentick in 5 minutes.
+## Installation
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv (if needed)
+git clone https://github.com/agentick/agentick.git
+cd agentick
+uv sync --extra all                                  # All dependencies
+```
+
+Install only what you need:
+
+```bash
+uv sync                     # Core only
+uv sync --extra rl          # RL training (torch, wandb)
+uv sync --extra llm         # LLM agents (openai, anthropic)
+uv sync --extra local-llm   # Local HuggingFace models
+uv sync --extra train-llm   # Fine-tuning (trl, peft)
+uv sync --extra viz         # Visualization (matplotlib)
+uv sync --extra all         # Everything
+```
 
 ## Basic Usage
 
 ```python
 import agentick
 
-# Create environment
 env = agentick.make("GoToGoal-v0", difficulty="easy")
-
-# Reset environment
 obs, info = env.reset(seed=42)
 
-# Run episode
 for step in range(100):
-    action = env.action_space.sample()  # Random action
+    action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
-
     if terminated or truncated:
         break
-
 env.close()
 ```
 
 ## Observation Modes
 
-Choose how your agent perceives the environment:
-
 ```python
-# ASCII visualization
-env = agentick.make("GoToGoal-v0", render_mode="ascii")
-
-# Natural language description
-env = agentick.make("GoToGoal-v0", render_mode="language")
-
-# Structured language (JSON-like)
-env = agentick.make("GoToGoal-v0", render_mode="language_structured")
-
-# RGB pixel array (84x84x3)
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array")
-
-# Python dictionary with full state
-env = agentick.make("GoToGoal-v0", render_mode="state_dict")
+env = agentick.make("GoToGoal-v0", render_mode="ascii")           # Text grid
+env = agentick.make("GoToGoal-v0", render_mode="language")         # Natural language
+env = agentick.make("GoToGoal-v0", render_mode="rgb_array")        # Isometric pixels (512x512)
+env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")   # 2D sprites (512x512, fast)
+env = agentick.make("GoToGoal-v0", render_mode="state_dict")       # Full state dict
 ```
 
 ## Difficulty Levels
 
-Scale task complexity:
-
 ```python
-env = agentick.make("GoToGoal-v0", difficulty="easy")    # 5×5 grid, no obstacles
-env = agentick.make("GoToGoal-v0", difficulty="medium")  # 10×10 grid, sparse walls
-env = agentick.make("GoToGoal-v0", difficulty="hard")    # 15×15 grid, moderate walls
-env = agentick.make("GoToGoal-v0", difficulty="expert")  # 20×20 grid, dense walls
+env = agentick.make("GoToGoal-v0", difficulty="easy")    # 5x5 grid
+env = agentick.make("GoToGoal-v0", difficulty="medium")  # 10x10 grid
+env = agentick.make("GoToGoal-v0", difficulty="hard")    # 15x15 grid
+env = agentick.make("GoToGoal-v0", difficulty="expert")  # 20x20 grid
 ```
 
-## Reward Shaping
-
-Choose sparse or dense rewards:
+## Reward Modes
 
 ```python
-# Sparse: reward only at goal
-env = agentick.make("GoToGoal-v0", reward_mode="sparse")
-
-# Dense: shaped reward for progress
-env = agentick.make("GoToGoal-v0", reward_mode="dense")
+env = agentick.make("GoToGoal-v0", reward_mode="sparse")  # +1 at goal only
+env = agentick.make("GoToGoal-v0", reward_mode="dense")   # Shaped progress reward
 ```
 
-## List Available Tasks
+## List Tasks
 
 ```python
 from agentick.tasks.registry import list_tasks
-
-# All tasks
-tasks = list_tasks()
-print(f"Total tasks: {len(tasks)}")
-
-# Filter by capability
+tasks = list_tasks()                          # All 38 tasks
 nav_tasks = list_tasks(capability="navigation")
-memory_tasks = list_tasks(capability="memory")
 ```
 
-## Command Line
-
 ```bash
-# List all tasks
 uv run agentick list-tasks
-
-# List benchmark suites
 uv run agentick list-suites
-
-# Show version
-uv run agentick --version
 ```
 
 ## Next Steps
 
-- [Examples](/examples/README.md) - 40+ runnable examples
-- [Tasks](/concepts/tasks.md) - Browse all 38 tasks
-- [Observations](/concepts/observations.md) - Learn about observation modes
-- [RL Training](/agents/rl_agents.md) - Train RL agents
-- [LLM Agents](/agents/llm_agents.md) - Use GPT-4o or Claude
+- [Tasks](../tasks.md) — Browse all 38 tasks
+- [Observations](../concepts/observations.md) — Observation mode details
+- [RL Agents](../agents/rl_agents.md) — Train RL agents
+- [LLM Agents](../agents/llm_agents.md) — Evaluate LLMs

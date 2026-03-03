@@ -57,7 +57,7 @@ agentick.make("GoToGoal-v0")
 
 ### Task Registration
 
-Tasks use the `@register_task("Name-v0", tags=[...])` decorator (from `tasks/registry.py`). Task modules are auto-imported via `tasks/__init__.py`, which imports all category subpackages. Each category (navigation, memory, reasoning, skill, control, combinatorial, adversarial, meta, multi_agent, compositional) is a subpackage under `tasks/`.
+Tasks use the `@register_task("Name-v0", tags=[...])` decorator (from `tasks/registry.py`). Task modules are auto-imported via `tasks/__init__.py`, which imports all category subpackages. Each category (navigation, planning, reasoning, memory, generalization, multi_agent) is a subpackage under `tasks/`.
 
 ### Creating a New Task
 
@@ -75,13 +75,55 @@ Tasks use the `@register_task("Name-v0", tags=[...])` decorator (from `tasks/reg
 
 - `"ascii"` — ANSI-colored text grid (`ASCIIRenderer`)
 - `"language"` / `"language_structured"` — natural language descriptions (`EnhancedLanguageRenderer` wrapping `AdvancedLanguageRenderer` from `core/language.py`)
-- `"rgb_array"` — 2D pixel sprites via `SimpleGridRenderer` (in `core/simple_grid_renderer.py`)
-- `"rgb_array_2d"` — 2D sprite renderer with isometric perspective
+- `"rgb_array"` — **Isometric pixel sprites** via `IsometricRenderer` (Kenney assets, fixed 512×512 output). Default visual mode.
+- `"rgb_array_flat"` — Flat 2D top-down grid sprites via `SimpleGridRenderer` (grid-size-dependent shape). Use for RL training (faster, CNN-friendly).
 - `"state_dict"` — structured dict with numpy arrays (use `fast_mode=True` to skip `.tolist()` conversions)
+
+Note: `"rgb_array_2d"` and `"rgb_iso"` modes have been removed. Use `"rgb_array_flat"` for 2D grid and `"rgb_array"` for isometric.
 
 ### Observation Flow
 
 `env.step()` → `env._get_observation()` → `env.render()` → dispatches to the configured renderer. Each renderer implements the `Renderer` protocol: `render(grid, entities, agent, info) → Any`.
+
+### Agent Harness System
+
+`agents/` provides a composable harness for LLM/VLM agents:
+
+- `BaseAgent` (in `agents/base.py`) composes a `ModelBackend` + `HarnessPreset` and conforms to `AgentProtocol`
+- **Backends** (`agents/backends/`): OpenAI, Anthropic, HuggingFaceLLM, HuggingFaceVLM — lazy-loaded to avoid import overhead
+- **Harness presets** (`agents/harness.py`): MarkovianZeroShot, NonMarkovianZeroShot, MarkovianReasoner — control observation history and prompting strategy
+- **Factory**: `create_agent(AgentConfig)` builds an agent from a YAML config
+- **Circular import note**: `experiments/__init__.py` uses `__getattr__` lazy import for agent classes to break `agents/` ↔ `experiments/` circular dependency
+
+### Oracle System
+
+`oracles/` provides hand-coded optimal or near-optimal policies for each task, organized by category (one file per category: `navigation_oracles.py`, `planning_oracles.py`, `reasoning_oracles.py`, `memory_oracles.py`, `generalization_oracles.py`, `multi_agent_oracles.py`). Used for:
+
+- Generating expert trajectories for behavior cloning / SFT
+- Verifying task solvability
+- Establishing score upper bounds
+
+API: `get_oracle(task_name, env)` returns an oracle instance; `list_oracles()` lists all available oracles. Oracle base class is in `oracles/base.py`.
+
+### Experiment System
+
+`experiments/` provides reproducible evaluation:
+
+- `ExperimentRunner` (in `experiments/runner.py`) runs episodes with any agent
+- `experiments/config.py` defines YAML-based experiment configs
+- CLI: `python -m agentick.experiments.run --config path/to/config.yaml`
+
+### Training Infrastructure
+
+`training/` contains three training approaches:
+
+- `training/behavior_cloning.py` — BehaviorCloningTrainer with Nature CNN encoder
+- `training/trl/sft.py` — AgentickSFTTrainer using TRL with LoRA support
+- `training/tinker/` — TinkerSFTTrainer, TinkerRLTrainer (graceful fallback if not installed)
+
+### Data Collection
+
+`data/collector.py` provides `DataCollector` for recording agent trajectories and exporting to HuggingFace datasets format.
 
 ## Code Style
 
@@ -91,6 +133,14 @@ Tasks use the `@register_task("Name-v0", tags=[...])` decorator (from `tasks/reg
 - Google-style docstrings
 - Pydantic v2 for config models (`DifficultyConfig`, `GridConfig`)
 
+### INTERACT Action
+
+Some tasks use the INTERACT action (`ActionType.INTERACT`). When dispatched, `TaskEnv` calls `task.on_agent_interact(pos, agent, grid)` on the `TaskSpec`. Tasks using INTERACT include GraphColoring, RuleInduction, ToolUse, and others.
+
 ## Known Issues
 
 - `test_analysis/test_statistics.py` is flaky due to p-value randomness — not a real failure
+- `test_integration/test_all_reward_modes.py` DelayedGratification test is flaky
+- `test_tasks/test_all_tasks_behavioral.py::test_cooperative_transport_can_succeed` is flaky
+- Pre-existing N806 ruff errors in `env.py`, `renderer.py` etc. — do not fix these
+- `PixelRenderer` alias in `core/renderer.py` has suppressed ruff warnings (`# noqa: E402, F401, I001, N812`) — do not remove

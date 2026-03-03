@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentick — Universal Agent Benchmark</title>
+<style>
+  /* ── Reset & base ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0c10;
+    --surface: #12151c;
+    --surface2: #1a1e2a;
+    --surface3: #222738;
+    --border: #2a3045;
+    --text: #e4e7ef;
+    --text-dim: #7c829a;
+    --text-muted: #555b73;
+    --accent: #6c63ff;
+    --accent-light: #8b84ff;
+    --accent-glow: rgba(108,99,255,.2);
+    --green: #4ade80;
+    --green-dim: rgba(74,222,128,.15);
+    --red: #f87171;
+    --red-dim: rgba(248,113,113,.15);
+    --yellow: #fbbf24;
+    --yellow-dim: rgba(251,191,36,.15);
+    --cyan: #22d3ee;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── App layout ──────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ── Top navbar ──────────────────────────────────────── */
+  .navbar {
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 100;
+    gap: 24px;
+  }
+  .navbar-brand {
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: -.03em;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+  }
+  .navbar-brand span { color: var(--accent); }
+  .navbar-links {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+  }
+  .nav-link {
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+    border: none;
+    background: none;
+    font-family: var(--font);
+  }
+  .nav-link:hover { color: var(--text); background: var(--surface2); }
+  .nav-link.active { color: var(--accent-light); background: var(--accent-glow); }
+  .navbar-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: .8rem;
+    color: var(--text-dim);
+  }
+  .counter-pill {
+    background: var(--surface2);
+    padding: 3px 12px;
+    border-radius: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    font-size: .78rem;
+  }
+
+  /* ── Page container ──────────────────────────────────── */
+  .page { display: none; flex: 1; overflow: hidden; }
+  .page.active { display: flex; flex-direction: column; }
+
+  /* ════════════════════════════════════════════════════════
+     TASKS PAGE (Carousel)
+     ════════════════════════════════════════════════════════ */
+  .carousel-wrap {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    position: relative;
+  }
+  .nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.1rem;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+    box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  }
+  .nav-arrow:hover { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+  .nav-arrow.left  { left: 16px; }
+  .nav-arrow.right { right: 16px; }
+
+  .slide {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 28px 80px;
+    overflow: hidden;
+  }
+  .slide-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-right: 32px;
+  }
+  .slide-video video {
+    max-width: 100%;
+    max-height: calc(100vh - 160px);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 32px rgba(0,0,0,.5);
+    background: #000;
+  }
+  .slide-video .no-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 420px;
+    height: 320px;
+    border-radius: var(--radius-lg);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: .9rem;
+  }
+  .slide-video img.gallery-gif {
+    max-width: 100%;
+    max-height: calc(100vh - 160px);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 32px rgba(0,0,0,.5);
+    background: #000;
+  }
+
+  /* Oracle GIF overlay/modal */
+  .oracle-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .oracle-overlay img {
+    max-width: 80vw;
+    max-height: 80vh;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 48px rgba(0,0,0,.6);
+  }
+  .oracle-overlay .close-hint {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+    color: var(--text-dim);
+    font-size: .85rem;
+  }
+
+  .slide-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 32px;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  .slide-info h2 {
+    font-size: 1.7rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    letter-spacing: -.03em;
+  }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .badge {
+    padding: 3px 10px;
+    border-radius: 16px;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .badge-category { background: var(--accent); color: #fff; }
+  .badge-tag { background: var(--surface3); color: var(--text-dim); border: 1px solid var(--border); }
+  .badge-diff { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: .65rem; cursor: pointer; transition: all .15s; }
+  .badge-diff:hover { border-color: var(--accent); color: var(--text); }
+  .badge-diff.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .diff-description { font-size: .88rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; min-height: 24px; }
+
+  .desc-brief {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+
+  .btn-primary {
+    align-self: flex-start;
+    padding: 10px 28px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: var(--font);
+  }
+  .btn-primary:hover { box-shadow: 0 0 24px var(--accent-glow); background: var(--accent-light); }
+
+  /* ════════════════════════════════════════════════════════
+     PLAY PAGE — Multi-modal human play
+     ════════════════════════════════════════════════════════ */
+  #playPage {
+    overflow-y: auto;
+  }
+
+  .play-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .play-toolbar label {
+    font-size: .78rem;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .play-toolbar select, .play-toolbar input {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: .82rem;
+    font-family: var(--font);
+  }
+  .play-toolbar select { min-width: 160px; }
+  .play-toolbar input[type=number] { width: 72px; }
+  .play-toolbar .spacer { flex: 1; }
+
+  .btn-sm {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all .12s;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-light); }
+  .btn-surface { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-surface:hover { background: var(--surface3); }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+
+  /* Play stats bar */
+  .play-stats-bar {
+    display: flex;
+    gap: 20px;
+    padding: 8px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: .78rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .stat-item { color: var(--text-dim); }
+  .stat-item .val { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-item.success .val { color: var(--green); }
+  .stat-item.failed .val { color: var(--red); }
+
+  /* Three-panel layout */
+  .play-panels {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 0;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+  .panel:last-child { border-right: none; }
+  .panel-header {
+    padding: 10px 16px;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-dim);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-body {
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+  }
+
+  /* ASCII panel */
+  .ascii-display {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.35;
+    white-space: pre;
+    color: var(--text);
+    background: var(--bg);
+    padding: 8px;
+    border-radius: 6px;
+    overflow: auto;
+    height: 100%;
+  }
+
+  /* Pixel panel (center) */
+  .pixel-panel-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .pixel-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pixel-container img {
+    max-width: 100%;
+    max-height: 55vh;
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    image-rendering: pixelated;
+    background: #000;
+  }
+  .pixel-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.65);
+    border-radius: var(--radius);
+    font-size: 1.2rem;
+    font-weight: 800;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .pixel-overlay.show { opacity: 1; }
+  .pixel-overlay.success { color: var(--green); }
+  .pixel-overlay.failure { color: var(--red); }
+  .pixel-overlay.truncated { color: var(--yellow); }
+
+  /* Controls */
+  .controls-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .dpad {
+    display: grid;
+    grid-template-areas:
+      ". up ."
+      "left noop right"
+      ". down .";
+    gap: 4px;
+  }
+  .dpad button {
+    width: 50px;
+    height: 50px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font);
+  }
+  .dpad button:hover, .dpad button:active { background: var(--accent); border-color: var(--accent); }
+  .dpad .up    { grid-area: up; }
+  .dpad .down  { grid-area: down; }
+  .dpad .left  { grid-area: left; }
+  .dpad .right { grid-area: right; }
+  .dpad .noop  { grid-area: noop; font-size: .65rem; font-weight: 700; }
+
+  .extra-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .extra-actions button {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: .72rem;
+    cursor: pointer;
+    transition: all .1s;
+    font-family: var(--font);
+  }
+  .extra-actions button:hover { background: var(--accent); border-color: var(--accent); }
+
+  .keybind-help {
+    font-size: .68rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.7;
+    max-width: 400px;
+  }
+  kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: .65rem;
+    color: var(--text-dim);
+  }
+
+  /* Language panel */
+  .language-display {
+    font-size: .85rem;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Placeholder state */
+  .play-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--text-dim);
+    font-size: .95rem;
+  }
+  .play-placeholder .icon { font-size: 3rem; opacity: .3; }
+
+  /* (docs-page styles removed — docs tab replaced by gallery) */
+
+  /* ── Gallery page ──────────────────────────────────────── */
+  .gallery-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+  .gallery-mode-btn, .gallery-diff-btn {
+    padding: 5px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: .8rem;
+    font-family: var(--font);
+    font-weight: 600;
+    background: var(--surface2);
+    color: var(--text-dim);
+    transition: all .15s;
+  }
+  .gallery-mode-btn:hover, .gallery-diff-btn:hover {
+    background: var(--surface3);
+    color: var(--text);
+  }
+  .gallery-mode-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .gallery-diff-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .gallery-card {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .gallery-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .gallery-card img {
+    width: 100%;
+    display: block;
+    aspect-ratio: 1;
+    object-fit: cover;
+  }
+  .gallery-card-label {
+    padding: 8px 10px;
+    font-size: .78rem;
+    color: var(--text-dim);
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     HOME PAGE
+     ════════════════════════════════════════════════════════ */
+  .home-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 40px;
+    overflow-y: auto;
+  }
+  .home-title {
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: -.04em;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .home-title span { color: var(--accent); }
+  .home-subtitle {
+    font-size: 1.1rem;
+    color: var(--text-dim);
+    max-width: 600px;
+    text-align: center;
+    line-height: 1.7;
+  }
+  .home-stats {
+    display: flex;
+    gap: 32px;
+    margin: 16px 0;
+  }
+  .home-stat {
+    text-align: center;
+  }
+  .home-stat .num {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--accent-light);
+    font-variant-numeric: tabular-nums;
+  }
+  .home-stat .label {
+    font-size: .78rem;
+    color: var(--text-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .home-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .btn-lg {
+    padding: 14px 36px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all .15s;
+  }
+  .btn-lg.primary { background: var(--accent); color: #fff; }
+  .btn-lg.primary:hover { background: var(--accent-light); box-shadow: 0 0 28px var(--accent-glow); }
+  .btn-lg.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-lg.secondary:hover { background: var(--surface3); }
+
+  /* ── Loading spinner ──────────────────────────────────── */
+  .spinner {
+    display: none;
+    width: 24px; height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  .spinner.show { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .play-panels { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+  @media (max-width: 900px) {
+    .slide { grid-template-columns: 1fr; padding: 16px 20px; }
+    .slide-video { padding: 0 0 16px 0; }
+    .slide-info { border-left: none; border-top: 1px solid var(--border); padding: 16px 0 0 0; }
+    .nav-arrow.left { left: 4px; }
+    .nav-arrow.right { right: 4px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Navbar ──────────────────────────────────────────── -->
+  <nav class="navbar">
+    <div class="navbar-brand" onclick="showPage('home')"><span>Agentick</span></div>
+    <div class="navbar-links">
+      <button class="nav-link active" data-page="home" onclick="showPage('home')">Home</button>
+      <button class="nav-link" data-page="tasks" onclick="showPage('tasks')">Tasks</button>
+      <button class="nav-link" data-page="play" onclick="showPage('play')">Play</button>
+      <button class="nav-link" data-page="gallery" onclick="showPage('gallery')">Gallery</button>
+    </div>
+    <div class="navbar-meta">
+      <span class="counter-pill" id="taskCountPill">0 tasks</span>
+    </div>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════
+       HOME PAGE
+       ════════════════════════════════════════════════════════ -->
+  <div id="homePage" class="page active">
+    <div class="home-page">
+      <div class="home-title"><span>Agentick</span></div>
+      <div class="home-subtitle">
+        Universal benchmark for evaluating AI agents — RL, LLM, VLM, hybrid, and human —
+        across 38 procedurally generated gridworld tasks with multi-modal observations.
+      </div>
+      <div class="home-stats">
+        <div class="home-stat"><div class="num" id="homeTaskCount">40</div><div class="label">Tasks</div></div>
+        <div class="home-stat"><div class="num">11</div><div class="label">Categories</div></div>
+        <div class="home-stat"><div class="num">4</div><div class="label">Modalities</div></div>
+        <div class="home-stat"><div class="num">4</div><div class="label">Difficulty Levels</div></div>
+      </div>
+      <div class="home-actions">
+        <button class="btn-lg primary" onclick="showPage('tasks')">Browse Tasks</button>
+        <button class="btn-lg secondary" onclick="showPage('play')">Play Now</button>
+        <button class="btn-lg secondary" onclick="showPage('gallery')">Oracle Gallery</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       TASKS PAGE (Carousel)
+       ════════════════════════════════════════════════════════ -->
+  <div id="tasksPage" class="page">
+    <div class="carousel-wrap">
+      <button class="nav-arrow left" onclick="navigate(-1)" aria-label="Previous">&#8592;</button>
+      <div class="slide" id="slideContainer">
+        <div class="slide-video" id="slideVideo"></div>
+        <div class="slide-info" id="slideInfo"></div>
+      </div>
+      <button class="nav-arrow right" onclick="navigate(1)" aria-label="Next">&#8594;</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       PLAY PAGE — Multi-modal human play
+       ════════════════════════════════════════════════════════ -->
+  <div id="playPage" class="page" tabindex="-1">
+    <!-- Toolbar -->
+    <div class="play-toolbar">
+      <label>Task</label>
+      <select id="playTaskSelect"></select>
+      <label>Difficulty</label>
+      <select id="playDifficulty">
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+        <option value="expert">Expert</option>
+      </select>
+      <label>Seed</label>
+      <input type="number" id="playSeed" placeholder="random" min="0" max="999">
+      <button class="btn-sm btn-accent" onclick="startPlay()">Start</button>
+      <button class="btn-sm btn-surface" onclick="resetPlay()">Reset</button>
+      <button class="btn-sm btn-surface" onclick="showOracle()" title="Watch oracle solve this task">Watch Oracle</button>
+      <div class="spacer"></div>
+      <div class="spinner" id="playSpinner"></div>
+      <button class="btn-sm btn-danger" onclick="quitPlay()">Quit</button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="play-stats-bar">
+      <span class="stat-item">Steps: <span class="val" id="playSteps">0</span></span>
+      <span class="stat-item">Reward: <span class="val" id="playReward">0.00</span></span>
+      <span class="stat-item">Total: <span class="val" id="playTotal">0.00</span></span>
+      <span class="stat-item" id="playStatusItem">Status: <span class="val" id="playStatus">Idle</span></span>
+    </div>
+
+    <!-- Three-panel layout: ASCII | Pixel+Controls | Language -->
+    <div class="play-panels" id="playPanels">
+      <!-- Left: ASCII -->
+      <div class="panel">
+        <div class="panel-header">ASCII Observation</div>
+        <div class="panel-body">
+          <div class="ascii-display" id="asciiDisplay">Select a task and click Start to begin.</div>
+        </div>
+      </div>
+
+      <!-- Center: Pixel render + Controls -->
+      <div class="panel" style="border-right: 1px solid var(--border);">
+        <div class="panel-header">Pixel Observation</div>
+        <div class="pixel-panel-body">
+          <div class="pixel-container" id="pixelContainer">
+            <img id="playImage" src="" alt="Game render" style="display:none;">
+            <div class="pixel-overlay" id="playOverlay"></div>
+          </div>
+
+          <div class="controls-area">
+            <div class="dpad">
+              <button class="up"    tabindex="-1" onclick="sendAction('move_up')">&#9650;</button>
+              <button class="left"  tabindex="-1" onclick="sendAction('move_left')">&#9664;</button>
+              <button class="noop"  tabindex="-1" onclick="sendAction('noop')">WAIT</button>
+              <button class="right" tabindex="-1" onclick="sendAction('move_right')">&#9654;</button>
+              <button class="down"  tabindex="-1" onclick="sendAction('move_down')">&#9660;</button>
+            </div>
+            <div class="extra-actions">
+              <button tabindex="-1" onclick="sendAction('pickup')">Pickup</button>
+              <button tabindex="-1" onclick="sendAction('drop')">Drop</button>
+              <button tabindex="-1" onclick="sendAction('use')">Use</button>
+              <button tabindex="-1" onclick="sendAction('interact')">Interact</button>
+            </div>
+            <div class="keybind-help">
+              <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrows: move
+              &nbsp; <kbd>E</kbd> pickup &nbsp; <kbd>Q</kbd> drop &nbsp;
+              <kbd>F</kbd> use &nbsp; <kbd>G</kbd> interact &nbsp;
+              <kbd>Space</kbd> wait &nbsp; <kbd>R</kbd> reset
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Language -->
+      <div class="panel">
+        <div class="panel-header">Language Observation</div>
+        <div class="panel-body">
+          <div class="language-display" id="languageDisplay">Language observation will appear here during play.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       GALLERY PAGE
+       ════════════════════════════════════════════════════════ -->
+  <div id="galleryPage" class="page" style="overflow-y:auto;">
+    <div class="gallery-page" id="galleryContent">
+      <h2 style="margin-bottom:4px;">Oracle Gallery</h2>
+      <p style="color:var(--text-dim);margin-bottom:16px;">Animated demos of the oracle (optimal) agent solving every task.</p>
+
+      <!-- Controls: render mode + difficulty -->
+      <div id="galleryControls" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:.8rem;color:var(--text-dim);font-weight:600;text-transform:uppercase;">Render</span>
+          <button class="gallery-mode-btn active" data-mode="iso" onclick="setGalleryMode('iso')">Isometric</button>
+          <button class="gallery-mode-btn" data-mode="flat" onclick="setGalleryMode('flat')">Flat 2D</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:.8rem;color:var(--text-dim);font-weight:600;text-transform:uppercase;">Difficulty</span>
+          <button class="gallery-diff-btn active" data-diff="easy" onclick="setGalleryDiff('easy')">easy</button>
+          <button class="gallery-diff-btn" data-diff="medium" onclick="setGalleryDiff('medium')">medium</button>
+          <button class="gallery-diff-btn" data-diff="hard" onclick="setGalleryDiff('hard')">hard</button>
+          <button class="gallery-diff-btn" data-diff="expert" onclick="setGalleryDiff('expert')">expert</button>
+        </div>
+      </div>
+
+      <!-- Task GIF grid -->
+      <div id="galleryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ================================================================
+   State
+   ================================================================ */
+let tasks = [];
+let currentIdx = 0;
+let playSessionId = null;
+let playSteps = 0;
+let playReward = 0;
+let playTotalReward = 0;
+let busy = false;
+let activePage = 'home';
+
+/** Resolve gallery_gif dict to a URL path, preferring the given difficulty. */
+function gifUrl(t, diff) {
+  const g = t.gallery_gif;
+  if (!g) return null;
+  if (typeof g === 'string') return '/gallery/' + g;            // flat legacy
+  if (g[diff || 'easy']) return '/gallery/' + g[diff || 'easy'];
+  // fall back to first available
+  const first = Object.values(g)[0];
+  return first ? '/gallery/' + first : null;
+}
+
+/** Return sorted difficulty keys present in gallery_gif dict. */
+function gifDiffs(t) {
+  const g = t.gallery_gif;
+  if (!g || typeof g === 'string') return [];
+  const order = ['easy','medium','hard','expert'];
+  return order.filter(d => g[d]);
+}
+
+/* ================================================================
+   Boot
+   ================================================================ */
+(async function boot() {
+  try {
+    let resp = await fetch('/api/task_descriptions');
+    if (resp.ok) tasks = await resp.json();
+    else throw new Error('API unavailable');
+  } catch {
+    try {
+      let resp = await fetch('task_descriptions.json');
+      if (resp.ok) tasks = await resp.json();
+    } catch { /* ignore */ }
+  }
+
+  document.getElementById('taskCountPill').textContent = tasks.length + ' tasks';
+  document.getElementById('homeTaskCount').textContent = tasks.length;
+
+  // Populate play task selector
+  const sel = document.getElementById('playTaskSelect');
+  tasks.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.name;
+    opt.textContent = t.name;
+    sel.appendChild(opt);
+  });
+
+  if (tasks.length > 0) renderSlide();
+  renderGallery();
+})();
+
+/* ================================================================
+   Navigation
+   ================================================================ */
+function showPage(page) {
+  activePage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(page + 'Page').classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.toggle('active', l.dataset.page === page));
+
+  if (page === 'play') {
+    document.getElementById('playPage').focus();
+  }
+}
+
+/* ================================================================
+   Carousel (Tasks page)
+   ================================================================ */
+function navigate(dir) {
+  currentIdx = (currentIdx + dir + tasks.length) % tasks.length;
+  slideSelectedDiff = 'easy';
+  renderSlide();
+}
+
+document.addEventListener('keydown', e => {
+  if (activePage === 'play') { handlePlayKey(e); return; }
+  if (activePage === 'tasks') {
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); navigate(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); navigate(1);  }
+  }
+}, true);
+
+let slideSelectedDiff = 'easy';
+
+function renderSlide() {
+  if (!tasks.length) return;
+  const t = tasks[currentIdx];
+
+  // Video / GIF preview (prefer gallery GIF, fall back to video)
+  const videoEl = document.getElementById('slideVideo');
+  const gUrl = gifUrl(t, slideSelectedDiff);
+  if (gUrl) {
+    videoEl.innerHTML = `<img class="gallery-gif" id="slideGif" src="${gUrl}" alt="${t.name} oracle demo">`;
+  } else if (t.video) {
+    videoEl.innerHTML = `<video src="/videos/${t.video}" autoplay loop muted playsinline></video>`;
+  } else {
+    videoEl.innerHTML = '<div class="no-video">No preview available</div>';
+  }
+
+  // Info
+  const tags = (t.capability_tags || []).map(tag =>
+    `<span class="badge badge-tag">${tag}</span>`).join('');
+
+  // Build difficulty selector badges
+  const diffDescs = t.difficulty_descriptions || [];
+  const diffMap = {};
+  diffDescs.forEach(dd => { diffMap[dd.level] = dd.description; });
+  const diffs = (t.difficulties || []).map(d => {
+    const cls = d === slideSelectedDiff ? 'badge badge-diff active' : 'badge badge-diff';
+    return `<span class="${cls}" onclick="selectSlideDiff('${d}')">${d}</span>`;
+  }).join('');
+
+  // Current difficulty description
+  const diffDesc = diffMap[slideSelectedDiff] || '';
+
+  // Main summary (use 'summary' field from structured data, fall back to older fields)
+  const mainDesc = t.summary || t.detailed_description || t.description || '';
+
+  // Objects/goal/actions info block
+  let detailBlock = '';
+  if (t.objects || t.goal || t.actions) {
+    const parts = [];
+    if (t.objects) parts.push(`<strong>Objects:</strong> ${t.objects}`);
+    if (t.goal) parts.push(`<strong>Goal:</strong> ${t.goal}`);
+    if (t.actions) parts.push(`<strong>Actions:</strong> ${t.actions}`);
+    detailBlock = `<div style="font-size:.85rem;line-height:1.65;color:var(--text-dim);margin-bottom:14px;">${parts.join('<br>')}</div>`;
+  }
+
+  document.getElementById('slideInfo').innerHTML = `
+    <h2>${t.name}</h2>
+    <div class="badge-row">
+      <span class="badge badge-category">${t.category}</span>
+      ${tags}
+    </div>
+    <div class="desc-brief">${mainDesc}</div>
+    ${detailBlock}
+    <div class="badge-row">${diffs}</div>
+    <div class="diff-description" id="diffDesc">${diffDesc}</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-primary" onclick="playTask('${t.name}')">Play This Task</button>
+      <button class="btn-primary" style="background:var(--surface2);border:1px solid var(--border);" onclick="viewOracleFromSlide('${t.name}')">View Oracle</button>
+    </div>
+  `;
+}
+
+function selectSlideDiff(diff) {
+  slideSelectedDiff = diff;
+  const t = tasks[currentIdx];
+
+  // Update GIF
+  const img = document.getElementById('slideGif');
+  const newUrl = gifUrl(t, diff);
+  if (img && newUrl) img.src = newUrl;
+
+  // Update badge active states
+  document.querySelectorAll('#slideInfo .badge-diff').forEach(b => {
+    b.classList.toggle('active', b.textContent === diff);
+  });
+
+  // Update difficulty description
+  const diffDescs = t.difficulty_descriptions || [];
+  const dd = diffDescs.find(d => d.level === diff);
+  const descEl = document.getElementById('diffDesc');
+  if (descEl) descEl.textContent = dd ? dd.description : '';
+}
+
+function viewOracleFromSlide(taskName) {
+  const t = tasks.find(x => x.name === taskName);
+  if (!t) return;
+  const url = gifUrl(t, slideSelectedDiff);
+  if (!url) { alert('No oracle GIF available for this difficulty.'); return; }
+  const diffs = gifDiffs(t);
+  const overlay = document.createElement('div');
+  overlay.className = 'oracle-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  let curDiff = slideSelectedDiff;
+  const diffBtns = diffs.map(d =>
+    `<button style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);`
+    + `background:${d===curDiff?'var(--accent)':'var(--surface2)'};color:var(--text);cursor:pointer;`
+    + `font-size:.8rem;" onclick="event.stopPropagation();`
+    + `this.parentElement.parentElement.querySelector('img').src=gifUrl(tasks.find(x=>x.name==='${t.name}'),'${d}');`
+    + `[...this.parentElement.children].forEach(b=>b.style.background='var(--surface2)');`
+    + `this.style.background='var(--accent)'">${d}</button>`
+  ).join('');
+  overlay.innerHTML = `
+    <span class="close-hint">Click background or press Escape to close</span>
+    <div style="text-align:center;" onclick="event.stopPropagation()">
+      <div style="margin-bottom:8px;display:flex;gap:6px;justify-content:center;">${diffBtns}</div>
+      <img src="${url}" alt="${t.name} oracle trajectory"
+           style="max-width:80vw;max-height:75vh;border-radius:var(--radius-lg);box-shadow:0 8px 48px rgba(0,0,0,.6);">
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const closeOnEsc = e => {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', closeOnEsc); }
+  };
+  document.addEventListener('keydown', closeOnEsc);
+}
+
+function playTask(taskName) {
+  showPage('play');
+  document.getElementById('playTaskSelect').value = taskName;
+  startPlay();
+}
+
+function showOracle() {
+  const taskId = document.getElementById('playTaskSelect').value;
+  if (!taskId) return;
+  const t = tasks.find(x => x.name === taskId);
+  const playDiff = document.getElementById('playDifficulty').value || 'easy';
+  const url = t ? gifUrl(t, playDiff) : null;
+  if (!url) {
+    alert('No oracle GIF available for this task / difficulty.');
+    return;
+  }
+  const diffs = gifDiffs(t);
+  const overlay = document.createElement('div');
+  overlay.className = 'oracle-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  const diffBtns = diffs.map(d =>
+    `<button style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);`
+    + `background:${d===playDiff?'var(--accent)':'var(--surface2)'};color:var(--text);cursor:pointer;`
+    + `font-size:.8rem;" onclick="event.stopPropagation();`
+    + `this.parentElement.parentElement.querySelector('img').src=gifUrl(tasks.find(x=>x.name==='${t.name}'),'${d}');`
+    + `[...this.parentElement.children].forEach(b=>b.style.background='var(--surface2)');`
+    + `this.style.background='var(--accent)'">${d}</button>`
+  ).join('');
+
+  overlay.innerHTML = `
+    <span class="close-hint">Click background or press Escape to close</span>
+    <div style="text-align:center;" onclick="event.stopPropagation()">
+      <div style="margin-bottom:8px;display:flex;gap:6px;justify-content:center;">${diffBtns}</div>
+      <img src="${url}" alt="${t.name} oracle trajectory"
+           style="max-width:80vw;max-height:75vh;border-radius:var(--radius-lg);box-shadow:0 8px 48px rgba(0,0,0,.6);">
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const closeOnEsc = e => {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', closeOnEsc); }
+  };
+  document.addEventListener('keydown', closeOnEsc);
+}
+
+/* ================================================================
+   Human Play Mode
+   ================================================================ */
+async function startPlay() {
+  const taskId = document.getElementById('playTaskSelect').value;
+  const difficulty = document.getElementById('playDifficulty').value;
+  const seedInput = document.getElementById('playSeed').value;
+
+  if (!taskId) return;
+  showSpinner(true);
+  hideOverlay();
+  setStatus('Starting...');
+
+  const body = { task_id: taskId, difficulty: difficulty };
+  if (seedInput !== '') body.seed = parseInt(seedInput);
+
+  try {
+    const resp = await fetch('/api/start_task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      playSessionId = data.session_id;
+      playSteps = 0;
+      playReward = 0;
+      playTotalReward = 0;
+      updateStats();
+      updateDisplays(data);
+      setStatus('Playing');
+    } else {
+      setStatus('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch (err) {
+    setStatus('Server error — is Flask running?');
+  }
+  showSpinner(false);
+  document.getElementById('playPage').focus();
+}
+
+async function sendAction(action) {
+  if (!playSessionId || busy) return;
+  busy = true;
+  document.getElementById('playPage').focus();
+
+  try {
+    const resp = await fetch('/api/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, session_id: playSessionId })
+    });
+    const data = await resp.json();
+    updateDisplays(data);
+    playSteps = data.steps || (playSteps + 1);
+    playReward = data.reward || 0;
+    playTotalReward = data.total_reward || (playTotalReward + playReward);
+    updateStats();
+
+    if (data.terminated || data.truncated) {
+      if (data.success) {
+        showOverlayMsg('Success!', 'success');
+        setStatus('Success!', 'success');
+      } else if (data.truncated) {
+        showOverlayMsg('Truncated (max steps)', 'truncated');
+        setStatus('Truncated', 'failed');
+      } else {
+        showOverlayMsg('Episode Ended', 'failure');
+        setStatus('Ended', 'failed');
+      }
+      playSessionId = null;
+    }
+  } catch (err) {
+    setStatus('Connection lost');
+    playSessionId = null;
+  }
+  busy = false;
+}
+
+async function resetPlay() {
+  if (!playSessionId) { startPlay(); return; }
+  showSpinner(true);
+  hideOverlay();
+  try {
+    const resp = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: playSessionId })
+    });
+    const data = await resp.json();
+    updateDisplays(data);
+    playSteps = 0;
+    playReward = 0;
+    playTotalReward = 0;
+    updateStats();
+    setStatus('Playing');
+  } catch {
+    setStatus('Reset failed');
+  }
+  showSpinner(false);
+}
+
+async function quitPlay() {
+  if (playSessionId) {
+    fetch('/api/quit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: playSessionId })
+    }).catch(() => {});
+  }
+  playSessionId = null;
+  document.getElementById('playImage').style.display = 'none';
+  document.getElementById('asciiDisplay').textContent = 'Select a task and click Start to begin.';
+  document.getElementById('languageDisplay').textContent = 'Language observation will appear here during play.';
+  hideOverlay();
+  playSteps = 0; playReward = 0; playTotalReward = 0;
+  updateStats();
+  setStatus('Idle');
+}
+
+function updateDisplays(data) {
+  // Pixel
+  if (data.pixel || data.render) {
+    const img = document.getElementById('playImage');
+    img.src = data.pixel || data.render;
+    img.style.display = 'block';
+  }
+  // ASCII
+  if (data.ascii) {
+    document.getElementById('asciiDisplay').textContent = data.ascii;
+  }
+  // Language
+  if (data.language) {
+    document.getElementById('languageDisplay').textContent = data.language;
+  }
+}
+
+function handlePlayKey(e) {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+
+  const map = {
+    'w': 'move_up', 'a': 'move_left', 's': 'move_down', 'd': 'move_right',
+    'e': 'pickup', 'q': 'drop', 'f': 'use', 'g': 'interact',
+    ' ': 'noop',
+    'ArrowUp': 'move_up', 'ArrowLeft': 'move_left',
+    'ArrowDown': 'move_down', 'ArrowRight': 'move_right'
+  };
+  const action = map[e.key] || map[e.key.toLowerCase()];
+  if (action) { e.preventDefault(); e.stopPropagation(); sendAction(action); return; }
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); e.stopPropagation(); resetPlay(); return; }
+}
+
+/* Helpers */
+function updateStats() {
+  document.getElementById('playSteps').textContent = playSteps;
+  document.getElementById('playReward').textContent = playReward.toFixed(2);
+  document.getElementById('playTotal').textContent = playTotalReward.toFixed(2);
+}
+function setStatus(text, cls) {
+  const el = document.getElementById('playStatus');
+  el.textContent = text;
+  const item = document.getElementById('playStatusItem');
+  item.className = 'stat-item' + (cls ? ' ' + cls : '');
+}
+function showSpinner(on) {
+  document.getElementById('playSpinner').classList.toggle('show', on);
+}
+function showOverlayMsg(msg, type) {
+  const el = document.getElementById('playOverlay');
+  el.textContent = msg;
+  el.className = 'pixel-overlay show' + (type ? ' ' + type : '');
+}
+function hideOverlay() {
+  document.getElementById('playOverlay').className = 'pixel-overlay';
+}
+
+/* ================================================================
+   Gallery Page
+   ================================================================ */
+let galleryMode = 'iso';     // 'iso' or 'flat'
+let galleryDiff = 'easy';    // 'easy', 'medium', 'hard', 'expert'
+
+function galleryGifUrl(taskName, mode, diff) {
+  return '/gallery/' + mode + '/' + taskName + '_' + diff + '.gif';
+}
+
+function setGalleryMode(mode) {
+  galleryMode = mode;
+  document.querySelectorAll('.gallery-mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode));
+  updateGalleryImages();
+}
+
+function setGalleryDiff(diff) {
+  galleryDiff = diff;
+  document.querySelectorAll('.gallery-diff-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.diff === diff));
+  updateGalleryImages();
+}
+
+function updateGalleryImages() {
+  document.querySelectorAll('#galleryGrid .gallery-card img').forEach(img => {
+    const taskName = img.dataset.task;
+    img.src = galleryGifUrl(taskName, galleryMode, galleryDiff);
+  });
+}
+
+function renderGallery() {
+  const grid = document.getElementById('galleryGrid');
+  if (!grid || !tasks.length) return;
+  grid.innerHTML = '';
+
+  tasks.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'gallery-card';
+    const src = galleryGifUrl(t.name, galleryMode, galleryDiff);
+    card.innerHTML = '<img data-task="' + t.name + '" src="' + src
+      + '" alt="' + t.name + '">'
+      + '<div class="gallery-card-label">' + t.name + '</div>';
+    card.onclick = () => {
+      const ov = document.createElement('div');
+      ov.className = 'oracle-overlay';
+      ov.onclick = e => { if (e.target === ov) ov.remove(); };
+      ov.innerHTML = '<span class="close-hint">Click background or press Escape to close</span>'
+        + '<img src="' + galleryGifUrl(t.name, galleryMode, galleryDiff)
+        + '" alt="' + t.name + '">';
+      document.body.appendChild(ov);
+      const fn = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', fn); } };
+      document.addEventListener('keydown', fn);
+    };
+    grid.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>

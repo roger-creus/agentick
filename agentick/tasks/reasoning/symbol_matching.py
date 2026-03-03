@@ -8,7 +8,7 @@ MECHANICS:
   - Agent delivers to the matching target (same ObjectType) on the other side
   - Placing on wrong type = mismatch penalty, item lost
   - Fake items use types with no matching target (visually distinct, no pair)
-  - Metadata tracks match state only: 0=unmatched target, 1=matched
+  - Metadata tracks match state: <100 = unmatched target, >=100 = matched (old_meta + 100)
   - Success = all pairs matched correctly
 """
 
@@ -33,7 +33,7 @@ _SYMBOL_TYPES = [
 
 @register_task("SymbolMatching-v0", tags=["reasoning", "pattern_recognition"])
 class SymbolMatchingTask(TaskSpec):
-    """Match visually distinct symbol items to their matching targets by type."""
+    """Pick up symbol items and deliver to matching targets (same ObjectType) on the other side."""
 
     name = "SymbolMatching-v0"
     description = "Match symbol items to their matching targets by type"
@@ -200,7 +200,7 @@ class SymbolMatchingTask(TaskSpec):
         x, y = pos
         obj = int(grid.objects[y, x])
 
-        if obj == ObjectType.NONE or obj == ObjectType.GOAL:
+        if obj == ObjectType.NONE or grid.metadata[y, x] >= 100:
             return
 
         is_target = (x, y) in self._target_pos_set
@@ -214,8 +214,9 @@ class SymbolMatchingTask(TaskSpec):
             # Attempting to deliver to a target
             if self._carrying == obj:
                 # Correct match: same ObjectType = visual match
-                grid.objects[y, x] = ObjectType.GOAL
-                grid.metadata[y, x] = 1  # metadata 1 = matched
+                # Remove matched target from grid (pair disappears)
+                grid.objects[y, x] = ObjectType.NONE
+                grid.metadata[y, x] = 0
                 self._target_pos_set.discard((x, y))
                 self._carrying = None
                 self._items_placed += 1
@@ -240,13 +241,14 @@ class SymbolMatchingTask(TaskSpec):
             ox, oy = old_state.get("agent_position", (ax, ay))
             g = new_state["grid"]
             if self._carrying is None:
-                # Guide toward nearest uncollected symbol item (not on target positions)
+                # Guide toward nearest uncollected symbol item (not targets, not matched)
                 items = [
                     (cx, cy)
                     for cy in range(g.height)
                     for cx in range(g.width)
                     if int(g.objects[cy, cx]) in [int(t) for t in _SYMBOL_TYPES]
                     and (cx, cy) not in self._target_pos_set
+                    and int(g.metadata[cy, cx]) < 100
                 ]
             else:
                 # Guide toward the matching target (same ObjectType, still unmatched)

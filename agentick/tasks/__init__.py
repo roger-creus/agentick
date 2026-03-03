@@ -1,29 +1,19 @@
 """Tasks package - imports all task modules to trigger registration."""
 
 from agentick.tasks import (
-    adversarial,
-    combinatorial,
-    compositional,
-    control,
-    exploration,
+    generalization,
     memory,
-    meta,
     multi_agent,
     navigation,
+    planning,
     reasoning,
-    skill,
 )
 
 __all__ = [
     "navigation",
-    "exploration",
-    "memory",
+    "planning",
     "reasoning",
-    "skill",
-    "control",
-    "combinatorial",
+    "memory",
+    "generalization",
     "multi_agent",
-    "compositional",
-    "adversarial",
-    "meta",
 ]

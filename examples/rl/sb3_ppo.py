@@ -73,17 +73,19 @@ def main():
         )
         print(f"✓ Wandb initialized: {run.url}")
 
-    # Create training environment
+    # Create training environment (8 parallel envs)
+    n_envs = 8
+
     def make_env():
-        env = make_atari_env(env_id, render_mode="rgb_array")
+        env = make_atari_env(env_id)
         env = Monitor(env)
         return env
 
-    train_env = DummyVecEnv([make_env])
+    train_env = DummyVecEnv([make_env for _ in range(n_envs)])
 
     # Create evaluation environment with video recording
     def make_eval_env():
-        env = make_atari_env(env_id, render_mode="rgb_array")
+        env = make_atari_env(env_id)
         env = Monitor(env)
         return env
 
@@ -109,8 +111,8 @@ def main():
         "CnnPolicy",
         train_env,
         verbose=1,
-        n_steps=2048,
-        batch_size=64,
+        n_steps=128,
+        batch_size=256,
         n_epochs=10,
         learning_rate=2.5e-4,
         clip_range=0.2,
@@ -179,7 +181,7 @@ def main():
     print("Final Evaluation")
     print("=" * 80)
 
-    eval_env_final = make_atari_env(env_id, render_mode="rgb_array")
+    eval_env_final = make_atari_env(env_id)
     returns = []
     lengths = []
 

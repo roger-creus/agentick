@@ -44,7 +44,6 @@ htmlcov/
 # Project specific
 *.log
 *.mp4
-*.png
 results/
 checkpoints/
 wandb/
@@ -67,24 +66,24 @@ Thumbs.db
 # uv
 uv.lock
 
-PHASE*
 .claude
 
 # Generated artifacts
-CLAUDE_DOCS/
-MEGAPLAN.md
 models/
 sft_output/
 sft_model/
 
-
 .env
 
-videos/
-paper/
-.project_docs
+# Internal maintainer scripts (not for public repo)
+scripts/
 
-TASK_REVIEW_3.md
+# Debug/results notebooks (local only)
+examples/debug_results.ipynb
+examples/human_results.ipynb
 
-# Isometric gallery output (regenerated)
-gallery_iso/
+# Generated gallery videos (regenerate with scripts/record_oracle_gallery.py)
+docs/showcase/videos/
+
+# Logs
+logs/

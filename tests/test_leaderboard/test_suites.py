@@ -23,7 +23,7 @@ def test_suite_immutability():
 def test_all_official_suites_exist():
     """Test that all 15+ official suites are defined."""
     suites = list_suites()
-    assert len(suites) >= 14
+    assert len(suites) >= 11
 
     # Check key suites
     assert "agentick-full-v1" in suites
@@ -38,7 +38,7 @@ def test_suite_structure():
 
     assert isinstance(suite, BenchmarkSuite)
     assert suite.name == "agentick-full-v1"
-    assert len(suite.tasks) == 35
+    assert len(suite.tasks) == 38
     assert len(suite.eval_seeds) == 50
     assert suite.episodes_per_seed == 1
     assert suite.version == "1.0"
@@ -105,11 +105,11 @@ def test_capability_suites():
     """Test that capability-specific suites exist and are correctly configured."""
     capability_suites = [
         "agentick-navigation-v1",
-        "agentick-memory-v1",
+        "agentick-planning-v1",
         "agentick-reasoning-v1",
-        "agentick-skill-v1",
-        "agentick-control-v1",
-        "agentick-combinatorial-v1",
+        "agentick-memory-v1",
+        "agentick-generalization-v1",
+        "agentick-multiagent-v1",
     ]
 
     for suite_name in capability_suites:
@@ -124,8 +124,8 @@ def test_full_vs_core():
     core = get_suite("agentick-core-v1")
 
     assert len(full.tasks) > len(core.tasks)
-    assert len(full.tasks) == 35
-    assert len(core.tasks) == 27
+    assert len(full.tasks) == 38
+    assert len(core.tasks) == 25
 
 
 def test_get_nonexistent_suite():

@@ -8,7 +8,7 @@ import agentick
 TASKS_WITH_PROC_GEN = [
     "GoToGoal-v0",
     "MazeNavigation-v0",
-    "MultiGoalRoute-v0",
+    "ShortestPath-v0",
     "FogOfWarExploration-v0",
 ]
 

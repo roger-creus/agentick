@@ -51,13 +51,12 @@ TASK_CAPABILITY_MAP = {
     "MazeNavigation-v0": "navigation",
     "FogOfWarExploration-v0": "navigation",
     "DynamicObstacles-v0": "navigation",
-    "MultiGoalRoute-v0": "navigation",
+    "ShortestPath-v0": "navigation",
     # Memory
     "KeyDoorPuzzle-v0": "memory",
     "SequenceMemory-v0": "memory",
     "DelayedGratification-v0": "memory",
     "BacktrackPuzzle-v0": "memory",
-    "BreadcrumbTrail-v0": "memory",
     # Reasoning
     "SokobanPush-v0": "reasoning",
     "CausalChain-v0": "reasoning",
@@ -67,7 +66,6 @@ TASK_CAPABILITY_MAP = {
     # Skill Discovery
     "ToolUse-v0": "skill",
     "RecipeAssembly-v0": "skill",
-    "MultiRoomEscape-v0": "skill",
     "EmergentStrategy-v0": "skill",
     "ResourceManagement-v0": "skill",
     # Control
@@ -89,7 +87,7 @@ TASK_CAPABILITY_MAP = {
     "TaskInterference-v0": "meta",
     # Multi-agent
     "CooperativeTransport-v0": "multiagent",
-    "CompetitiveTag-v0": "multiagent",
+    "TagHunt-v0": "multiagent",
 }
 
 

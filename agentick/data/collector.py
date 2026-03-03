@@ -563,7 +563,7 @@ class CollectedDataset:
         for s in traj.steps:
             obs = {}
             for k, v in s.observations.items():
-                if skip_pixels and k in ("rgb_array", "rgb_array_2d"):
+                if skip_pixels and k in ("rgb_array", "rgb_array_flat", "rgb_array_2d"):
                     continue
                 obs[k] = _make_serializable(v)
             step_rec: dict[str, Any] = {

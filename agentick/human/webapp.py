@@ -93,7 +93,7 @@ class ShowcaseWebApp:
         @self.app.route("/")
         def index():
             """Serve the showcase HTML page."""
-            showcase_dir = _project_root() / "showcase"
+            showcase_dir = _project_root() / "docs" / "showcase"
             return send_from_directory(str(showcase_dir), "index.html")
 
         @self.app.route("/api/task_descriptions")
@@ -102,33 +102,44 @@ class ShowcaseWebApp:
             from agentick.tasks.descriptions import get_all_task_descriptions
 
             descs = get_all_task_descriptions()
-            videos_dir = _project_root() / "videos"
-            gallery_dir = _project_root() / "gallery"
+            videos_dir = _project_root() / "docs" / "showcase" / "videos"
             result = []
             for name, desc in sorted(descs.items()):
                 entry = desc.to_dict()
                 entry["video"] = _find_video(name, videos_dir)
-                entry["gallery_gif"] = _find_gallery_gif(name, gallery_dir)
+                entry["gallery_gif"] = _find_gallery_gif(name)
                 result.append(entry)
             return jsonify(result)
 
         @self.app.route("/videos/<path:filename>")
         def serve_video(filename):
-            """Serve video files."""
-            videos_dir = _project_root() / "videos"
+            """Serve video files from docs/showcase/videos/."""
+            videos_dir = _project_root() / "docs" / "showcase" / "videos"
             return send_from_directory(str(videos_dir), filename)
 
         @self.app.route("/gallery/<path:filename>")
         def serve_gallery(filename):
-            """Serve gallery GIF files (iso or 2D)."""
-            # Prefer isometric GIFs from showcase/videos/iso/
-            iso_dir = _project_root() / "showcase" / "videos" / "iso"
-            iso_path = iso_dir / filename
+            """Serve gallery GIF files — iso preferred, flat 2D as fallback."""
+            videos_dir = _project_root() / "docs" / "showcase" / "videos"
+            iso_path = videos_dir / "iso" / filename
             if iso_path.is_file():
-                return send_from_directory(str(iso_dir), filename)
-            # Fall back to 2D gallery
-            gallery_dir = _project_root() / "gallery"
-            return send_from_directory(str(gallery_dir), filename)
+                return send_from_directory(str(videos_dir / "iso"), filename)
+            flat_path = videos_dir / "flat" / filename
+            if flat_path.is_file():
+                return send_from_directory(str(videos_dir / "flat"), filename)
+            return send_from_directory(str(videos_dir), filename)
+
+        @self.app.route("/gallery/iso/<path:filename>")
+        def serve_gallery_iso(filename):
+            """Serve isometric gallery GIF files."""
+            videos_dir = _project_root() / "docs" / "showcase" / "videos"
+            return send_from_directory(str(videos_dir / "iso"), filename)
+
+        @self.app.route("/gallery/flat/<path:filename>")
+        def serve_gallery_flat(filename):
+            """Serve flat 2D gallery GIF files."""
+            videos_dir = _project_root() / "docs" / "showcase" / "videos"
+            return send_from_directory(str(videos_dir / "flat"), filename)
 
         # ── Play-mode API endpoints ───────────────────────────────────────
 
@@ -336,43 +347,34 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent
 
 
-def _find_gallery_gif(
-    task_name: str,
-    gallery_dir: Path,
-) -> dict[str, str] | None:
-    """Return dict of difficulty -> gallery-relative GIF path, or None.
+def _find_gallery_gif(task_name: str) -> dict[str, str] | None:
+    """Return dict of difficulty -> GIF filename for the given task.
 
-    Prefers isometric GIFs from ``showcase/videos/iso/`` (served via the
-    same ``/gallery/`` route).  Falls back to 2D GIFs in the ``gallery/``
-    directory.
+    Checks iso GIFs first (docs/showcase/videos/iso/), then flat 2D GIFs
+    (docs/showcase/videos/flat/). Both served via the /gallery/ route.
     """
+    videos_dir = _project_root() / "docs" / "showcase" / "videos"
     result: dict[str, str] = {}
 
-    # 1. Prefer isometric oracle GIFs (showcase/videos/iso/{task}_{diff}.gif)
-    iso_dir = _project_root() / "showcase" / "videos" / "iso"
+    # 1. Isometric GIFs: showcase/videos/iso/{task}_{diff}.gif
+    iso_dir = videos_dir / "iso"
     if iso_dir.is_dir():
         for diff in ("easy", "medium", "hard", "expert"):
             gif = iso_dir / f"{task_name}_{diff}.gif"
             if gif.is_file():
-                # Served via /gallery/ route which checks iso_dir first
                 result[diff] = f"{task_name}_{diff}.gif"
     if result:
         return result
 
-    # 2. Fall back to 2D gallery (gallery/{diff}/{task}.gif)
-    if gallery_dir.is_dir():
+    # 2. Flat 2D GIFs: showcase/videos/flat/{task}_{diff}.gif
+    flat_dir = videos_dir / "flat"
+    if flat_dir.is_dir():
         for diff in ("easy", "medium", "hard", "expert"):
-            gif = gallery_dir / diff / f"{task_name}.gif"
+            gif = flat_dir / f"{task_name}_{diff}.gif"
             if gif.is_file():
-                result[diff] = f"{diff}/{task_name}.gif"
-        if result:
-            return result
-        # Flat fallback
-        gif = gallery_dir / f"{task_name}.gif"
-        if gif.is_file():
-            return {"easy": gif.name}
+                result[diff] = f"{task_name}_{diff}.gif"
 
-    return None
+    return result or None
 
 
 def _find_video(task_name: str, videos_dir: Path) -> str | None:

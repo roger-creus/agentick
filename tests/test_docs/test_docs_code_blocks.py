@@ -135,6 +135,9 @@ def test_imports_use_correct_paths():
         (r"from agentick\.interfaces", "Interfaces module doesn't exist"),
     ]
 
+    # Files that legitimately document agentick.agents internals
+    agents_docs = {"llm_agents.md", "custom_agents.md", "finetuning.md"}
+
     for doc_file in docs_dir.rglob("*.md"):
         if doc_file.name == "changelog.md":
             continue
@@ -142,6 +145,9 @@ def test_imports_use_correct_paths():
         blocks = extract_python_code_blocks(doc_file)
         for line_num, code in blocks:
             for pattern, msg in incorrect_patterns:
+                # Allow agentick.agents imports in agent harness docs
+                if pattern == r"from agentick\.agents" and doc_file.name in agents_docs:
+                    continue
                 if re.search(pattern, code):
                     errors.append(f"{doc_file.relative_to(Path.cwd())}:{line_num}: {msg}")
 

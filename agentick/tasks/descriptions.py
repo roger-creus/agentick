@@ -12,7 +12,6 @@ import textwrap
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
@@ -111,8 +110,8 @@ _td(
     "Move in 4 directions (up/down/left/right). No interact action needed.",
     [
         ("easy", "5x5 open grid, no walls, guards, or hazards. Straightforward path to goal."),
-        ("medium", "10x10 grid with partial walls and 1 guard. No decoys. Requires obstacle avoidance."),
-        ("hard", "15x15 dense maze with 2 guards, 2 decoys, and 4 scattered hazards. Complex routing."),
+        ("medium", "10x10 grid, 1 guard, no decoys. Obstacle avoidance needed."),
+        ("hard", "15x15 maze, 2 guards, 2 decoys, 4 hazards. Complex navigation."),
         ("expert", "20x20 complex maze with 3 guards, 4 decoys, and 8 hazards. Maximum challenge."),
     ],
     tags=["basic_navigation", "navigation"],
@@ -122,34 +121,38 @@ _td(
     "MazeNavigation-v0",
     "navigation",
     "Solve procedurally generated mazes (binary tree or recursive backtracker) "
-    "to reach the exit GOAL. Maze complexity and obstacle density scale with difficulty.",
-    "GOAL (maze exit), WALL (maze structure), HAZARD (scattered at medium+), "
-    "Guard NPCs (patrolling at medium+).",
-    "Navigate the maze to reach the GOAL exit. Avoid hazards and guards.",
-    "Move in 4 directions. Pure pathfinding through maze corridors.",
+    "to reach the exit GOAL. At medium+, colored key/door pairs block the optimal path "
+    "at choke points and must be collected/opened. At hard+, hazard terrain appears in "
+    "dead ends. No guard NPCs.",
+    "GOAL (maze exit), WALL (maze structure), KEY objects (collect to unlock doors, "
+    "medium+), DOOR (blocks path, opens with matching key, medium+), HAZARD (dead ends, hard+).",
+    "Navigate the maze to reach the GOAL exit. Collect keys and open doors blocking the path.",
+    "Move in 4 directions. Keys are picked up automatically. Walk into a DOOR with the "
+    "matching key to open it.",
     [
-        ("easy", "7x7 binary-tree maze with wide corridors. Simple pathfinding exercise."),
-        ("medium", "11x11 recursive-backtracker maze, 1 guard, 2 hazards. Moderate complexity."),
-        ("hard", "15x15 recursive-backtracker maze with 2 guards, 4 hazards, and dead-end traps."),
-        ("expert", "21x21 dense recursive maze with 3 guards, 6 hazards, and maximum branching."),
+        ("easy", "7x7 binary-tree maze. No keys or hazards. Simple pathfinding exercise."),
+        ("medium", "11x11 recursive-backtracker maze, 1 key-door pair blocking the path."),
+        ("hard", "15x15 maze, 2 key-door pairs, hazards in dead ends."),
+        ("expert", "21x21 dense recursive maze, 3 key-door pairs, hazards. Maximum branching."),
     ],
     tags=["planning", "spatial_reasoning", "navigation"],
 )
 
 _td(
-    "MultiGoalRoute-v0",
+    "ShortestPath-v0",
     "navigation",
     "Visit multiple GOAL objects scattered across the grid in any order. "
-    "Tests multi-objective pathfinding similar to the traveling salesman problem.",
+    "Tests multi-objective pathfinding similar to the traveling salesman problem. "
+    "Success requires visiting all goals within a step budget relative to the optimal path length.",
     "GOAL objects (multiple, consumed on visit), WALL (obstacles), "
-    "Decoy GOALs (medium+, false targets).",
-    "Visit all real GOAL objects. Each goal is consumed when reached.",
-    "Move in 4 directions. Step on GOAL to collect it automatically.",
+    "TARGET objects (decoy false targets, medium+).",
+    "Visit all real GOAL objects within the step budget (optimal path × budget multiplier).",
+    "Move in 4 directions. Step on GOAL to collect it automatically. Avoid decoy TARGETs.",
     [
         ("easy", "7x7 open grid with 2 goals and no obstacles. Simple multi-stop navigation."),
-        ("medium", "10x10 grid with 3 goals, 3 obstacles, and 1 decoy. Route planning required."),
-        ("hard", "13x13 grid with 4 goals, 5 obstacles, and 2 decoys. Complex routing needed."),
-        ("expert", "15x15 maze-like grid with 5 goals, 8 obstacles, and 3 decoys."),
+        ("medium", "10x10, 3 goals, 3 obstacles, 1 decoy. Route planning needed."),
+        ("hard", "13x13, 4 goals, 5 obstacles, 2 decoys. Complex routing."),
+        ("expert", "15x15 maze-like grid with 5 goals, 8 obstacles, and 3 decoy TARGETs."),
     ],
     tags=["planning", "optimization", "navigation"],
 )
@@ -159,97 +162,106 @@ _td(
     "navigation",
     "Navigate toward a GOAL while avoiding moving NPC obstacles that patrol "
     "the grid. NPCs move probabilistically each step; expert mode adds pursuit behavior.",
-    "GOAL (static destination), NPC (moving obstacles, fatal on collision), "
+    "GOAL (static destination), NPC objects (moving obstacles, fatal on collision), "
     "WALL (static barriers).",
     "Reach GOAL without colliding with any NPC. Collision ends episode.",
-    "Move in 4 directions. Timing and prediction of BLOCKER movement is key.",
+    "Move in 4 directions. Timing and prediction of NPC movement is key.",
     [
-        ("easy", "7x7 grid with 2 BLOCKERs (50% move chance). Open layout, easy avoidance."),
-        ("medium", "10x10 grid with 3 BLOCKERs (75% move chance) and 3 scattered walls."),
-        ("hard", "13x13 grid with 5 BLOCKERs (100% move) and 6 wall obstacles."),
-        ("expert", "15x15 grid with 7 BLOCKERs (90% move, 15% pursuit), 9 walls. Pursuing behavior."),
+        ("easy", "7x7 grid with 2 NPCs (50% move chance). Open layout, easy avoidance."),
+        ("medium", "10x10 grid with 3 NPCs (75% move chance) and 3 scattered walls."),
+        ("hard", "13x13 grid with 5 NPCs (100% move) and 6 wall obstacles."),
+        ("expert", "15x15 grid with 7 NPCs (90% move, 15% pursuit), 9 walls. Pursuing behavior."),
     ],
     tags=["reactive_planning", "navigation"],
 )
 
 _td(
     "FogOfWarExploration-v0",
-    "exploration",
-    "Explore a grid with limited visibility (fog of war). The agent can only see "
-    "within a small radius and must remember explored areas to find the hidden GOAL.",
-    "GOAL (hidden behind fog), WALL (revealed in view), HAZARD (dangerous), "
-    "Guard NPCs (hard+), Decoy GOALs (medium+), FOG (unrevealed cells).",
-    "Find and reach the GOAL despite incomplete map information.",
-    "Move in 4 directions. Fog reveals cells within visibility radius as you move.",
+    "memory",
+    "Navigate a grid where fog never clears — only the agent's immediate neighbors "
+    "(4 orthogonal cells) are visible at any time. The agent must remember the map "
+    "layout to find the hidden GOAL.",
+    "GOAL (hidden behind fog), WALL (revealed only when adjacent), HAZARD (dangerous), "
+    "Guard NPCs (hard+), Decoy GOALs (medium+), FOG (all non-adjacent cells).",
+    "Find and reach the GOAL using spatial memory — previously seen cells re-fog.",
+    "Move in 4 directions. Only adjacent cells are visible; fog returns when you move away.",
     [
-        ("easy", "7x7 grid, visibility radius 2. No hazards, guards, or decoys. Systematic exploration."),
-        ("medium", "10x10 grid, visibility 2, 2 decoy goals. Memory of explored areas needed."),
-        ("hard", "13x13 grid, visibility 1 (tight fog), 1 guard, 3 decoys. Dense layout."),
-        ("expert", "15x15 grid, visibility 1, 2 guards, 4 decoys. Extreme memory demand."),
+        ("easy", "7x7, no hazards/guards/decoys. Build spatial memory of layout."),
+        ("medium", "10x10 grid, 2 decoy goals. Must remember which goals are real."),
+        ("hard", "13x13 grid, 1 guard, 3 decoys. Navigate blind with hostile NPCs."),
+        ("expert", "15x15 grid, 2 guards, 4 decoys. Extreme spatial memory demand."),
     ],
-    tags=["exploration", "memory", "navigation"],
+    tags=["memory", "spatial_memory"],
 )
 
 _td(
     "TreasureHunt-v0",
-    "exploration",
-    "Find hidden treasure GEM objects using proximity clues on the floor. "
-    "TARGET markers near treasures indicate distance (closer = warmer). "
-    "Collecting a treasure refreshes clues for remaining ones.",
-    "GEM objects (hidden treasures), TARGET markers (proximity clues, metadata "
-    "encodes distance), WALL (obstacles).",
-    "Collect all hidden GEM treasures by following proximity clues.",
-    "Move in 4 directions. Step on GEM to collect it. Use TARGET clue markers "
-    "to guide exploration — lower metadata values mean closer to treasure.",
+    "memory",
+    "Find invisible hidden treasures by reading directional SCROLL clues. "
+    "Scrolls encode the direction (N/E/S/W) and distance to the nearest "
+    "hidden treasure as metadata (direction * 10 + distance). Stepping on "
+    "a scroll reads and consumes it. Some clues are misleading at harder "
+    "difficulties.",
+    "SCROLL objects (directional clues, consumed on contact), invisible "
+    "treasures (not rendered — step on exact cell to collect), WALL (obstacles).",
+    "Read scroll clues, triangulate hidden treasure positions, and step on "
+    "each treasure cell to collect all treasures.",
+    "Move in 4 directions. Step on SCROLL to read it (consumed). Step on a "
+    "hidden treasure cell to collect it. Metadata encodes direction*10+distance.",
     [
-        ("easy", "9x9 grid, 2 treasures, clue radius 3. Low walls. Clues clearly guide the way."),
-        ("medium", "11x11 grid, 3 treasures, clue radius 3. Moderate walls. Multi-target navigation."),
-        ("hard", "14x14 grid, 4 treasures, clue radius 2. Dense walls. Smaller clue range forces exploration."),
-        ("expert", "16x16 grid, 5 treasures, clue radius 1. Dense walls. Minimal clues, maximum exploration."),
+        ("easy", "9x9 grid, 2 treasures, 6 scrolls, 0 misleading. Simple triangulation."),
+        ("medium", "12x12 grid, 3 treasures, 8 scrolls, 1 misleading. Must cross-check clues."),
+        ("hard", "15x15 grid, 4 treasures, 10 scrolls, 3 misleading. Significant deception."),
+        ("expert", "18x18 grid, 5 treasures, 12 scrolls, 5 misleading. Nearly half the clues lie."),
     ],
     tags=["exploration", "memory", "reasoning"],
 )
 
 _td(
     "CuriosityMaze-v0",
-    "exploration",
-    "Explore a procedural maze to discover and visit all hidden landmark objects "
-    "(SWITCH, SCROLL, ORB, COIN). No clues given — pure exploration and systematic "
-    "coverage is required. GOAL appears after all landmarks visited.",
-    "Landmark objects (SWITCH, SCROLL, ORB, COIN scattered throughout maze), "
-    "WALL (maze structure), GOAL (appears after all visited).",
-    "Visit every landmark in the maze. Explore systematically to find all of them.",
-    "Move in 4 directions. Step on a landmark to visit it. Landmarks disappear "
-    "when visited. Explore systematically to find all of them.",
+    "navigation",
+    "Explore a procedurally generated maze and visit a target percentage of all "
+    "reachable cells within a step budget. No targets or landmarks — success is "
+    "purely coverage-based. The agent must remember where it has been.",
+    "WALL (border and random interior walls forming maze structure). No target "
+    "objects or landmarks on the grid.",
+    "Visit at least the required percentage of all reachable cells before the "
+    "step budget runs out.",
+    "Move in 4 directions. Each new cell visited counts toward coverage. No "
+    "visual markers for visited/unvisited — the agent must track its own path.",
     [
-        ("easy", "9x9 maze, 3 landmarks. Low wall density. Small area to cover."),
-        ("medium", "13x13 maze, 5 landmarks. Moderate walls. Efficient exploration needed."),
-        ("hard", "17x17 maze, 7 landmarks. Dense walls. Large search space."),
-        ("expert", "21x21 maze, 10 landmarks. Dense complex maze. Extensive systematic exploration."),
+        ("easy", "9x9 maze, 70% coverage needed, 80 steps. Low wall density."),
+        ("medium", "13x13 maze, 75% coverage needed, 150 steps. Moderate wall density."),
+        ("hard", "17x17 maze, 80% coverage needed, 280 steps. High wall density."),
+        ("expert", "21x21 maze, 85% coverage needed, 450 steps. Dense complex maze."),
     ],
     tags=["exploration", "memory", "navigation"],
 )
 
-# ── MEMORY ────────────────────────────────────────────────────────────────
+# ── MEMORY / PLANNING ────────────────────────────────────────────────────
 
 _td(
     "KeyDoorPuzzle-v0",
-    "memory",
-    "Collect color-coded keys and unlock matching doors to progress through locked "
-    "rooms to the GOAL. Hard+ features chained locks in a hub-and-spoke layout where "
-    "later keys are behind earlier doors, forcing back-and-forth traversal.",
-    "KEY objects (color-coded: gold/red/blue, carry in inventory), DOOR (opens with "
-    "matching-color key), GOAL (in final room), Guard NPCs (hard+), WALL (room separators).",
-    "Reach GOAL after unlocking all necessary doors in sequence with matching keys.",
-    "Move in 4 directions. Keys are picked up automatically when you step on them. "
-    "Doors unlock automatically when you approach with the matching-color key.",
+    "planning",
+    "Collect color-coded keys and unlock ALL matching doors to reach the GOAL in the "
+    "innermost room. One-key-at-a-time inventory limit: picking up a new key drops any "
+    "held key. At hard+, keys are placed in previous rooms, forcing backtracking "
+    "through already-opened doors.",
+    "KEY objects (color-coded: gold/red/blue/green, one-at-a-time inventory), DOOR "
+    "(opens with matching-color key), GOAL (in final room behind ALL doors), Guard NPCs "
+    "(hard+), WALL (room separators and corridors).",
+    "Reach GOAL after unlocking ALL doors with matching keys. Every door must be opened.",
+    "Move in 4 directions. Keys are picked up automatically when you step on them "
+    "(drops any currently held key). Walk into a DOOR with the matching key to unlock it.",
     [
-        ("easy", "7x7 grid with 1 color-coded key-door pair. No guards. Simple linear rooms."),
-        ("medium", "10x10 grid with 2 color-coded key-door pairs in linear rooms. No guards."),
-        ("hard", "13x13 hub-and-spoke layout with 3 chained color-coded locks, 1 guard. "
-         "Keys behind earlier doors force backtracking through hub."),
-        ("expert", "15x15 hub-and-spoke with 4 chained color-coded locks, 2 guards. "
-         "Complex non-linear traversal required."),
+        ("easy", "9x9 grid with 1 color-coded key-door pair. No guards. Key in hub, "
+         "goal behind the single door."),
+        ("medium", "11x11 grid with 2 color-coded key-door pairs. No guards. "
+         "Key for door 2 is behind door 1, forcing backtracking."),
+        ("hard", "13x13 grid with 3 chained color-coded locks, 1 guard. "
+         "Keys placed in previous rooms, forcing backtracking."),
+        ("expert", "15x15 grid with 4 chained color-coded locks, 2 guards. "
+         "Complex key dependencies with keys in earlier rooms requiring multi-room backtracking."),
     ],
     tags=["memory", "sequential_reasoning"],
 )
@@ -258,23 +270,23 @@ _td(
     "DelayedGratification-v0",
     "memory",
     "Resist nearby decoy KEY objects (traps) and navigate to a distant true GOAL. "
-    "Touching any decoy KEY ends the episode in failure. Tests impulse control.",
+    "Collecting a decoy KEY blocks future success and ends the episode. Tests impulse control.",
     "GOAL (true objective, distant), KEY objects (decoy traps, closer to start), "
     "WALL (optional obstacles), HAZARD (hard+, blocks paths).",
-    "Reach the distant true GOAL without touching any decoy KEY. Decoy touch ends episode.",
+    "Reach GOAL without collecting decoy KEYs. Collecting a decoy ends episode.",
     "Move in 4 directions. Avoid stepping on KEY objects which act as traps.",
     [
-        ("easy", "7x7 grid with 1 decoy KEY. Open layout, clear path to goal."),
-        ("medium", "10x10 grid with 2 decoy KEYs, 3 walls. Must navigate around traps."),
-        ("hard", "13x13 maze with 3 decoys, 6 walls, 2 hazards. Hazards block shortcuts."),
-        ("expert", "15x15 complex maze with 4 decoys, 9 walls, 4 hazards. Careful long-range planning."),
+        ("easy", "7x7 grid with 2 decoy KEYs. Open layout, clear path to goal."),
+        ("medium", "10x10 grid with 4 decoy KEYs, 4 walls. Must navigate around traps."),
+        ("hard", "13x13 maze with 6 decoys, 8 walls, 3 hazards. Hazards block shortcuts."),
+        ("expert", "15x15 maze, 8 decoys, 12 walls, 6 hazards. Careful planning."),
     ],
     tags=["credit_assignment", "long_horizon"],
 )
 
 _td(
     "BacktrackPuzzle-v0",
-    "memory",
+    "planning",
     "GOAL is blocked by a wall gate. Navigate past it to reach a distant SWITCH, "
     "which opens the gate, then backtrack to collect the now-accessible GOAL.",
     "GOAL (initially blocked), SWITCH objects (trigger gate opening), "
@@ -291,35 +303,19 @@ _td(
 )
 
 _td(
-    "BreadcrumbTrail-v0",
-    "memory",
-    "Collect breadcrumbs in strict size order (1, 2, 3...) before the GOAL "
-    "becomes accessible. Crumbs fade after a timer. False breadcrumbs act as distractors.",
-    "CRUMB objects (numbered, must collect in order), GOAL (appears after all crumbs "
-    "collected), false breadcrumbs (wrong order, cause penalties), WALL (optional).",
-    "Collect all breadcrumbs in ascending order, then reach GOAL.",
-    "Move in 4 directions. Crumbs are collected automatically when you step on them.",
-    [
-        ("easy", "9x9 grid with 3 crumbs, 20-step fade timer, no false crumbs. Relaxed timing."),
-        ("medium", "11x11 grid with 4 crumbs, 15-step fade, 1 false crumb, 3 obstacles."),
-        ("hard", "13x13 maze with 5 crumbs, 10-step fade, 2 false crumbs, 5 obstacles. Tight timing."),
-        ("expert", "15x15 complex layout with 6 crumbs, 6-step fade, 3 false crumbs, 8 obstacles."),
-    ],
-    tags=["long_horizon", "memory"],
-)
-
-_td(
     "SequenceMemory-v0",
     "memory",
     "Two-phase task: show phase displays target positions as GEM objects one by one. "
-    "Reproduce phase requires visiting those positions in exact memorized order.",
-    "GEM objects (shown during show phase), TARGET (goal positions during reproduce), "
-    "SWITCH (decoy distractors at medium+).",
-    "Memorize shown positions, then visit them in exact order during reproduce phase.",
-    "Move in 4 directions. Step on TARGET positions to register visits.",
+    "Reproduce phase requires visiting those memorized positions in exact order. "
+    "No visual markers during reproduce — pure spatial memory.",
+    "GEM objects (shown during show phase, then removed), distractor positions "
+    "(invalid positions, medium+, no visual marker — tracked internally only).",
+    "Memorize shown GEM positions, then visit them in exact order during reproduce phase.",
+    "Move in 4 directions. Walk to each memorized position in order. Visiting a wrong "
+    "position (distractor) incurs a penalty.",
     [
         ("easy", "7x7 grid, 3 targets shown for 4 steps each. No distractors. Short sequence."),
-        ("medium", "10x10 grid, 4 targets shown for 3 steps each, 2 distractors, 4 obstacles."),
+        ("medium", "10x10, 4 targets (3 steps each), 2 distractors, 4 obstacles."),
         ("hard", "13x13 grid, 5 targets shown for 2 steps each, 3 distractors, shuffled order."),
         ("expert", "15x15 grid, 6 targets shown for 1 step each, 4 distractors, shuffled order."),
     ],
@@ -330,11 +326,11 @@ _td(
 
 _td(
     "SokobanPush-v0",
-    "reasoning",
+    "planning",
     "Classic Sokoban: push BOX objects onto TARGET positions by walking into them. "
     "Boxes move in the direction the agent pushes. Cannot push into walls.",
     "BOX objects (pushable), TARGET positions (where boxes must go), "
-    "WALL (immovable obstacles), GOAL (appears when all boxes placed).",
+    "WALL (immovable obstacles).",
     "Push all BOX objects onto matching TARGET positions.",
     "Move in 4 directions. Walk into a BOX to push it in your movement direction. "
     "Cannot push boxes into walls or other boxes.",
@@ -350,18 +346,19 @@ _td(
 _td(
     "CausalChain-v0",
     "reasoning",
-    "Activate switches in sequence to remove barrier walls between zones. "
-    "Each switch opens a specific barrier. Decoy levers look identical but do nothing.",
-    "SWITCH objects (activate to remove barriers), LEVER objects (decoy, no effect), "
-    "WALL barriers (between zones, removed by correct switches), GOAL (in final zone).",
-    "Activate switches in causal order to open all barriers, then reach GOAL.",
-    "Move in 4 directions. Switches activate automatically when you step on them. "
-    "Distinguish real switches from decoy levers.",
+    "Activate levers in causal sequence to remove barrier walls between zones. "
+    "Each real lever opens a specific barrier when stepped on. Decoy levers look "
+    "identical but do nothing or add walls.",
+    "LEVER objects (real: remove wall barriers; decoy: no effect or harmful), "
+    "WALL barriers (between zones, removed by correct levers), GOAL (in final zone).",
+    "Activate levers in causal order to open all barriers, then reach GOAL.",
+    "Move in 4 directions. Levers activate automatically when you step on them. "
+    "Identify real levers from decoys by their causal effects.",
     [
-        ("easy", "9x9 grid with 2 switches in linear chain. No decoys. Clear zone progression."),
-        ("medium", "11x11 grid with 3 switches, 1 decoy lever, maze zones."),
-        ("hard", "13x13 grid with 4 switches, 2 decoys. Complex layout."),
-        ("expert", "15x15 grid with 5 switches, 3 decoys, nonlinear layout."),
+        ("easy", "9x9 grid with 2 levers in linear chain. No decoys. Clear zone progression."),
+        ("medium", "11x11 grid with 3 levers, 1 decoy lever, maze zones."),
+        ("hard", "13x13 grid with 4 levers, 2 decoys. Complex layout."),
+        ("expert", "15x15 grid with 5 levers, 3 decoys, nonlinear layout."),
     ],
     tags=["reasoning", "causal_reasoning"],
 )
@@ -369,19 +366,20 @@ _td(
 _td(
     "SwitchCircuit-v0",
     "reasoning",
-    "Complementary color-coded toggle switches control wall barriers. Toggling switch i "
-    "opens barrier i but closes barrier (i+1)%N. Agent must toggle switches in the right "
-    "order and navigate through opened barriers before they close.",
-    "SWITCH objects (color-coded via metadata), colored WALL barriers (horizontal rows, "
-    "metadata matches switch color), GOAL (in final zone beyond all barriers).",
-    "Toggle switches in correct order and navigate through opened barriers to reach GOAL.",
-    "Move in 4 directions. Step on a SWITCH to toggle it (opens its barrier, closes the "
-    "complementary barrier). Navigate through gaps before they close.",
+    "Non-linear switch dependency puzzle. An open arena has N switches toggled via "
+    "INTERACT action, each controlling wall-segment barriers. Switches have mutual "
+    "exclusion dependencies: activating one may deactivate another. No number annotations "
+    "on switches — the agent must discover dependencies through experimentation.",
+    "SWITCH objects (color-coded, toggled via INTERACT), WALL barrier segments "
+    "(1-3 cells, metadata = barrier index), GOAL (behind final barrier).",
+    "Plan switch activation order to open all barriers blocking the path to GOAL.",
+    "Move in 4 directions. Use INTERACT (action 5) on a SWITCH to toggle it ON/OFF. "
+    "Mutual exclusion: toggling one switch may deactivate another.",
     [
-        ("easy", "7x7 grid, 2 switches/barriers. Simple sequential toggle-and-walk."),
-        ("medium", "9x9 grid, 3 switches/barriers. Longer sequence, tighter routing."),
-        ("hard", "11x11 grid, 4 switches/barriers. Complex multi-zone navigation."),
-        ("expert", "13x13 grid, 5 switches/barriers. Maximum complementary constraints."),
+        ("easy", "9x9 grid, 2 switches. Simple dependency: A opens path to B, B opens goal."),
+        ("medium", "11x11 grid, 3 switches. One mutual exclusion requires planning order."),
+        ("hard", "13x13 grid, 4 switches. Multiple mutual exclusions, backtracking needed."),
+        ("expert", "15x15 grid, 5 switches. Complex dependency graph with mutual exclusions."),
     ],
     tags=["combinatorial_logic", "reasoning"],
 )
@@ -389,56 +387,62 @@ _td(
 _td(
     "RuleInduction-v0",
     "reasoning",
-    "Activate a SWITCH to learn a hidden rule (e.g. 'closest corner', 'furthest from "
-    "center'), then navigate to the position the rule predicts. Multi-phase at hard+.",
-    "SWITCH (reveals rule on activation), rule-dependent target positions, "
-    "WALL (affects some rules), extra switches (decoys and phase transitions at hard+).",
-    "Activate reveal SWITCH, identify the rule, then reach the predicted target.",
-    "Move in 4 directions. Step on SWITCH to activate and reveal the rule.",
+    "Discover which SWITCH objects are real by observing terrain patterns (ICE south "
+    "of real switches), then INTERACT to activate them in any order. Activating all real "
+    "switches opens a barrier DOOR to the GOAL. Activating a wrong (decoy) switch "
+    "deactivates the most recently activated real switch, penalizing trial-and-error.",
+    "SWITCH (real: ICE south; decoy: no ICE south), ICE terrain cues, GEM hints (easy), "
+    "DOOR (barrier, opens when all real switches active), GOAL (behind barrier), WALL.",
+    "Identify real switches via ICE pattern, INTERACT all real ones, pass barrier to GOAL.",
+    "Move in 4 directions. INTERACT on a switch to toggle it. Wrong switches undo "
+    "your last correct activation.",
     [
-        ("easy", "7x7 grid, 1 simple rule, 1 phase. No decoys."),
-        ("medium", "10x10 grid, 1 compound rule, 1 decoy switch, 3 obstacles."),
-        ("hard", "13x13 grid, 2 rules across 2 phases, 2 decoys, 5 obstacles."),
-        ("expert", "15x15 grid, 3 rules across 3 phases, 3 decoys, 8 obstacles."),
+        ("easy", "9x9 grid, 2 real + 1 decoy switches, GEM hints + ICE pattern."),
+        ("medium", "11x11 grid, 3 real + 2 decoy switches, ICE pattern only."),
+        ("hard", "13x13 grid, 4 real + 3 decoy switches, ICE pattern only."),
+        ("expert", "15x15 grid, 5 real + 4 decoy switches, ICE pattern only."),
     ],
-    tags=["reasoning", "memory"],
+    tags=["reasoning", "rule_learning"],
 )
 
 _td(
     "SymbolMatching-v0",
     "reasoning",
-    "Match symbol items (GEM, POTION, SCROLL, COIN, ORB, LEVER) to typed TARGET "
-    "positions. Each target requires a specific symbol type. Visually distinct colored "
-    "pairs; match by visiting pairs consecutively.",
-    "Symbol items (GEM, POTION, SCROLL, COIN, ORB, LEVER), TARGET positions (with "
-    "required type), decoy items (noise), GOAL (appears after all matches).",
-    "Deliver each symbol item to its matching TARGET position.",
-    "Move in 4 directions. Items are picked up and delivered automatically when you "
-    "step on them and then step on the matching target.",
+    "Match symbol items (GEM, POTION, SCROLL, COIN, ORB, LEVER) to their matching "
+    "targets of the same type. Items are on the left half; matching targets (same "
+    "ObjectType) are on the right half. Pick up an item and deliver it to the matching "
+    "target. Placing on wrong type = mismatch penalty.",
+    "Symbol items on left side (GEM/POTION/SCROLL/COIN/ORB/LEVER), matching targets "
+    "on right side (same ObjectType as their item), fake items (type with no matching "
+    "target, medium+).",
+    "Pick up each symbol item and deliver it to the matching target of the same type "
+    "on the right side of the grid.",
+    "Move in 4 directions. Step on a symbol item to pick it up (one at a time). "
+    "Step on a matching target (same symbol type) to deliver it.",
     [
-        ("easy", "7x7 grid with 2 symbol-target pairs. No decoys. Clear pairing."),
-        ("medium", "10x10 grid with 3 pairs, 1 decoy item, 3 obstacles."),
-        ("hard", "13x13 maze with 4 pairs, 2 decoy items, 5 obstacles."),
-        ("expert", "15x15 grid with 5 pairs, 3 decoy items, 8 obstacles."),
+        ("easy", "7x7 grid with 2 symbol-target pairs. No fake items. Clear pairing."),
+        ("medium", "10x10 grid with 3 pairs, 1 fake item, 3 obstacles."),
+        ("hard", "13x13 maze with 4 pairs, 2 fake items, 5 obstacles."),
+        ("expert", "15x15 grid with 5 pairs, 3 fake items, 8 obstacles."),
     ],
     tags=["reasoning", "pattern_recognition"],
 )
 
-# ── SKILL ─────────────────────────────────────────────────────────────────
+# ── PLANNING (cont.) / MULTI-AGENT ────────────────────────────────────────
 
 _td(
     "RecipeAssembly-v0",
-    "skill",
+    "planning",
     "Follow a recipe: collect ingredients in exact order and deliver each to the "
     "crafting station. Recipe is displayed visually in corner zone using TARGET markers.",
     "Recipe zone (TARGET objects with ingredient type metadata), ingredient items "
-    "(GEM, SCROLL, ORB, COIN), crafting station (GOAL object), decoy ingredients, WALL.",
+    "(GEM, SCROLL, ORB, COIN), crafting station (NPC object), decoy ingredients, WALL.",
     "Collect and deliver all ingredients in recipe order to the crafting station.",
     "Move in 4 directions. Ingredients are picked up automatically. Step on crafting "
     "station to deliver the held ingredient.",
     [
         ("easy", "9x9 grid, 2-ingredient recipe. No decoys, open layout. Simple collect-deliver."),
-        ("medium", "11x11 grid, 3-ingredient recipe, 2 decoys, 3 obstacles. Plan route around walls."),
+        ("medium", "11x11, 3-ingredient recipe, 2 decoys, 3 obstacles. Route planning."),
         ("hard", "14x14 maze, 4-ingredient recipe, 3 decoys, 5 obstacles."),
         ("expert", "16x16 dense maze, 5-ingredient recipe, 4 decoys, 7 obstacles."),
     ],
@@ -447,28 +451,29 @@ _td(
 
 _td(
     "ToolUse-v0",
-    "skill",
-    "Navigate a long zigzag corridor from start to goal. Tools create SHORTCUTS that bypass "
-    "sections of the long path: Bridge (KEY) crosses WATER, Hammer (TOOL) breaks WALL, "
-    "Torch (GEM) passes through HAZARD. Tools have limited durability.",
-    "Tools: GEM=torch, KEY=bridge, TOOL=hammer. Shortcut barriers: WATER (1-2 cells), "
-    "WALL (cracked, 1-2 cells), HAZARD (lava, 1-2 cells). GOAL (at end of corridor).",
-    "Reach GOAL at the end of the corridor. Collect tools and use shortcuts to save steps. "
-    "Brute-force long path works but yields worse score.",
-    "Move in 4 directions. Tools are picked up automatically. Walk into a shortcut barrier "
-    "with the matching tool to pass through. Without tools, take the long way around.",
+    "planning",
+    "GOAL is behind a horizontal river (WATER band). Agent can cross the river but only "
+    "gets partial reward without the ORB tool. SCROLL objects are scattered on the agent's "
+    "side. Collecting ALL required scrolls spawns an ORB. Picking up the ORB and then "
+    "reaching the GOAL gives full reward. COIN decoys look different and have no effect.",
+    "SCROLL (collectible clue), COIN (decoy, no effect), ORB (spawns after all scrolls "
+    "collected), WATER (river band), GOAL (on far side of river).",
+    "Collect all SCROLLs to spawn the ORB, pick up the ORB, cross the river, "
+    "and reach the GOAL for full reward (1.0). Without the ORB, reward is only 0.2.",
+    "Move in 4 directions. Scrolls, coins, and the ORB are picked up automatically "
+    "when you step on them. The ORB only appears after all scrolls are collected.",
     [
-        ("easy", "9x9 grid, 1 shortcut (water+bridge), durability 3. Short winding path."),
-        ("medium", "11x11 grid, 2 shortcuts (water+hazard), durability 2. Longer corridor."),
-        ("hard", "14x14 grid, 3 shortcuts (all types), durability 2. Extended winding path."),
-        ("expert", "16x16 grid, 3 shortcuts, durability 1 (single use). Longest zigzag path."),
+        ("easy", "9x9 grid, 2 scrolls, 0 decoys, 1 river (2 cells wide)."),
+        ("medium", "11x11 grid, 3 scrolls, 1 decoy, 1 river (3 cells wide)."),
+        ("hard", "13x13 grid, 4 scrolls, 2 decoys, 2 river crossings (2 cells wide)."),
+        ("expert", "15x15 grid, 5 scrolls, 3 decoys, 2 river crossings (3 cells wide)."),
     ],
-    tags=["compositional_logic", "planning"],
+    tags=["tool_use", "discovery"],
 )
 
 _td(
     "ResourceManagement-v0",
-    "skill",
+    "planning",
     "Keep energy stations alive by recharging them before they drain to zero. "
     "Stations drain energy over time. Any station dying ends the episode in failure. "
     "Success = surviving all max_steps.",
@@ -477,78 +482,70 @@ _td(
     "Any station reaching 0 = failure.",
     "Move in 4 directions. Step on a RESOURCE station to recharge it to full (100).",
     [
-        ("easy", "9x9 grid, 2 stations, slow drain (every 10 steps). No obstacles."),
-        ("medium", "12x12 grid, 3 stations, moderate drain (every 7 steps), 3 obstacles."),
-        ("hard", "15x15 grid, 4 stations, fast drain (every 5 steps), 5 obstacles."),
-        ("expert", "18x18 grid, 5 stations, very fast drain (every 4 steps), 7 obstacles, far apart."),
+        ("easy", "9x9 grid, 2 stations, slow drain (every 8 steps). No obstacles."),
+        ("medium", "12x12 grid, 3 stations, moderate drain (every 5 steps), 3 obstacles."),
+        ("hard", "15x15 grid, 4 stations, fast drain (every 3 steps), 5 obstacles."),
+        ("expert", "18x18, 5 stations, fast drain (every 2 steps), 7 obstacles."),
     ],
     tags=["planning", "resource_allocation"],
 )
 
 _td(
-    "MultiRoomEscape-v0",
-    "skill",
-    "Navigate through N interconnected rooms separated by wall barriers with doorways. "
-    "Guards patrol intermediate rooms. Reach the GOAL in the final room.",
-    "GOAL (in final room), room boundaries (WALL with doorways), doorways (EMPTY gaps), "
-    "Guard NPCs (patrol rooms, collision penalty), HAZARD (scattered in rooms).",
-    "Traverse all intermediate rooms through doorways to reach GOAL in final room.",
-    "Move in 4 directions through doorways. Avoid guards and hazards.",
-    [
-        ("easy", "11x11 grid, 2 rooms, no guards. Wide doorways. Simple room traversal."),
-        ("medium", "15x15 grid, 3 rooms, 1 guard, 2 hazards, single doorways."),
-        ("hard", "19x19 grid, 4 rooms, 2 guards, 4 hazards, narrow doorways."),
-        ("expert", "23x23 grid, 5 rooms, 3 guards, 6 hazards, minimal doorways."),
-    ],
-    tags=["skill_composition", "long_horizon"],
-)
-
-_td(
     "EmergentStrategy-v0",
-    "skill",
-    "SHEEP NPCs block gaps in a wall barrier. The agent must approach sheep to scare them "
-    "away (sheep flee when agent is adjacent), then collect KEYs for bonus and "
-    "navigate through cleared gaps to reach the GOAL beyond the barrier.",
-    "SHEEP NPCs (block barrier gaps, flee from agent), WALL barrier (horizontal row with gaps), "
-    "KEY objects (bonus), GOAL (beyond barrier).",
-    "Scare sheep out of barrier gaps by approaching them, collect nearby keys, then "
-    "navigate through clear gaps to reach GOAL.",
-    "Move in 4 directions. Sheep flee when agent is adjacent. Keys are auto-collected. "
-    "Position yourself above a gap to push sheep downward and clear the path.",
+    "multi_agent",
+    "GOAL is behind horizontal WALL barriers opened by locking pressure plates (TARGET). "
+    "Four color-coded NPC types with unified discoverable behaviors: Follower (cyan, BFS "
+    "toward cell behind agent), Fearful (green, flees from agent within distance 2), "
+    "Mirror (purple, moves toward mirrored agent position), Contrarian (gold, moves "
+    "opposite to agent's last action). All NPC types are controllable/influenceable by "
+    "the agent's movement. When an NPC steps on a plate, it LOCKS permanently and the "
+    "barrier stays open.",
+    "TARGET (locking pressure plates, metadata stores barrier index), WALL barriers "
+    "(full-width horizontal rows, open permanently when plate locked), color-coded NPCs "
+    "(Follower/Fearful/Contrarian/Mirror), GOAL (behind last barrier).",
+    "Exploit NPC behaviors to lure/scare them onto locking pressure plates, permanently "
+    "opening barriers to reach the GOAL in the final zone.",
+    "Move in 4 directions. Cannot walk through NPCs. Follower stays 1 tile behind you; "
+    "Fearful flees from you; Mirror mirrors your position; Contrarian moves opposite to "
+    "you. Guide NPCs onto plates to lock them.",
     [
-        ("easy", "9x9 grid, 1 sheep blocking 1 gap, 1 key."),
-        ("medium", "12x12 grid, 1 sheep, 1 gap, 2 keys. Barrier closes after 50 steps."),
-        ("hard", "15x15 grid, 2 sheep, 2 gaps, 3 keys. Barrier warning at 5 steps."),
-        ("expert", "18x18 grid, 3 sheep, 3 gaps, 4 keys. Barrier warning at 8 steps."),
+        ("easy", "9x9 grid, 1 locking plate, 1 follower. Single barrier."),
+        ("medium", "12x12 grid, 2 locking plates, 1 follower + 1 fearful. Two barriers."),
+        ("hard", "15x15 grid, 3 locking plates, 1 follower + 1 fearful + 1 contrarian. "
+         "Three barriers."),
+        ("expert", "18x18 grid, 4 locking plates, 1 follower + 1 fearful + 1 contrarian "
+         "+ 1 mirror. Four barriers."),
     ],
     tags=["skill_composition", "long_horizon"],
 )
 
-# ── CONTROL ───────────────────────────────────────────────────────────────
+# ── PLANNING (cont.) / MULTI-AGENT (cont.) / NAVIGATION (cont.) ──────────
 
 _td(
     "PreciseNavigation-v0",
-    "control",
-    "Navigate narrow corridors bordered by fatal HAZARD terrain. Collect waypoints "
-    "(GEM objects) in order before reaching the final GOAL. Moving waypoints at hard+.",
-    "HAZARD borders (fatal if touched), narrow corridors (2-cell wide), "
-    "GEM waypoints (collected in order), GOAL (final destination), "
-    "moving waypoints (drift at hard+).",
-    "Collect all waypoints in order then reach GOAL without touching HAZARD. "
-    "Touching HAZARD ends the episode.",
-    "Move in 4 directions. Precise movement is critical; one wrong step is fatal.",
+    "planning",
+    "Ice sliding puzzle on larger grids with interior L/T/I-shaped wall segments. "
+    "The interior is filled with ICE terrain; the agent slides until hitting a WALL, "
+    "an EMPTY cell (stopping point), or a BOX. Fewer stopping points and minimum "
+    "solution path length validation ensure non-trivial slide sequences. "
+    "BOX objects at hard+ also slide when pushed.",
+    "ICE (slides across), EMPTY (stops), WALL (segments), GOAL (on EMPTY), "
+    "BOX (pushable, slides on ice at hard+).",
+    "Slide across ice to reach the GOAL by planning trajectories through stopping points.",
+    "Move in 4 directions. On ICE, the agent slides until hitting a wall, EMPTY cell, "
+    "or BOX. On EMPTY, movement is normal. Push BOX objects (hard+) by sliding into them.",
     [
-        ("easy", "9x9 grid, 2 stationary waypoints, 2-cell corridors. Safe margin for error."),
-        ("medium", "12x12 grid, 3 stationary waypoints, corridors, maze layout."),
-        ("hard", "15x15 grid, 4 waypoints (1 moving), tight corridors."),
-        ("expert", "18x18 grid, 5 waypoints (2 moving), very narrow corridors."),
+        ("easy", "9x9, fewer stops, wall segments. 3-4 slides to goal."),
+        ("medium", "11x11 grid, fewer stops, L/T-shaped walls. 5-6 slides."),
+        ("hard", "13x13 grid, sparse stopping points, 1 pushable box. 7-9 slides."),
+        ("expert", "15x15 grid, minimal stopping points, 2 pushable boxes. 10-14 slides."),
     ],
     tags=["motor_control", "planning"],
 )
 
 _td(
     "Herding-v0",
-    "control",
+    "multi_agent",
     "Herd NPC SHEEP into a pen zone (TARGET cells) using movement pressure. Sheep "
     "flee from the agent when within distance 2. Predators scatter sheep at hard+.",
     "SHEEP NPCs (flee from agent), pen zone (TARGET cells), leader sheep (hard+, "
@@ -558,7 +555,7 @@ _td(
     "the opposite side to push them toward the pen.",
     [
         ("easy", "9x9 grid, 2 sheep, 2x2 pen. No obstacles or predators. Simple herding."),
-        ("medium", "12x12 grid, 3 sheep, 2x2 pen, 2 obstacles, random pen corner."),
+        ("medium", "12x12 grid, 3 sheep, 3x3 pen, 2 obstacles, random pen corner."),
         ("hard", "15x15 grid, 4 sheep, 3x3 pen, 4 obstacles, 1 predator, 1 leader sheep."),
         ("expert", "18x18 grid, 5 sheep, 3x3 pen, 6 obstacles, 2 predators, 2 leader sheep."),
     ],
@@ -567,25 +564,28 @@ _td(
 
 _td(
     "ChaseEvade-v0",
-    "control",
-    "Survive against pursuing ENEMY NPCs for a set number of steps. Enemies chase "
-    "with configurable probability. POTION power-ups freeze enemies temporarily.",
-    "ENEMY NPCs (pursuing agents, chase probability scales), POTION (freeze enemies "
-    "for 5 steps), GOAL (appears after survival period), WALL (obstacles).",
-    "Survive the required steps without enemy collision, then reach GOAL.",
-    "Move in 4 directions. Evade enemies using obstacles and power-ups strategically.",
+    "multi_agent",
+    "Survive against a coordinated ENEMY pack with 4 behavior types inspired by Pacman "
+    "ghosts. Chaser (BFS pursuit every step), Ambusher (targets 4 tiles ahead of agent "
+    "to cut off escape), Flanker (pincers from opposite side of agent vs nearest ally), "
+    "Trapper (moves to block agent's best escape routes). "
+    "SWITCH power-ups freeze all enemies for 5 steps. Success = surviving all required steps.",
+    "ENEMY demons (4 behavior types distinguished by metadata), SWITCH objects (freeze "
+    "all enemies for 5 steps, one-time use), WALL (obstacles).",
+    "Survive the required steps without enemy collision.",
+    "Move in 4 directions. Evade coordinated enemies using obstacles and freeze switches.",
     [
-        ("easy", "7x7 grid, 1 enemy (60% chase), survive 30 steps, 1 power-up. Open layout."),
-        ("medium", "10x10 grid, 2 enemies (75% chase), survive 60 steps, 1 power-up, 3 obstacles."),
-        ("hard", "13x13 grid, 3 enemies (90% chase), survive 100 steps, 2 power-ups, 5 obstacles."),
-        ("expert", "15x15 grid, 5 enemies (100% chase), survive 160 steps, 2 power-ups, 7 obstacles."),
+        ("easy", "7x7 grid, 1 chaser, survive 30 steps, 1 freeze switch. Open layout."),
+        ("medium", "10x10, chaser + ambusher, survive 50 steps, 1 freeze switch, 3 obstacles."),
+        ("hard", "13x13, chaser + ambusher + flanker, 80 steps, 1 switch, 5 obstacles."),
+        ("expert", "15x15, 4 enemies (chaser+ambusher+flanker+trapper), 100 steps, 2 switches, 8 obstacles."),
     ],
     tags=["reactive_control", "prediction"],
 )
 
 _td(
     "TimingChallenge-v0",
-    "control",
+    "navigation",
     "Cross a gap blocked by a moving BLOCKER patrol. Time your movement to pass "
     "through when the BLOCKER is not in the way.",
     "BLOCKER (moving patrol obstacle), gap zone (patrol area), safe refuge spots "
@@ -601,15 +601,15 @@ _td(
     tags=["motor_control", "temporal_reasoning"],
 )
 
-# ── COMBINATORIAL ─────────────────────────────────────────────────────────
+# ── PLANNING (cont.) / REASONING (cont.) ──────────────────────────────────
 
 _td(
     "PackingPuzzle-v0",
-    "combinatorial",
+    "planning",
     "Push typed pieces (BOX, GEM, ORB, SCROLL) onto matching TARGET slots. "
     "Each target requires a specific piece type. Distractor pieces add noise.",
     "Piece objects (BOX, GEM, ORB, SCROLL, typed), TARGET slots (with required type "
-    "metadata), distractor pieces (unused types), GOAL (appears after all matches).",
+    "metadata), distractor pieces (unused types, medium+).",
     "Push each piece onto its matching-type target slot.",
     "Move in 4 directions. Walk into a piece to push it. Match piece type to target type.",
     [
@@ -623,7 +623,7 @@ _td(
 
 _td(
     "TileSorting-v0",
-    "combinatorial",
+    "planning",
     "Sliding tile puzzle: arrange numbered tiles into correct order by pushing them "
     "into the empty slot. Classic 15-puzzle mechanic with varying sizes.",
     "Numbered tiles (1..N-1 with unique numbers/colors), empty slot (agent position), "
@@ -641,11 +641,11 @@ _td(
 
 _td(
     "LightsOut-v0",
-    "combinatorial",
+    "reasoning",
     "Toggle SWITCH objects (lights) to turn them all OFF. Easy mode: each switch "
     "toggles only itself. Medium+: toggling a light also toggles its 4 adjacent neighbors.",
     "SWITCH objects (lights, ON/OFF state visible via color), decoy switches (medium+, "
-    "outside puzzle grid), GOAL (appears when all lights off).",
+    "outside puzzle grid).",
     "Turn all lights OFF by toggling switches.",
     "Move in 4 directions. Step on a SWITCH to toggle it (and adjacent neighbors at medium+).",
     [
@@ -659,18 +659,19 @@ _td(
 
 _td(
     "GraphColoring-v0",
-    "combinatorial",
-    "Color graph nodes via INTERACT action to cycle through colors. Nodes are RESOURCE "
-    "objects on the grid with adjacency determined by proximity. No adjacent nodes may share color.",
-    "RESOURCE objects (graph nodes, color state in metadata), WALL (affects adjacency), "
-    "GOAL (appears when coloring is valid).",
+    "reasoning",
+    "Color graph nodes via INTERACT action to cycle through colors. Nodes are SWITCH "
+    "objects placed in clusters with connected adjacency ensuring non-trivial constraints. "
+    "No adjacent nodes may share color.",
+    "SWITCH objects (graph nodes, cluster-based placement, color state in metadata), "
+    "WALL (obstacles).",
     "Color all nodes so no two adjacent nodes share the same color.",
     "Move in 4 directions. Use INTERACT (action 5) on a node to cycle its color.",
     [
-        ("easy", "9x9 grid, 3 nodes, 2 colors, linear graph. Simple constraint."),
-        ("medium", "11x11 grid, 5 nodes, 3 colors, cycle graph with path-checking adjacency."),
-        ("hard", "13x13 grid, 7 nodes, 3 colors, complex graph with 4 obstacles."),
-        ("expert", "15x15 grid, 9 nodes, 4 colors, dense graph with 6 obstacles."),
+        ("easy", "9x9 grid, 4 nodes, 2 colors, linear graph. Simple constraint."),
+        ("medium", "11x11 grid, 6 nodes, 3 colors, cycle graph with cluster-based adjacency."),
+        ("hard", "13x13 grid, 8 nodes, 3 colors, connected clusters with 4 obstacles."),
+        ("expert", "15x15 grid, 10 nodes, 4 colors, dense connected clusters with 6 obstacles."),
     ],
     tags=["combinatorial_logic", "constraint_satisfaction"],
 )
@@ -680,84 +681,87 @@ _td(
 _td(
     "CooperativeTransport-v0",
     "multi_agent",
-    "Push a BOX to a TARGET zone with help from an NPC partner. The NPC only cooperates "
-    "when the agent is correctly positioned nearby. Tests coordination and planning.",
-    "BOX (requires coordinated push), TARGET zone (goal for box), NPC helper "
-    "(cooperates conditionally), GOAL (appears when box on target), WALL (obstacles).",
-    "Push BOX onto TARGET zone using coordinated effort with NPC.",
-    "Move in 4 directions into BOX to push it. NPC auto-coordinates if you are "
-    "positioned correctly on the opposite side.",
+    "Push heavy boxes into holes with NPC cooperation. Boxes are too heavy to push alone; "
+    "the NPC must be adjacent to the same box for a push to succeed. The NPC wanders randomly "
+    "but pathfinds to the opposite side of the box when the agent is adjacent.",
+    "BOX (heavy, requires NPC cooperation to push), HOLE terrain (destination for boxes), "
+    "NPC helper (must be adjacent for push), WALL (obstacles).",
+    "Push all heavy boxes into holes with NPC cooperation.",
+    "Move in 4 directions into BOX to push it. Push only works when NPC is also adjacent "
+    "to the same box. Box pushed onto HOLE removes both box and hole.",
     [
-        ("easy", "7x7 open grid, no obstacles. NPC responsive."),
-        ("medium", "10x10 grid, 2 obstacles."),
-        ("hard", "13x13 maze, 4 obstacles. Strict NPC positioning required."),
-        ("expert", "15x15 dense maze, 6 obstacles. Maximum coordination challenge."),
+        ("easy", "9x9 grid, 1 box, 1 hole, no obstacles."),
+        ("medium", "12x12 grid, 2 boxes, 2 holes, 3 obstacles."),
+        ("hard", "15x15 grid, 3 boxes, 3 holes, 6 obstacles."),
+        ("expert", "18x18 grid, 4 boxes, 4 holes, 9 obstacles."),
     ],
     tags=["multi_agent", "cooperation"],
 )
 
 _td(
-    "CompetitiveTag-v0",
+    "TagHunt-v0",
     "multi_agent",
-    "Tag all NPCs while avoiding being tagged in return. Bidirectional tag game "
-    "with safe zones (ICE terrain) where no tagging can occur. Tag cooldown after contact.",
-    "NPC agents (chase/evade behavior), safe zones (ICE terrain, no tagging), "
-    "GOAL (appears after all tagged), WALL (obstacles), tag cooldown state.",
-    "Tag all NPCs by reaching their positions. Avoid being tagged by them.",
-    "Move in 4 directions. Collision with NPC triggers tagging (bidirectional).",
+    "Tag all fleeing NPCs before time runs out. NPCs evade the agent. "
+    "SWITCH objects freeze all NPCs for 5 steps when activated (one-time use).",
+    "ENEMY (fleeing NPCs), SWITCH (freeze power-up, one-time use), WALL (obstacles).",
+    "Tag all NPCs by stepping onto them. Use freeze switches strategically.",
+    "Move in 4 directions. Step on ENEMY to tag it. Step on SWITCH to freeze all NPCs for 5 steps.",
     [
-        ("easy", "7x7 grid, 1 NPC (40% evade, 10% chase), 1 safe zone, cooldown 3."),
-        ("medium", "10x10 grid, 2 NPCs (50% evade, 20% chase), 2 safe zones, cooldown 2, 2 obstacles."),
-        ("hard", "13x13 grid, 3 NPCs (60% evade, 30% chase), 2 safe zones, cooldown 2, 4 obstacles."),
-        ("expert", "15x15 grid, 4 NPCs (55% evade, 40% chase), 3 safe zones, cooldown 1, 6 obstacles."),
+        ("easy", "7x7 grid, 1 NPC (50% evade), 1 freeze switch, no obstacles."),
+        ("medium", "10x10 grid, 2 NPCs (65% evade), 1 freeze switch, 3 obstacles."),
+        ("hard", "13x13 grid, 3 NPCs (80% evade), 1 freeze switch, 5 obstacles."),
+        ("expert", "15x15 grid, 4 NPCs (90% evade), 1 freeze switch, 7 obstacles."),
     ],
     tags=["multi_agent", "competition"],
 )
 
-# ── COMPOSITIONAL ─────────────────────────────────────────────────────────
+# ── NAVIGATION (cont.) / REASONING (cont.) ────────────────────────────────
 
 _td(
     "InstructionFollowing-v0",
-    "compositional",
-    "Follow an encoded instruction to reach the correct zone among multiple goal "
-    "zones. Wrong zone selection incurs penalty. Hard+ adds waypoint and switch prerequisites.",
-    "Goal zones (TARGET objects, multiple), instruction indicator (metadata), "
-    "waypoints (GEM, hard+), conditional switches (SWITCH, hard+), Guard NPCs (hard+).",
-    "Reach the zone indicated by the instruction. Hard+ requires visiting waypoints "
-    "and activating switches first.",
-    "Move in 4 directions to the designated zone.",
+    "navigation",
+    "Navigate to the one target object (GEM, SCROLL, ORB, or COIN) while avoiding "
+    "distractor objects of different types. Touching a distractor ends the episode "
+    "with penalty. Hard+ adds key-and-door rooms gating the target.",
+    "Target object (one of GEM/SCROLL/ORB/COIN), distractor objects (other types), "
+    "KEY and DOOR (hard+, color-coded).",
+    "Reach the unique target object without touching any distractor. "
+    "Hard+ requires collecting a key to unlock the door.",
+    "Move in 4 directions. Stepping on a KEY auto-collects it. Walking into a DOOR "
+    "with the matching key opens it.",
     [
-        ("easy", "7x7 grid, 2 zones, simple binary instruction. No guards or prerequisites."),
-        ("medium", "10x10 grid, 3 zones, multi-step instruction, 1 distractor. No guards."),
-        ("hard", "13x13 maze, 4 zones, conditional instruction, 2 distractors, 1 guard."),
-        ("expert", "15x15 maze, 5 zones, multi-conditional, 3 distractors, 2 guards."),
+        ("easy", "7x7 grid, 1 target, 3 distractors, no doors."),
+        ("medium", "10x10 grid, 1 target, 6 distractors, no doors."),
+        ("hard", "13x13 grid, 1 target, 8 distractors, 1 key-door room."),
+        ("expert", "15x15 grid, 1 target, 12 distractors, 2 key-door rooms."),
     ],
     tags=["language", "grounding", "instruction"],
 )
 
 _td(
     "ProgramSynthesis-v0",
-    "compositional",
-    "Complete a visible pattern by pushing GEM objects to TARGET positions on the floor. "
-    "Fixed SCROLL blocks show the existing partial pattern. GEMs are pushed Sokoban-style "
-    "(walk into a gem to slide it one cell forward).",
-    "SCROLL objects (fixed pattern blocks, immovable), GEM objects (movable, push to targets), "
-    "TARGET positions (marked on floor, where gems must go), WALL (obstacles).",
-    "Push all GEM objects onto TARGET positions to complete the pattern.",
-    "Move in 4 directions. Walk into a GEM to push it in your movement direction. "
+    "reasoning",
+    "Replicate a reference SCROLL pattern by pushing scattered GEM objects (Sokoban-style) "
+    "into the same relative shape. The reference pattern (line, L, T, or cross) is shown as "
+    "immovable SCROLL objects. Matching is translation-invariant: GEMs must form the same "
+    "normalized offsets as SCROLLs, anywhere on the map.",
+    "SCROLL objects (immovable reference pattern), GEM objects (pushable, Sokoban-style), "
+    "WALL (obstacles). No TARGET markers — GEMs just need to match the SCROLL shape.",
+    "Push all GEM objects so they form the same relative pattern as the reference SCROLLs.",
+    "Move in 4 directions. Walk into a GEM to push it one cell in your movement direction. "
     "Cannot push gems into walls, other gems, or SCROLL blocks.",
     [
-        ("easy", "7x7 grid, horizontal line pattern, 3 fixed blocks, 1 gem to push."),
-        ("medium", "9x9 grid, L-shape pattern, 4 fixed blocks, 2 gems."),
-        ("hard", "11x11 grid, T-shape pattern, 5 fixed blocks, 3 gems."),
-        ("expert", "13x13 grid, cross/plus pattern, 7 fixed blocks, 4 gems."),
+        ("easy", "9x9 grid, line pattern, 3 gems to push."),
+        ("medium", "11x11 grid, L-shape pattern, 4 gems."),
+        ("hard", "13x13 grid, T-shape pattern, 5 gems."),
+        ("expert", "15x15 grid, cross pattern, 6 gems."),
     ],
     tags=["reasoning", "planning", "abstraction"],
 )
 
 _td(
     "RecursiveRooms-v0",
-    "compositional",
+    "navigation",
     "Navigate recursively subdivided nested rooms. Grid is divided into quadrants "
     "with walls; each quadrant subdivides further. GOAL is in the deepest nested room.",
     "Recursive room structure (walls and doorways), doorways (EMPTY gaps in walls, "
@@ -765,19 +769,19 @@ _td(
     "Navigate through nested rooms to reach GOAL in the deepest room.",
     "Move in 4 directions through doorways between rooms.",
     [
-        ("easy", "15x15 grid, depth 2 (4 rooms), 3 doorways per level."),
-        ("medium", "21x21 grid, depth 3 (16 rooms), 3 doorways per level."),
-        ("hard", "27x27 grid, depth 4 (64 rooms), 3 doorways, goal in random deepest room."),
-        ("expert", "33x33 grid, depth 5 (256 rooms), sealed doorways, deep random goal."),
+        ("easy", "13x13 grid, depth 2 (4 rooms), 3 doorways per level."),
+        ("medium", "19x19 grid, depth 3 (16 rooms), 3 doorways per level."),
+        ("hard", "25x25 grid, depth 4 (64 rooms), 3 doorways, goal in random deepest room."),
+        ("expert", "31x31 grid, depth 4 (64 rooms), sealed doorways, deep random goal."),
     ],
     tags=["hierarchical", "planning", "composition"],
 )
 
-# ── ADVERSARIAL ───────────────────────────────────────────────────────────
+# ── GENERALIZATION / REASONING (cont.) ────────────────────────────────────
 
 _td(
     "NoisyObservation-v0",
-    "adversarial",
+    "generalization",
     "Find the true GOAL hidden among heavy visual noise: decoy TARGETs, ghost objects "
     "that appear/disappear each step, moving decoys, and patrolling guards.",
     "True GOAL (single), decoy TARGETs (look similar), ghost objects (SCROLL/ORB/LEVER "
@@ -795,79 +799,100 @@ _td(
 
 _td(
     "DistributionShift-v0",
-    "adversarial",
-    "Multi-phase task: collect COINs, then adapt to terrain shifts (EMPTY<->HAZARD, "
-    "walls toggle) and reach the GOAL. Medium+ adds action remaps.",
-    "COIN objects (phase 1), GOAL (appears after shift), "
-    "WALL (toggles at shift), HAZARD (swaps with EMPTY at shift), action remap (medium+).",
-    "Complete phase 1 (collect COINs), adapt to shift, reach GOAL.",
-    "Move in 4 directions. After shift, terrain changes and actions may remap (medium+).",
+    "generalization",
+    "Multi-phase maze navigation: reach 3 GOAL positions across shifting DFS mazes. "
+    "After each goal, the maze regenerates with a new layout and goal position. "
+    "Hard+ adds wall-toggling (walls appear/disappear between phases). "
+    "Expert adds action remapping (UP<->DOWN, LEFT<->RIGHT). No enemies at any difficulty.",
+    "GOAL (1 per phase, 3 total), WALL (DFS maze, toggling walls at hard+), "
+    "KEY/DOOR (hard+, color-coded), action remap (expert, UP<->DOWN LEFT<->RIGHT).",
+    "Reach all 3 goals across shifting maze phases.",
+    "Move in 4 directions. Pick up KEYs to unlock DOORs. Maze layout and wall "
+    "configuration change between phases. At expert, action controls flip.",
     [
-        ("easy", "7x7 grid, 1 shift, 3 coins. No wall toggle or action remap."),
-        ("medium", "9x9 grid, 2 shifts, 4 coins, wall toggle, left/right action remap."),
-        ("hard", "11x11 grid, 3 shifts, 5 coins, wall toggle + hazard swap, full action remap."),
-        ("expert", "13x13 grid, 4 shifts, 6 coins, complex toggles, full action remap."),
+        ("easy", "9x9 DFS maze, 3 goals, maze shifts between phases. max_steps=200."),
+        ("medium", "11x11 DFS maze, 3 goals, maze shifts. max_steps=350."),
+        ("hard", "13x13 DFS maze, 3 goals, 1 key-door, walls toggle. max_steps=500."),
+        ("expert", "15x15 DFS maze, 3 goals, 2 key-doors, walls toggle + remap."),
     ],
     tags=["generalization", "ood", "robustness"],
 )
 
 _td(
     "DeceptiveReward-v0",
-    "adversarial",
-    "Navigate through HAZARD trap fields to reach the true GOAL. Phase 1 has no visible "
-    "goal; phase 2 goal appears. Trap layouts are biased toward the goal to lure the agent.",
-    "HAZARD traps (various patterns: scattered, barrier, ring, mines), true GOAL "
-    "(appears phase 2), trap gradient (hard+, denser near goal), moving traps (expert).",
-    "Survive phase 1, then reach true GOAL in phase 2 after it appears. "
-    "Hazard touch is fatal.",
-    "Move in 4 directions. Avoid hazard traps at all costs; they end the episode.",
+    "reasoning",
+    "Misleading reward gradient. Decoy paths branch from hub with COIN chains leading "
+    "to TARGET objects (touching = failure). True path has no visible rewards, takes a "
+    "longer winding route to GOAL. Collecting ANY coin closes the gate to the true path. "
+    "Dense reward intentionally points toward decoy coins. Hard+ adds key+door on true "
+    "path. Expert places coins near key locations to tempt during key collection.",
+    "COIN objects (decoy reward chains along branching paths), TARGET (decoy endpoint, "
+    "touching = failure), GOAL (true objective, on reward-free path), KEY and DOOR "
+    "(hard+, gate the true path).",
+    "Resist the coin reward gradient. Navigate the true (reward-free) path to GOAL "
+    "without collecting any coins.",
+    "Move in 4 directions. Coins are auto-collected on contact. Collecting a coin "
+    "permanently closes the true path gate. Step on TARGET = failure.",
     [
-        ("easy", "7x7 grid, 10% trap density, mixed layout. No gradient or moving traps."),
-        ("medium", "10x10 grid, 18% trap density, mixed layout."),
-        ("hard", "13x13 grid, 28% trap density, trap gradient toward goal."),
-        ("expert", "15x15 grid, 38% trap density, trap gradient, moving traps. Maximum danger."),
+        ("easy", "9x9 grid, Y-fork, 1 decoy path, 3 coins. Direct true path, no keys."),
+        ("medium", "12x12 grid, 2 decoy paths (right + L-turn), 5 coins each. "
+         "Winding true path through mid-grid to bottom-right goal."),
+        ("hard", "14x14 grid, 3 decoy paths at varied depths, 6 coins each. "
+         "True path behind key+door. Decoy 3 branches off past door."),
+        ("expert", "16x16 labyrinth, 4 decoy paths, 7 coins each. 2 keys+doors. "
+         "Decoy paths near key alcoves tempt during key collection."),
     ],
     tags=["robustness", "reward_hacking", "exploration"],
 )
 
-# ── META ──────────────────────────────────────────────────────────────────
+# ── GENERALIZATION (cont.) / REASONING (cont.) ───────────────────────────
 
 _td(
     "FewShotAdaptation-v0",
-    "meta",
-    "Observe example demonstrations showing a hidden rule, then apply that rule to "
-    "new test cases. Rules are compositional (e.g. color+shape matching).",
-    "Example zone (shows correct rule application visually), test zone (agent applies rule), "
-    "variant objects (colors, types, sizes vary), GOAL (appears after correct application).",
-    "Observe examples, identify the hidden rule pattern, complete test task.",
-    "Move in 4 directions. Interact with test objects according to the inferred rule.",
+    "generalization",
+    "K auto-advancing demo trials followed by 1 test trial. Each trial places N "
+    "candidate objects (GEM, SCROLL, ORB, COIN). A hidden rule determines the correct "
+    "candidate: goto_type, nearest_corner, furthest_start, or most_open (hard+). Demo "
+    "trials briefly highlight the correct candidate as GOAL, then revert. Test trial: "
+    "agent must navigate to the correct candidate. Wrong choice = failure.",
+    "Candidate objects (GEM, SCROLL, ORB, COIN), GOAL highlight (shown briefly during "
+    "demos, reverts after reveal_steps), WALL (obstacles at medium+).",
+    "Watch demo trials to infer the hidden rule, then navigate to the correct "
+    "candidate object in the test trial. Stepping on wrong candidate = failure.",
+    "Move in 4 directions. Demo trials auto-advance (no interaction). In the test "
+    "trial, step on a candidate object to select it.",
     [
-        ("easy", "7x7 grid, 2 candidates, 2 demos shown for 12 steps each. Clear pattern."),
-        ("medium", "9x9 grid, 3 candidates, 2 demos shown for 8 steps, 4 obstacles."),
-        ("hard", "11x11 grid, 3 candidates, 3 demos shown for 5 steps, 6 obstacles, 1 guard."),
-        ("expert", "13x13 grid, 4 candidates, 3 demos shown for 3 steps, 8 obstacles, 2 guards."),
+        ("easy", "7x7 grid, 2 candidates, 2 demos, 12-step reveal. "
+         "Rules: goto_type, nearest_corner."),
+        ("medium", "9x9 grid, 3 candidates, 2 demos, 8-step reveal, 4 obstacles."),
+        ("hard", "11x11 grid, 3 candidates, 2 demos, 5-step reveal, "
+         "6 obstacles. Adds most_open rule."),
+        ("expert", "13x13 grid, 4 candidates, 3 demos, 3-step reveal, 8 obstacles. All 4 rules."),
     ],
     tags=["meta_learning", "adaptation", "few_shot"],
 )
 
 _td(
     "TaskInterference-v0",
-    "meta",
-    "Complete two competing objectives: deliver COINs to GOAL-1 and GEMs to GOAL-2. "
-    "Interference: picking up a COIN destroys the nearest uncollected GEM (and vice versa). "
-    "Physical interference walls appear at medium+.",
-    "COIN objects (deliver to GOAL-1), GEM objects (deliver to GOAL-2), "
-    "GOAL-1 and GOAL-2 (typed delivery zones), interference walls (medium+, block paths "
-    "after pickup), distractor items (expert).",
-    "Deliver ALL COINs to GOAL-1 AND ALL GEMs to GOAL-2. Minimize interference.",
-    "Move in 4 directions. Items are picked up and delivered automatically at goal zones.",
+    "reasoning",
+    "Resource Tug-of-War: two meters (GEM and ORB) start at 0.0 and must both reach a "
+    "threshold. GEM items raise GEM meter +0.25 but cross-drain ORB; ORB items raise "
+    "ORB meter +0.25 but cross-drain GEM. Cross-drain is 0.10 at easy/medium, 0.15 at "
+    "hard+. At hard+: consecutive same-type penalty (extra -0.05 drain). "
+    "At medium+: items flee from agent every 3 steps. At hard+: both meters decay 0.005/step.",
+    "GEM objects (metadata=1), ORB objects (metadata=2). Items scattered on "
+    "open floor. At medium+ items move away from agent every 3 steps.",
+    "Raise both GEM and ORB meters to >= threshold simultaneously. Alternate collection "
+    "to avoid cross-drain and consecutive penalty.",
+    "Move in 4 directions. Items auto-collected on contact. "
+    "Collecting raises one meter and cross-drains the other.",
     [
-        ("easy", "9x9 grid, 2 coins + 2 gems. No interference mechanic, open layout."),
-        ("medium", "11x11 grid, 3 coins + 3 gems, interference ON, walls appear on coin pickup."),
-        ("hard", "13x13 grid, 4+4 items, interference ON, walls on both coin and gem pickup."),
-        ("expert", "15x15 grid, 5+5 items, interference walls on both, maximum complexity."),
+        ("easy", "9x9, 4 gem + 4 orb, threshold=0.6, 0.10 cross-drain, items stationary."),
+        ("medium", "11x11, 5+5, threshold=0.7, 0.10 cross-drain, items flee every 3 steps."),
+        ("hard", "13x13, 8+8, threshold=0.8, 0.15 drain, penalties, 0.005 decay/step."),
+        ("expert", "15x15, 10+10, threshold=0.8, 0.15 drain, penalties, 0.005 decay/step."),
     ],
-    tags=["multi_task", "interference", "meta_learning"],
+    tags=["meta_learning", "multi_objective"],
 )
 
 

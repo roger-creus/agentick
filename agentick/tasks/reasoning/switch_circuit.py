@@ -1,15 +1,30 @@
-"""SwitchCircuit - Complementary color-coded toggle switches with barrier zones.
+"""SwitchCircuit - Room-based dual-toggle switch dependency puzzle.
 
 MECHANICS:
-  - N colored switches and N colored wall barriers divide the map into zones
-  - Toggling switch i (color i) OPENS barrier i but CLOSES barrier (i+1)%N
-  - Agent must toggle switches in order 0..N-1, navigating through each
-    newly opened barrier before the complementary effect closes anything
-  - All barriers start as WALL (closed); goal is in the last zone
-  - Success = agent on GOAL cell after passing all barriers
+  - Grid divided into rooms connected by single-cell doors
+  - N switches, one per room (Si in room Ri)
+  - Each switch opens the NEXT door; dual switches also close the PREVIOUS door
+  - INTERACT (action 8) on a switch toggles it ON/OFF; effects reverse when OFF
+  - A barrier is OPEN if at least one switch that 'opens' it is ON
+    AND no switch that 'closes' it is ON
+
+TOPOLOGY:
+  - Easy: linear chain R0--D0--R1--D1--GoalRoom (no dual switches)
+  - Medium+: chain rooms with GoalRoom hanging off Hub (R0) via D_goal:
+      R0(S0)--D0--R1(S1)--...--R(N-1)(S(N-1))
+       |
+      D_goal
+       |
+      GoalRoom(GOAL)
+    Dual switches open the next door but close the previous, forcing the
+    agent to unwind toggles (ON->OFF) to get back to Hub and reach GoalRoom.
+
+  - Success = agent on GOAL cell
 """
 
 from __future__ import annotations
+
+from collections import deque
 
 import numpy as np
 
@@ -20,43 +35,84 @@ from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
 
+def _bfs_reachable(terrain, start, height, width):
+    """BFS flood-fill on terrain array. Returns set of reachable (x,y)."""
+    visited = {start}
+    q = deque([start])
+    while q:
+        cx, cy = q.popleft()
+        for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+            nx, ny = cx + dx, cy + dy
+            if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in visited:
+                t = int(terrain[ny, nx])
+                if t not in (int(CellType.WALL), int(CellType.HAZARD)):
+                    visited.add((nx, ny))
+                    q.append((nx, ny))
+    return visited
+
+
+def _room_connected(terrain, room_bounds):
+    """Check if all EMPTY cells in a room are connected via BFS."""
+    x_s, x_e, y_s, y_e = room_bounds
+    free = []
+    for y in range(y_s, y_e + 1):
+        for x in range(x_s, x_e + 1):
+            if int(terrain[y, x]) == int(CellType.EMPTY):
+                free.append((x, y))
+    if len(free) <= 1:
+        return True
+    visited = {free[0]}
+    q = deque([free[0]])
+    while q:
+        cx, cy = q.popleft()
+        for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+            nx, ny = cx + dx, cy + dy
+            if (
+                x_s <= nx <= x_e and y_s <= ny <= y_e
+                and (nx, ny) not in visited
+                and int(terrain[ny, nx]) == int(CellType.EMPTY)
+            ):
+                visited.add((nx, ny))
+                q.append((nx, ny))
+    return len(visited) == len(free)
+
+
 @register_task("SwitchCircuit-v0", tags=["combinatorial_logic", "reasoning"])
 class SwitchCircuitTask(TaskSpec):
-    """Toggle color-coded switches in order to open barriers and reach the goal.
+    """Room-based switch puzzle with forced toggle cycles.
 
-    N horizontal wall barriers divide the grid into N+1 zones. Each switch
-    has a matching color index. Toggling switch i opens barrier i but closes
-    barrier (i+1)%N, so the agent must proceed through each barrier
-    immediately after opening it.
+    Rooms connected by single-cell doors. Each switch opens the next door;
+    dual switches (medium+) also close the previous door, forcing the agent
+    to toggle switches ON->OFF->ON to navigate back and reach the goal.
     """
 
     name = "SwitchCircuit-v0"
-    description = "Toggle color-coded switches to open barriers and reach the goal"
+    description = "Plan switch activation order to open barriers and reach the goal"
     capability_tags = ["combinatorial_logic", "reasoning"]
 
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy",
-            grid_size=7,
-            max_steps=80,
+            grid_size=11,
+            max_steps=100,
             params={"n_switches": 2},
         ),
         "medium": DifficultyConfig(
             name="medium",
-            grid_size=9,
-            max_steps=150,
+            grid_size=13,
+            max_steps=250,
             params={"n_switches": 3},
         ),
         "hard": DifficultyConfig(
             name="hard",
-            grid_size=11,
-            max_steps=250,
+            grid_size=15,
+            max_steps=400,
             params={"n_switches": 4},
         ),
         "expert": DifficultyConfig(
             name="expert",
-            grid_size=13,
-            max_steps=400,
+            grid_size=19,
+            max_steps=600,
             params={"n_switches": 5},
         ),
     }
@@ -65,267 +121,444 @@ class SwitchCircuitTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         n = self.difficulty_config.params.get("n_switches", 2)
+        has_dual = n >= 3
 
         grid = Grid(size, size)
+        grid.terrain[:, :] = CellType.WALL
 
-        # Border walls
-        grid.terrain[0, :] = CellType.WALL
-        grid.terrain[-1, :] = CellType.WALL
-        grid.terrain[:, 0] = CellType.WALL
-        grid.terrain[:, -1] = CellType.WALL
+        if has_dual:
+            rooms, barriers, goal_room = self._layout_dual(grid, n, size, rng)
+        else:
+            rooms, barriers, goal_room = self._layout_easy(grid, n, size, rng)
 
-        agent_pos = (1, 1)
+        # Place switches: Si in Ri (one switch per chain room)
+        used_positions: set[tuple[int, int]] = set()
+        switch_positions = []
+        chain_rooms = rooms if has_dual else rooms[:n]
 
-        # Compute barrier rows so every zone has at least one interior row
-        # for switch/goal placement.
-        #
-        # Interior rows available: 1 .. size-2 inclusive.
-        # We need n barriers plus n+1 zones each containing >= 1 free row.
-        # Minimum rows: 2*n + 1.  The difficulty configs guarantee size >= 2*n+3.
-        #
-        # Barriers may occupy rows 2 .. size-3 inclusive so that:
-        #   - row 1 is always free for zone 0 (agent start zone)
-        #   - row size-2 is always free for zone n (goal zone)
-        # This guarantees each boundary zone has at least one free row.
-        #
-        # Divide the range [2 .. size-3] into n+1 equal-ish segments and place
-        # barrier i at the boundary between segment i and i+1.
-        barrier_min_row = 2
-        barrier_max_row = size - 3  # inclusive; row size-2 reserved for goal zone
-
-        # Number of barrier-eligible rows
-        row_range = barrier_max_row - barrier_min_row + 1  # >= 1
-        # spacing between barrier positions (rows per segment, including barrier)
-        spacing = max(2, row_range // n)
-        barrier_rows = []
         for i in range(n):
-            row = barrier_min_row + i * spacing
-            row = min(row, barrier_max_row)
-            barrier_rows.append(row)
-
-        # Enforce separation: each barrier must be >= 2 rows from the previous
-        # so there is at least one free row between consecutive barriers.
-        fixed: list[int] = []
-        for row in barrier_rows:
-            if fixed:
-                row = max(row, fixed[-1] + 2)
-            row = min(row, barrier_max_row)
-            fixed.append(row)
-        barrier_rows = fixed[:n]
-
-        # Record barrier cells per color index (color = barrier index 0..n-1)
-        # Leave one gap column in each barrier row so passage is possible
-        # when the barrier is opened. The gap is at column = size//2 (center).
-        gap_col = size // 2
-        barrier_cells: dict[int, list[tuple[int, int]]] = {}
-        for color_idx, row in enumerate(barrier_rows):
-            cells = []
-            for x in range(1, size - 1):
-                if x != gap_col:
-                    grid.terrain[row, x] = CellType.WALL
-                    grid.metadata[row, x] = color_idx
-                    cells.append((x, row))
-            barrier_cells[color_idx] = cells
-
-        # Place switches — one per zone BEFORE its corresponding barrier.
-        # Zone i is between barrier[i-1] (or top) and barrier[i].
-        # Switch[i] goes in zone i.
-        zone_bounds: list[tuple[int, int]] = []
-        prev_top = 1  # inclusive first row of zone
-        for i in range(n):
-            zone_top = prev_top
-            zone_bot = barrier_rows[i] - 1  # inclusive last row before barrier
-            zone_bounds.append((zone_top, zone_bot))
-            prev_top = barrier_rows[i] + 1
-
-        switch_positions: list[tuple[int, int]] = []
-        used_positions = {agent_pos}
-        for i in range(n):
-            zone_top, zone_bot = zone_bounds[i]
-            # Gather free cells in this zone
+            x_s, x_e, y_s, y_e = chain_rooms[i]
             free = [
                 (x, y)
-                for y in range(zone_top, zone_bot + 1)
-                for x in range(1, size - 1)
-                if (x, y) not in used_positions
-                and grid.terrain[y, x] == CellType.EMPTY
-                and grid.objects[y, x] == ObjectType.NONE
+                for y in range(y_s, y_e + 1)
+                for x in range(x_s, x_e + 1)
+                if int(grid.terrain[y, x]) == int(CellType.EMPTY)
+                and (x, y) not in used_positions
             ]
-            if not free:
-                # Fallback: any non-wall, non-agent interior cell
-                free = [
-                    (x, y)
-                    for y in range(1, size - 1)
-                    for x in range(1, size - 1)
-                    if (x, y) not in used_positions
-                    and grid.terrain[y, x] == CellType.EMPTY
-                ]
             rng.shuffle(free)
             sx, sy = free[0]
             switch_positions.append((sx, sy))
             used_positions.add((sx, sy))
             grid.objects[sy, sx] = ObjectType.SWITCH
-            grid.metadata[sy, sx] = i  # color index = switch index
+            grid.metadata[sy, sx] = 0
 
-        # Goal in the last zone (between last barrier and bottom wall)
-        last_zone_top = barrier_rows[-1] + 1
-        goal_candidates = [
+        # Place agent in R0
+        r0 = chain_rooms[0]
+        free = [
             (x, y)
-            for y in range(last_zone_top, size - 1)
-            for x in range(1, size - 1)
-            if (x, y) not in used_positions
-            and grid.terrain[y, x] == CellType.EMPTY
+            for y in range(r0[2], r0[3] + 1)
+            for x in range(r0[0], r0[1] + 1)
+            if int(grid.terrain[y, x]) == int(CellType.EMPTY)
+            and (x, y) not in used_positions
         ]
-        if not goal_candidates:
-            # Fallback to bottom-right area
-            goal_candidates = [
-                (x, y)
-                for y in range(1, size - 1)
-                for x in range(1, size - 1)
-                if (x, y) not in used_positions and grid.terrain[y, x] == CellType.EMPTY
-            ]
-        rng.shuffle(goal_candidates)
-        goal_pos = goal_candidates[0]
+        rng.shuffle(free)
+        agent_pos = free[0]
+        used_positions.add(agent_pos)
+
+        # Place goal in GoalRoom
+        free = [
+            (x, y)
+            for y in range(goal_room[2], goal_room[3] + 1)
+            for x in range(goal_room[0], goal_room[1] + 1)
+            if int(grid.terrain[y, x]) == int(CellType.EMPTY)
+            and (x, y) not in used_positions
+        ]
+        rng.shuffle(free)
+        goal_pos = free[0]
+        used_positions.add(goal_pos)
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        return grid, {
+        # Build switch effects
+        n_barriers = len(barriers)
+        switch_effects = self._build_dependency_graph(n, n_barriers)
+
+        # Add scatter walls for visual interest (with connectivity check)
+        self._add_scatter_walls(grid, chain_rooms, goal_room,
+                                used_positions, barriers, rng)
+
+        # Validate solvability
+        valid = self._validate_solvable_bfs(
+            n, barriers, switch_effects, grid, agent_pos, goal_pos,
+            switch_positions, size,
+        )
+        if not valid:
+            switch_effects = self._build_simple_chain(n, n_barriers)
+
+        config = {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
             "switch_positions": switch_positions,
-            "barrier_rows": barrier_rows,
-            "barrier_cells": {k: [list(c) for c in v] for k, v in barrier_cells.items()},
-            "gap_col": gap_col,
+            "switch_states": [False] * n,
+            "barriers": barriers,
+            "switch_effects": switch_effects,
             "max_steps": self.get_max_steps(),
         }
 
-    def on_env_reset(self, agent, grid, config):
-        """Initialise runtime state: all switches OFF, barriers closed."""
-        config["_switches_on"] = set()
+        return grid, config
 
-        # Re-close all barriers (they may have been opened in a prior episode)
-        barrier_cells = config.get("barrier_cells", {})
-        for color_idx_str, cells in barrier_cells.items():
-            color_idx = int(color_idx_str)
+    # ------------------------------------------------------------------
+    # Layout helpers
+    # ------------------------------------------------------------------
+
+    def _layout_easy(self, grid, n, size, rng):
+        """Easy: N+1 rooms in a single horizontal row, GoalRoom is last."""
+        n_rooms = n + 1
+        interior_width = size - 2
+        n_walls = n_rooms - 1
+        room_space = interior_width - n_walls
+        base_w = room_space // n_rooms
+        remainder = room_space % n_rooms
+
+        rooms = []
+        x = 1
+        for i in range(n_rooms):
+            w = base_w + (1 if i < remainder else 0)
+            rooms.append((x, x + w - 1, 1, size - 2))
+            x += w
+            if i < n_rooms - 1:
+                x += 1  # wall column
+
+        # Carve rooms
+        for x_s, x_e, y_s, y_e in rooms:
+            for y in range(y_s, y_e + 1):
+                for x in range(x_s, x_e + 1):
+                    grid.terrain[y, x] = CellType.EMPTY
+
+        # Place doors between rooms
+        barriers = []
+        for i in range(n_rooms - 1):
+            wall_x = rooms[i][1] + 1
+            y_s, y_e = rooms[i][2], rooms[i][3]
+            door_y = int(rng.integers(y_s, y_e + 1))
+            barriers.append({"cells": [[wall_x, door_y]], "open": False})
+
+        goal_room = rooms[-1]
+        return rooms, barriers, goal_room
+
+    def _layout_dual(self, grid, n, size, rng):
+        """Medium+: N chain rooms on top, GoalRoom below R0."""
+        n_chain = n
+
+        # Vertical split: top ~70%, bottom ~30%
+        interior_height = size - 2
+        top_height = max(3, interior_height * 7 // 10)
+        sep_row = 1 + top_height
+        if sep_row > size - 4:
+            sep_row = size - 4
+        if sep_row < 4:
+            sep_row = 4
+
+        # Chain rooms: horizontal row in top section
+        interior_width = size - 2
+        n_walls = n_chain - 1
+        room_space = interior_width - n_walls
+        base_w = room_space // n_chain
+        remainder = room_space % n_chain
+
+        rooms = []
+        x = 1
+        for i in range(n_chain):
+            w = base_w + (1 if i < remainder else 0)
+            rooms.append((x, x + w - 1, 1, sep_row - 1))
+            x += w
+            if i < n_chain - 1:
+                x += 1
+
+        # Carve chain rooms
+        for x_s, x_e, y_s, y_e in rooms:
+            for y in range(y_s, y_e + 1):
+                for x in range(x_s, x_e + 1):
+                    grid.terrain[y, x] = CellType.EMPTY
+
+        # Doors between chain rooms: D0..D(n_chain-2)
+        barriers = []
+        for i in range(n_chain - 1):
+            wall_x = rooms[i][1] + 1
+            y_s, y_e = rooms[i][2], rooms[i][3]
+            door_y = int(rng.integers(y_s, y_e + 1))
+            barriers.append({"cells": [[wall_x, door_y]], "open": False})
+
+        # GoalRoom below R0
+        r0_x_s, r0_x_e = rooms[0][0], rooms[0][1]
+        goal_room = (r0_x_s, r0_x_e, sep_row + 1, size - 2)
+
+        # Carve GoalRoom
+        for y in range(goal_room[2], goal_room[3] + 1):
+            for x in range(goal_room[0], goal_room[1] + 1):
+                grid.terrain[y, x] = CellType.EMPTY
+
+        # D_goal: door in separator wall connecting R0 to GoalRoom
+        door_x = int(rng.integers(r0_x_s, r0_x_e + 1))
+        barriers.append({"cells": [[door_x, sep_row]], "open": False})
+
+        return rooms, barriers, goal_room
+
+    # ------------------------------------------------------------------
+    # Dependency graph
+    # ------------------------------------------------------------------
+
+    def _build_dependency_graph(self, n_switches, n_barriers):
+        """Build switch effects: Si opens Di, dual switches close D(i-1).
+
+        Easy (n<=2): simple chain, no closes.
+        Medium+ (n>=3): S0 opens D0, Si (0<i<n-1) opens Di + closes D(i-1),
+                        S(n-1) opens D_goal (last barrier).
+        """
+        if n_switches == 0 or n_barriers == 0:
+            return []
+
+        if n_switches <= 2:
+            return self._build_simple_chain(n_switches, n_barriers)
+
+        effects = []
+        for i in range(n_switches):
+            opens = [i]
+            closes = []
+            if 0 < i < n_switches - 1:
+                closes = [i - 1]
+            effects.append({"opens": opens, "closes": closes})
+        return effects
+
+    def _build_simple_chain(self, n_switches, n_barriers):
+        """Simple chain: switch i opens barrier i, no closes."""
+        effects = []
+        for i in range(n_switches):
+            b_idx = min(i, n_barriers - 1)
+            effects.append({"opens": [b_idx], "closes": []})
+        return effects
+
+    # ------------------------------------------------------------------
+    # Scatter walls
+    # ------------------------------------------------------------------
+
+    def _add_scatter_walls(self, grid, chain_rooms, goal_room,
+                           used_positions, barriers, rng):
+        """Add random internal walls for visual interest, preserving connectivity."""
+        protected = set(used_positions)
+
+        # Protect cells adjacent to doors
+        for barrier in barriers:
+            for cell in barrier.get("cells", []):
+                dx, dy = cell[0], cell[1]
+                for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+                    nx, ny = dx + ddx, dy + ddy
+                    protected.add((nx, ny))
+
+        all_rooms = list(chain_rooms) + [goal_room]
+        for room in all_rooms:
+            x_s, x_e, y_s, y_e = room
+            room_area = (x_e - x_s + 1) * (y_e - y_s + 1)
+            n_walls = max(0, room_area // 12)
+            for _ in range(n_walls):
+                wx = int(rng.integers(x_s, x_e + 1))
+                wy = int(rng.integers(y_s, y_e + 1))
+                if (wx, wy) in protected:
+                    continue
+                if int(grid.terrain[wy, wx]) != int(CellType.EMPTY):
+                    continue
+                grid.terrain[wy, wx] = CellType.WALL
+                if not _room_connected(grid.terrain, room):
+                    grid.terrain[wy, wx] = CellType.EMPTY
+
+    # ------------------------------------------------------------------
+    # Barrier state logic
+    # ------------------------------------------------------------------
+
+    def _compute_barrier_states(self, switch_states, switch_effects, n_barriers):
+        """Compute which barriers are open given current switch states.
+
+        A barrier is OPEN if at least one switch that 'opens' it is ON,
+        AND no switch that 'closes' it is ON.
+        """
+        barrier_open = [False] * n_barriers
+        barrier_has_closer_on = [False] * n_barriers
+
+        for sw_idx, is_on in enumerate(switch_states):
+            if not is_on or sw_idx >= len(switch_effects):
+                continue
+            effects = switch_effects[sw_idx]
+            for b_idx in effects.get("opens", []):
+                if b_idx < n_barriers:
+                    barrier_open[b_idx] = True
+            for b_idx in effects.get("closes", []):
+                if b_idx < n_barriers:
+                    barrier_has_closer_on[b_idx] = True
+
+        return [
+            barrier_open[i] and not barrier_has_closer_on[i]
+            for i in range(n_barriers)
+        ]
+
+    def _apply_barrier_states(self, grid, barriers, barrier_states):
+        """Apply computed barrier states to the grid terrain."""
+        for b_idx, barrier in enumerate(barriers):
+            cells = barrier.get("cells", [])
+            is_open = barrier_states[b_idx] if b_idx < len(barrier_states) else False
+            barrier["open"] = is_open
             for cell in cells:
                 cx, cy = cell[0], cell[1]
-                grid.terrain[cy, cx] = CellType.WALL
-                grid.metadata[cy, cx] = color_idx
+                if is_open:
+                    grid.terrain[cy, cx] = CellType.EMPTY
+                else:
+                    grid.terrain[cy, cx] = CellType.WALL
+                    grid.metadata[cy, cx] = b_idx
 
-        # Place GOAL object
+    def _validate_solvable_bfs(self, n_switches, barriers, switch_effects,
+                               grid, agent_pos, goal_pos,
+                               switch_positions, size):
+        """BFS over (position_index, switch_bitmask) to check solvability."""
+        if n_switches == 0:
+            reachable = _bfs_reachable(grid.terrain, agent_pos, size, size)
+            return goal_pos in reachable
+
+        n_barriers = len(barriers)
+        barrier_cell_sets = [
+            [(c[0], c[1]) for c in b.get("cells", [])] for b in barriers
+        ]
+
+        key_positions = [agent_pos] + list(switch_positions) + [goal_pos]
+
+        def _get_terrain_for_mask(mask):
+            states = [(mask >> i) & 1 for i in range(n_switches)]
+            b_open = self._compute_barrier_states(states, switch_effects, n_barriers)
+            t = grid.terrain.copy()
+            for b_idx, cells in enumerate(barrier_cell_sets):
+                is_open = b_open[b_idx] if b_idx < len(b_open) else False
+                for cx, cy in cells:
+                    t[cy, cx] = int(CellType.EMPTY) if is_open else int(CellType.WALL)
+            return t
+
+        start_state = (0, 0)
+        visited = {start_state}
+        q = deque([start_state])
+
+        while q:
+            pos_idx, mask = q.popleft()
+            pos = key_positions[pos_idx]
+            terrain = _get_terrain_for_mask(mask)
+            reachable = _bfs_reachable(terrain, pos, size, size)
+
+            if goal_pos in reachable:
+                return True
+
+            for sw_i in range(n_switches):
+                sw_pos = switch_positions[sw_i]
+                if sw_pos not in reachable:
+                    continue
+                new_mask = mask ^ (1 << sw_i)
+                new_state = (sw_i + 1, new_mask)
+                if new_state not in visited:
+                    visited.add(new_state)
+                    q.append(new_state)
+
+        return False
+
+    # ---------------------------------------------------------------
+    # Runtime hooks
+    # ---------------------------------------------------------------
+
+    def on_env_reset(self, agent, grid, config):
+        """Initialize runtime state: all switches OFF, all barriers closed."""
+        n = len(config.get("switch_positions", []))
+        config["switch_states"] = [False] * n
+
+        barriers = config.get("barriers", [])
+        for b_idx, barrier in enumerate(barriers):
+            barrier["open"] = False
+            for cell in barrier.get("cells", []):
+                cx, cy = cell[0], cell[1]
+                grid.terrain[cy, cx] = CellType.WALL
+                grid.metadata[cy, cx] = b_idx
+
         goal_pos = config.get("goal_positions", [None])[0]
         if goal_pos:
             gx, gy = goal_pos
             grid.objects[gy, gx] = ObjectType.GOAL
 
-        # Restore switch objects (in case a previous episode removed them)
         switch_positions = config.get("switch_positions", [])
-        for i, (sx, sy) in enumerate(switch_positions):
+        for _i, (sx, sy) in enumerate(switch_positions):
             grid.objects[sy, sx] = ObjectType.SWITCH
-            grid.metadata[sy, sx] = i
+            grid.metadata[sy, sx] = 0
 
         self._config = config
-        self._last_n_switches = 0
 
-    def on_agent_moved(self, pos, agent, grid):
-        """Detect if agent stepped on a SWITCH and toggle it."""
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT on a SWITCH toggles it ON/OFF."""
         config = getattr(self, "_config", {})
         switch_positions = config.get("switch_positions", [])
-        active = config.get("_switches_on", set())
-        barrier_cells = config.get("barrier_cells", {})
-        n = len(switch_positions)
+        switch_states = config.get("switch_states", [])
+        barriers = config.get("barriers", [])
+        switch_effects = config.get("switch_effects", [])
         ax, ay = pos
 
-        # Find which switch (if any) the agent is standing on
-        if (ax, ay) not in switch_positions:
+        sw_idx = None
+        for i, sp in enumerate(switch_positions):
+            if (sp[0], sp[1]) == (ax, ay):
+                sw_idx = i
+                break
+
+        if sw_idx is None:
             return
 
-        switch_color = switch_positions.index((ax, ay))
+        switch_states[sw_idx] = not switch_states[sw_idx]
 
-        if switch_color in active:
-            # Toggle OFF: close barrier[switch_color], open barrier[(switch_color+1)%n]
-            active.discard(switch_color)
-            # Keep switch visible, mark as OFF
-            grid.objects[ay, ax] = ObjectType.SWITCH
-            grid.metadata[ay, ax] = switch_color  # plain = OFF
-
-            # Close barrier of this switch's color
-            self._close_barrier(grid, switch_color, barrier_cells)
-
-            # Open the complementary barrier: (switch_color + 1) % n
-            comp = (switch_color + 1) % n
-            self._open_barrier(grid, comp, barrier_cells)
+        if switch_states[sw_idx]:
+            grid.metadata[ay, ax] = 100
         else:
-            # Toggle ON: open barrier[switch_color], close barrier[(switch_color+1)%n]
-            active.add(switch_color)
-            # Keep switch visible, mark as ON
-            grid.objects[ay, ax] = ObjectType.SWITCH
-            grid.metadata[ay, ax] = switch_color + 100  # +100 = ON
+            grid.metadata[ay, ax] = 0
 
-            # Open barrier of this switch's color
-            self._open_barrier(grid, switch_color, barrier_cells)
-
-            # Close the complementary barrier: (switch_color + 1) % n
-            comp = (switch_color + 1) % n
-            self._close_barrier(grid, comp, barrier_cells)
-
-        config["_switches_on"] = active
-
-    def _open_barrier(self, grid, color_idx, barrier_cells):
-        """Remove all wall cells belonging to barrier color_idx."""
-        key = color_idx
-        cells = barrier_cells.get(key, barrier_cells.get(str(key), []))
-        for cell in cells:
-            cx, cy = cell[0], cell[1]
-            grid.terrain[cy, cx] = CellType.EMPTY
-
-    def _close_barrier(self, grid, color_idx, barrier_cells):
-        """Restore all wall cells belonging to barrier color_idx."""
-        key = color_idx
-        cells = barrier_cells.get(key, barrier_cells.get(str(key), []))
-        for cell in cells:
-            cx, cy = cell[0], cell[1]
-            grid.terrain[cy, cx] = CellType.WALL
-            grid.metadata[cy, cx] = color_idx
+        n_barriers = len(barriers)
+        barrier_open = self._compute_barrier_states(
+            switch_states, switch_effects, n_barriers,
+        )
+        self._apply_barrier_states(grid, barriers, barrier_open)
+        config["switch_states"] = switch_states
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
-        config = new_state.get("config", {})
-        new_n = len(config.get("_switches_on", set()))
-
-        if new_n > self._last_n_switches:
-            reward += 0.2 * (new_n - self._last_n_switches)
-        elif new_n < self._last_n_switches:
-            reward -= 0.1 * (self._last_n_switches - new_n)
-        self._last_n_switches = new_n
-
-        # Approach shaping: guide toward the next switch to activate or the goal
-        if "agent" in new_state:
-            ax, ay = new_state["agent"].position
-            ox, oy = old_state.get("agent_position", (ax, ay))
-            active = config.get("_switches_on", set())
-            switch_positions = config.get("switch_positions", [])
-
-            # Next switch = lowest color index not yet ON
-            next_switch = None
-            for i, spos in enumerate(switch_positions):
-                if i not in active:
-                    next_switch = spos
-                    break
-
-            if next_switch is not None:
-                sx, sy = next_switch
-                d_new = abs(ax - sx) + abs(ay - sy)
-                d_old = abs(ox - sx) + abs(oy - sy)
-                reward += 0.05 * (d_old - d_new)
-            else:
-                goal = config.get("goal_positions", [None])[0]
-                if goal:
-                    d_new = abs(ax - goal[0]) + abs(ay - goal[1])
-                    d_old = abs(ox - goal[0]) + abs(oy - goal[1])
-                    reward += 0.05 * (d_old - d_new)
 
         if self.check_success(new_state):
             reward += 1.0
+            return reward
+
+        config = new_state.get("config", {})
+        if "agent" in new_state:
+            ax, ay = new_state["agent"].position
+            ox, oy = old_state.get("agent_position", (ax, ay))
+            switch_states = config.get("switch_states", [])
+            switch_positions = config.get("switch_positions", [])
+
+            # Shape toward nearest OFF switch, or goal if all correct
+            target = None
+            best_dist = 9999
+            for i, sp in enumerate(switch_positions):
+                if i < len(switch_states) and not switch_states[i]:
+                    d = abs(ax - sp[0]) + abs(ay - sp[1])
+                    if d < best_dist:
+                        best_dist = d
+                        target = (sp[0], sp[1])
+
+            if target is None:
+                goal = config.get("goal_positions", [None])[0]
+                if goal:
+                    target = (goal[0], goal[1])
+
+            if target is not None:
+                tx, ty = target
+                d_new = abs(ax - tx) + abs(ay - ty)
+                d_old = abs(ox - tx) + abs(oy - ty)
+                reward += 0.05 * (d_old - d_new)
+
         return reward
 
     def check_success(self, state):
@@ -338,73 +571,24 @@ class SwitchCircuitTask(TaskSpec):
         return self.check_success(state)
 
     def validate_instance(self, grid, config):
-        """Verify the canonical solution path is feasible.
-
-        Simulates toggling switches in order 0..N-1 on a copy of the grid,
-        checking reachability at each step.
-        """
+        """Verify the puzzle is solvable via BFS over toggle state space."""
         agent_pos = config.get("agent_start", (1, 1))
         switch_positions = config.get("switch_positions", [])
         goal_positions = config.get("goal_positions", [])
-        barrier_cells = config.get("barrier_cells", {})
+        barriers = config.get("barriers", [])
+        switch_effects = config.get("switch_effects", [])
         n = len(switch_positions)
 
         if not switch_positions or not goal_positions:
             return True
 
-        # Simulate the canonical order: toggle switch 0, then 1, ..., then n-1
-        # Use a copied terrain to track open/closed barriers
-        import copy
+        goal_pos = tuple(goal_positions[0])
+        size = grid.height
 
-        sim_terrain = grid.terrain.copy()
-        active = set()
-
-        def open_barrier(color_idx):
-            cells = barrier_cells.get(color_idx, barrier_cells.get(str(color_idx), []))
-            for cell in cells:
-                sim_terrain[cell[1], cell[0]] = int(CellType.EMPTY)
-
-        def close_barrier(color_idx):
-            cells = barrier_cells.get(color_idx, barrier_cells.get(str(color_idx), []))
-            for cell in cells:
-                sim_terrain[cell[1], cell[0]] = int(CellType.WALL)
-
-        def reachable_from(start):
-            """BFS on sim_terrain from start; returns set of (x,y)."""
-            from collections import deque
-
-            visited = {start}
-            q = deque([start])
-            size_h, size_w = sim_terrain.shape
-            while q:
-                cx, cy = q.popleft()
-                for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
-                    nx, ny = cx + dx, cy + dy
-                    if 0 <= nx < size_w and 0 <= ny < size_h:
-                        if (nx, ny) not in visited:
-                            t = int(sim_terrain[ny, nx])
-                            if t not in (int(CellType.WALL), int(CellType.HAZARD)):
-                                visited.add((nx, ny))
-                                q.append((nx, ny))
-            return visited
-
-        current_pos = agent_pos
-        for i in range(n):
-            sx, sy = switch_positions[i]
-            reachable = reachable_from(current_pos)
-            if (sx, sy) not in reachable:
-                return False
-            # Toggle switch i ON
-            active.add(i)
-            open_barrier(i)
-            comp = (i + 1) % n
-            close_barrier(comp)
-            current_pos = (sx, sy)
-
-        # Check goal is reachable after all switches activated
-        reachable = reachable_from(current_pos)
-        goal_pos = goal_positions[0]
-        return tuple(goal_pos) in reachable
+        return self._validate_solvable_bfs(
+            n, barriers, switch_effects, grid, agent_pos, goal_pos,
+            switch_positions, size,
+        )
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

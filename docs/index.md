@@ -2,143 +2,135 @@
 
 **Universal benchmark for evaluating AI agents across all paradigms**
 
-Agentick provides 38 procedurally generated tasks spanning navigation, memory, reasoning, skill discovery, control, and more. Evaluate any agent type: RL, LLM, VLM, hybrid, or human.
+Agentick provides 38 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
 
-## Key Features
+## Try It Now
 
-### 🎯 Multi-Modal Observations
-- **Text**: ASCII, natural language, structured language
-- **Visual**: RGB pixels (84×84×3)
-- **Structured**: Python dictionaries with full state
-- **Human**: Interactive pygame interface
+The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
 
-### 📊 Capability-Decomposed Scoring
-Evaluate agents across 7+ capabilities with radar charts showing strengths and weaknesses.
+```bash
+git clone https://github.com/agentick/agentick.git && cd agentick
+uv sync --extra all
+uv run agentick webapp          # Opens http://localhost:5000
+```
 
-### 🚂 Training-First Design
-- Vectorized environments for fast RL training
-- Curriculum learning support
-- Trajectory export for imitation learning
-- Built-in logging and checkpointing
+## See It in Action
 
-### 🤖 Universal Agent Support
-Works with any agent type out of the box:
-- **RL**: CleanRL, Stable Baselines3, custom policies
-- **LLM**: OpenAI, Anthropic, HuggingFace
-- **VLM**: Vision-language models
-- **Hybrid**: Combine approaches
-- **Human**: Human-in-the-loop evaluation
+<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+  <div style="text-align: center;">
+    <img src="showcase/videos/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis (isometric)">
+    <br><em>ProgramSynthesis</em>
+  </div>
+  <div style="text-align: center;">
+    <img src="showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle (isometric)">
+    <br><em>KeyDoorPuzzle</em>
+  </div>
+  <div style="text-align: center;">
+    <img src="showcase/videos/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle (isometric)">
+    <br><em>PackingPuzzle</em>
+  </div>
+</div>
 
-### 📈 Experiment System
-- Pre-configured benchmark suites
-- Paper-ready plotting
-- Reproducible evaluation
-- Leaderboard submission
+Every task supports 6 observation modes — here's the same state seen by different agents:
+
+**ASCII** (for LLMs):
+```
+#####
+#@..#
+#.#.#
+#..G#
+#####
+Legend: @=agent G=goal #=wall .=empty
+```
+
+**Natural Language** (for LLMs):
+```
+You are at position (1,1) facing north in a 5x5 room.
+A goal is visible to the southeast at distance 3.
+Walls to the north and west. Path clear to the south and east.
+Valid actions: move_down (1), move_right (3)
+```
+
+**State Dict** (for bots/planners):
+```python
+{"grid": {"height": 5, "width": 5, "terrain": [[1,1,1,1,1],[1,0,0,0,1],...]},
+ "agent": {"position": [1,1], "orientation": "north", "inventory": []},
+ "info": {"step_count": 0, "max_steps": 50, "valid_actions": [1, 3]}}
+```
+
+**RGB Pixels** — isometric (512x512) and flat 2D (512x512) for VLMs and RL CNNs.
 
 ## Quick Start
 
 ```python
 import agentick
 
-# Create environment
-env = agentick.make("GoToGoal-v0")
-obs, info = env.reset()
+env = agentick.make("GoToGoal-v0", difficulty="easy")
+obs, info = env.reset(seed=42)
 
-# Agent loop
 for _ in range(100):
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
     if terminated or truncated:
         break
-
 env.close()
 ```
 
-## Installation
-
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install Agentick
-git clone https://github.com/agentick/agentick.git
-cd agentick
-uv sync --extra all
-```
-
-See [Installation Guide](getting_started/installation.md) for details.
-
 ## Task Gallery
 
-38 tasks across 7+ capability categories:
+38 tasks across 6 capability categories:
 
-| Capability | Example Tasks | Count |
-|------------|---------------|-------|
-| **Navigation** | GoToGoal, MazeNavigation, FogOfWar | 5 |
-| **Memory** | KeyDoorPuzzle, SequenceMemory, DelayedGratification | 5 |
-| **Reasoning** | SokobanPush, CausalChain, RuleInduction | 5 |
-| **Skill Discovery** | ToolUse, RecipeAssembly, EmergentStrategy | 5 |
-| **Control** | PreciseNavigation, TimingChallenge, ChaseEvade | 4 |
-| **Combinatorial** | LightsOut, GraphColoring, PackingPuzzle | 4 |
-| **Adversarial** | DeceptiveReward, DistributionShift, NoisyObservation | 3 |
-| **Meta-Learning** | FewShotAdaptation, TaskInterference | 2 |
-| **Multi-Agent** | CooperativeTransport, CompetitiveTag | 2 |
-
-Browse all tasks: [Task Reference](concepts/tasks.md)
+| Capability | Tasks | Count |
+|---|---|---|
+| **Navigation** | GoToGoal, MazeNavigation, ShortestPath, DynamicObstacles, CuriosityMaze, RecursiveRooms, TimingChallenge, InstructionFollowing | 8 |
+| **Planning** | SokobanPush, KeyDoorPuzzle, BacktrackPuzzle, TileSorting, PackingPuzzle, PreciseNavigation, RecipeAssembly, ToolUse, ResourceManagement | 9 |
+| **Reasoning** | CausalChain, SwitchCircuit, RuleInduction, LightsOut, GraphColoring, SymbolMatching, ProgramSynthesis, TaskInterference, DeceptiveReward | 9 |
+| **Memory** | SequenceMemory, DelayedGratification, TreasureHunt, FogOfWarExploration | 4 |
+| **Generalization** | FewShotAdaptation, DistributionShift, NoisyObservation | 3 |
+| **Multi-Agent** | CooperativeTransport, TagHunt, ChaseEvade, Herding, EmergentStrategy | 5 |
 
 ## Example Use Cases
 
-### Train RL Agent
+### Train an RL Agent
 ```python
 from stable_baselines3 import PPO
 
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array")
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=10_000)
+env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")  # 2D sprites, fast
+model = PPO("CnnPolicy", env, verbose=1)
+model.learn(total_timesteps=100_000)
 ```
 
-See: [RL Training Examples](/examples/rl/)
-
-### Evaluate LLM Agent
+### Evaluate an LLM Agent
 ```python
-from agentick.leaderboard.adapters import APIAgent
+from agentick.leaderboard.adapters.api_adapter import APIAgent
 
 env = agentick.make("GoToGoal-v0", render_mode="language")
-agent = APIAgent(provider="openai", model="gpt-4o")
+agent = APIAgent(provider="openai", model="gpt-4o", observation_mode="language")
 
 obs, info = env.reset()
 action = agent.act(obs, info)
+obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-See: [LLM Examples](/examples/llm/)
-
-### Collect Training Data
+### Collect Expert Trajectories
 ```python
-from agentick.data.collector import TrajectoryCollector
-from agentick.benchmark.baselines import OracleAgent
+from agentick.data.collector import DataCollector
+from agentick.oracles import get_oracle
 
-env = agentick.make("GoToGoal-v0")
-collector = TrajectoryCollector(env)
-oracle = OracleAgent(env)
+env = agentick.make("GoToGoal-v0", render_mode="language")
+oracle = get_oracle("GoToGoal-v0", env)
+collector = DataCollector(env, oracle, record_modalities=["language"])
 
-trajectory = collector.collect_episode(oracle)
-trajectory.save("demo.json")
+dataset = collector.collect(num_episodes=100, seeds=range(100))
+dataset.export_to_huggingface("data/hf/", format="conversation")
 ```
-
-See: [Data Collection Examples](/examples/data/)
 
 ## Learn More
 
-- [Getting Started](getting_started/quickstart.md) - 5-minute tutorial
-- [Examples](/examples/README.md) - 40+ runnable examples
-- [Tasks](concepts/tasks.md) - Browse all 38 tasks
-- [CLI Reference](cli.md) - Command-line interface
-- [Leaderboard](leaderboard/overview.md) - Submit your agent
-
-## Contributing
-
-Contributions welcome! See examples and documentation for patterns.
+- [Quickstart](getting_started/quickstart.md) — Installation and 5-minute tutorial
+- [Tasks](tasks.md) — Browse all 38 tasks
+- [Observations](concepts/observations.md) — All observation modes
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see LICENSE file for details.

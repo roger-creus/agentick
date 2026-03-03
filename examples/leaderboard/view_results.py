@@ -62,11 +62,11 @@ def display_capability_analysis(results: list[dict]):
     """Display capability analysis."""
     # Define capability categories
     categories = {
-        "Navigation": ["GoToGoal", "MazeNavigation", "MultiRoomEscape", "PreciseNavigation"],
+        "Navigation": ["GoToGoal", "MazeNavigation", "PreciseNavigation"],
         "Reasoning": ["ProgramSynthesis", "RuleInduction", "GraphColoring", "LightsOut"],
         "Memory": ["SequenceMemory", "DelayedGratification", "BacktrackPuzzle", "RecursiveRooms"],
-        "Planning": ["KeyDoorPuzzle", "SokobanPush", "MultiGoalRoute", "PackingPuzzle"],
-        "Coordination": ["CooperativeTransport", "CompetitiveTag", "Herding", "EmergentStrategy"],
+        "Planning": ["KeyDoorPuzzle", "SokobanPush", "ShortestPath", "PackingPuzzle"],
+        "Coordination": ["CooperativeTransport", "TagHunt", "Herding", "EmergentStrategy"],
         "Adaptation": [
             "FewShotAdaptation",
             "DistributionShift",

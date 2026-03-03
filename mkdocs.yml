@@ -17,42 +17,17 @@ theme:
 
 nav:
   - Home: index.md
-  - Getting Started:
-    - Installation: getting_started/installation.md
-    - Quickstart: getting_started/quickstart.md
-    - First Experiment: getting_started/first_experiment.md
-  - Concepts:
-    - Architecture: concepts/architecture.md
-    - Tasks: concepts/tasks.md
-    - Observations: concepts/observations.md
-    - Rewards: concepts/rewards.md
-    - Scoring: concepts/scoring.md
+  - Quickstart: getting_started/quickstart.md
+  - Tasks: tasks.md
+  - Observations: concepts/observations.md
   - Agents:
     - RL Agents: agents/rl_agents.md
-    - LLM Agents: agents/llm_agents.md
-    - VLM Agents: agents/vlm_agents.md
-    - Human Agents: agents/human_agents.md
-    - Custom Agents: agents/custom_agents.md
-    - Fine-tuning: agents/finetuning.md
-  - Experiments:
-    - Running: experiments/running.md
-    - Analysis: experiments/analysis.md
-    - Visualization: experiments/visualization.md
-    - Reproducibility: experiments/reproducibility.md
-  - Extending:
-    - Custom Tasks: extending/custom_tasks.md
-    - Custom Rewards: extending/custom_rewards.md
-    - Custom Renderers: extending/custom_renderers.md
-  - Leaderboard:
-    - Overview: leaderboard/overview.md
-    - Submitting: leaderboard/submitting.md
-    - Suites: leaderboard/suites.md
-    - Adapters: leaderboard/adapters.md
-  - Reference:
-    - CLI Reference: cli.md
-    - Changelog: changelog.md
-  - API Reference: api/index.md
-  - FAQ: faq.md
+    - LLM / VLM Agents: agents/llm_agents.md
+    - Fine-Tuning: agents/finetuning.md
+  - Experiments: experiments.md
+  - Evaluation Seeds: seeds.md
+  - Architecture: concepts/architecture.md
+  - CLI: cli.md
 
 plugins:
   - search

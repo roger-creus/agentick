@@ -1,6 +1,6 @@
 """DQN training on Agentick with pixel observations.
 
-Deep Q-Network implementation with replay buffer and target network.
+CleanRL-style single-file DQN with vectorized environments and replay buffer.
 
 Usage:
     python examples/rl/dqn_pixels.py --task GoToGoal-v0 --difficulty easy
@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--total-timesteps", type=int, default=50000)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--num-envs", type=int, default=8)
     parser.add_argument("--buffer-size", type=int, default=10000)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--target-network-frequency", type=int, default=500)
@@ -116,6 +117,17 @@ def linear_schedule(start_e, end_e, duration, t):
     return max(slope * t + start_e, end_e)
 
 
+def make_env(task_id, difficulty, seed, idx, render_mode="rgb_array_flat"):
+    def thunk():
+        env = make_atari_env(task_id, difficulty=difficulty, render_mode=render_mode)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env.action_space.seed(seed + idx)
+        env.observation_space.seed(seed + idx)
+        return env
+
+    return thunk
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -126,14 +138,14 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Create env
-    env = make_atari_env(args.task, difficulty=args.difficulty, render_mode="rgb_array")
-    env = gym.wrappers.RecordEpisodeStatistics(env)
-    env.action_space.seed(args.seed)
+    # Create vectorized envs
+    envs = gym.vector.SyncVectorEnv(
+        [make_env(args.task, args.difficulty, args.seed, i) for i in range(args.num_envs)]
+    )
 
     # Initialize networks
-    obs_shape = env.observation_space.shape
-    n_actions = env.action_space.n
+    obs_shape = envs.single_observation_space.shape
+    n_actions = envs.single_action_space.n
 
     q_network = QNetwork(obs_shape, n_actions).to(device)
     target_network = QNetwork(obs_shape, n_actions).to(device)
@@ -145,7 +157,7 @@ if __name__ == "__main__":
     rb = ReplayBuffer(args.buffer_size, obs_shape, device)
 
     # Training
-    obs, _ = env.reset(seed=args.seed)
+    obs, _ = envs.reset(seed=args.seed)
     episodic_returns = deque(maxlen=10)
     start_time = time.time()
 
@@ -159,31 +171,42 @@ if __name__ == "__main__":
         )
 
         if random.random() < epsilon:
-            action = env.action_space.sample()
+            actions = np.array([envs.single_action_space.sample() for _ in range(args.num_envs)])
         else:
             with torch.no_grad():
-                q_values = q_network(torch.Tensor(obs).unsqueeze(0).to(device))
-                action = torch.argmax(q_values, dim=1).item()
+                q_values = q_network(torch.Tensor(obs).to(device))
+                actions = torch.argmax(q_values, dim=1).cpu().numpy()
 
-        # Step
-        next_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
+        # Step all envs
+        next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+        dones = np.logical_or(terminations, truncations)
 
-        rb.add(obs, action, reward, next_obs, done)
+        # Handle auto-reset: use final_observation for terminal transitions
+        real_next_obs = next_obs.copy()
+        if "final_observation" in infos:
+            for idx in range(args.num_envs):
+                if dones[idx] and infos["final_observation"][idx] is not None:
+                    real_next_obs[idx] = infos["final_observation"][idx]
+
+        # Add all transitions to replay buffer
+        for idx in range(args.num_envs):
+            rb.add(obs[idx], actions[idx], rewards[idx], real_next_obs[idx], dones[idx])
+
         obs = next_obs
 
-        if done:
-            if "episode" in info:
-                episodic_returns.append(info["episode"]["r"])
-                if global_step % 1000 == 0:
-                    print(
-                        f"Step {global_step}: return={info['episode']['r']:.2f}, "
-                        f"avg={np.mean(episodic_returns):.2f}, epsilon={epsilon:.2f}"
-                    )
-            obs, _ = env.reset()
+        # Log episode returns
+        if "final_info" in infos:
+            for info in infos["final_info"]:
+                if info and "episode" in info:
+                    episodic_returns.append(info["episode"]["r"])
+                    if global_step % 1000 == 0:
+                        print(
+                            f"Step {global_step}: return={info['episode']['r']:.2f}, "
+                            f"avg={np.mean(episodic_returns):.2f}, epsilon={epsilon:.2f}"
+                        )
 
         # Training
-        if global_step > args.learning_starts and global_step % args.train_frequency == 0:
+        if rb.size > args.learning_starts and global_step % args.train_frequency == 0:
             s_obs, s_actions, s_rewards, s_next_obs, s_dones = rb.sample(args.batch_size)
 
             with torch.no_grad():
@@ -202,5 +225,5 @@ if __name__ == "__main__":
         if global_step % args.target_network_frequency == 0:
             target_network.load_state_dict(q_network.state_dict())
 
-    env.close()
+    envs.close()
     print(f"Training complete! Total time: {time.time() - start_time:.2f}s")

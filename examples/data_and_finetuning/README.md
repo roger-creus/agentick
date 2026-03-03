@@ -11,7 +11,6 @@ By default, they train on **all oracle tasks across all four difficulties**.
 ```bash
 uv sync                    # base install for data collection scripts
 uv sync --extra finetune   # sft_with_trl.py (transformers, torch, trl, peft)
-uv sync --extra viz        # record_videos.py (Pillow)
 pip install tinker          # tinker_sft/rl scripts (requires TINKER_API_KEY)
 ```
 
@@ -72,13 +71,6 @@ python -m agentick.experiments.run --config models/sft/eval_config.yaml
   ```bash
   python export_to_huggingface.py --input-dir trajectories/oracle \
       --format conversation --push-to-hub user/agentick-data
-  ```
-
-- **record_videos.py** -- Record oracle episodes as animated GIFs.
-
-  ```bash
-  python record_videos.py --tasks GoToGoal-v0 MazeNavigation-v0 \
-      --difficulties easy --fps 10 --n-episodes 5
   ```
 
 ### Training

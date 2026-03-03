@@ -7,9 +7,10 @@ PROCEDURAL DIVERSITY (all per seed):
   - Decoy reward size varies slightly per difficulty
 
 DIFFICULTY AXES:
-  - More decoys (more temptations)
+  - More decoys (2/4/6/8 per difficulty)
   - Decoys closer to optimal path (harder to avoid)
-  - Maze walls making the path longer
+  - Maze walls making the path longer (0/4/8/12 per difficulty)
+  - Hazards at hard+ (0/0/3/6 per difficulty)
   - Shorter step budget relative to path length
 """
 
@@ -35,25 +36,25 @@ class DelayedGratificationTask(TaskSpec):
             name="easy",
             grid_size=7,
             max_steps=60,
-            params={"n_decoys": 1, "n_walls": 0, "n_hazards": 0},
+            params={"n_decoys": 2, "n_walls": 0, "n_hazards": 0},
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=10,
             max_steps=100,
-            params={"n_decoys": 2, "n_walls": 3, "n_hazards": 0},
+            params={"n_decoys": 4, "n_walls": 4, "n_hazards": 0},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=13,
             max_steps=150,
-            params={"n_decoys": 3, "n_walls": 6, "n_hazards": 2},
+            params={"n_decoys": 6, "n_walls": 8, "n_hazards": 3},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=15,
             max_steps=200,
-            params={"n_decoys": 4, "n_walls": 9, "n_hazards": 4},
+            params={"n_decoys": 8, "n_walls": 12, "n_hazards": 6},
         ),
     }
 
@@ -263,7 +264,7 @@ class DelayedGratificationTask(TaskSpec):
 
     def compute_sparse_reward(self, old_state, action, new_state, info):
         if self._decoy_taken:
-            return 0.2
+            return 0.05
         return 1.0 if self.check_success(new_state) else 0.0
 
     def compute_dense_reward(self, old_state, action, new_state, info):
@@ -299,4 +300,4 @@ class DelayedGratificationTask(TaskSpec):
         return 1.0
 
     def get_random_baseline(self, difficulty=None):
-        return 0.2
+        return 0.05

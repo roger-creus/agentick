@@ -71,7 +71,10 @@ class ExperimentConfig(BaseModel):
         """Validate tasks field."""
         if isinstance(v, str):
             # Suite name
-            valid_suites = ["quick", "full", "navigation", "memory", "reasoning"]
+            valid_suites = [
+                "quick", "full", "navigation", "planning", "reasoning",
+                "memory", "generalization", "multi_agent",
+            ]
             if v not in valid_suites and not v.endswith("-v0"):
                 # Allow individual task names too
                 pass
@@ -102,6 +105,7 @@ class ExperimentConfig(BaseModel):
             "language",
             "language_structured",
             "rgb_array",
+            "rgb_array_flat",
             "human",
             "state_dict",
         ]

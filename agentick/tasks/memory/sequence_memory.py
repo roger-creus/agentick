@@ -8,8 +8,10 @@ MECHANICS:
     No visual markers on target positions — pure spatial memory test.
     Visiting the correct next position shows a brief GOAL flash and advances progress.
     Visiting a wrong position (distractor) incurs a penalty.
+  - Distractors are tracked as position lists internally; no SWITCH or object is placed
+    on the grid for them.
   - easy:   3 targets, 4 steps per show, no distractors
-  - medium: 4 targets, 3 steps per show, 2 distractors
+  - medium: 4 targets, 3 steps per show, 2 distractor positions
   - hard:   5 targets, 2 steps per show, positions shuffle between phases
   - expert: 6 targets, 1-step flash, shuffled, obstacles
 """

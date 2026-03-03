@@ -1,13 +1,15 @@
-"""DynamicObstacles - Navigate while moving obstacles patrol the grid.
+"""DynamicObstacles - Navigate while moving NPC obstacles patrol the grid.
 
-BUG FIXED: Collision detection now uses grid.objects[ay,ax]==BLOCKER check
-(robust against any position-tuple ordering issues).
+MECHANICS:
+  - NPC objects move probabilistically each step (configurable move probability)
+  - Collision with any NPC ends the episode in failure
+  - At expert: 15% of NPC moves are pursuing (toward agent) instead of random
 
-DIFFICULTY AXES (multi-dimensional):
-  - easy:   2 obstacles, small map, slow (50% move chance), safe start zone
-  - medium: 3 obstacles, medium map, normal speed (75% move chance)
-  - hard:   5 obstacles, large map, fast (100% move chance), bouncing walls
-  - expert: 7 obstacles, largest map, 90% move chance + stochastic pursuing (15%)
+DIFFICULTY AXES:
+  - easy:   2 NPCs, small map, slow (50% move chance)
+  - medium: 3 NPCs, medium map, normal speed (75% move chance), 3 walls
+  - hard:   5 NPCs, large map, fast (100% move chance), 6 walls
+  - expert: 7 NPCs, largest map, 90% move chance + 15% pursuit, 9 walls
 """
 
 import numpy as np
@@ -21,7 +23,7 @@ from agentick.tasks.registry import register_task
 
 @register_task("DynamicObstacles-v0", tags=["reactive_planning", "navigation"])
 class DynamicObstaclesTask(TaskSpec):
-    """Navigate to goal while obstacles patrol the grid each timestep."""
+    """Navigate to goal while NPC obstacles patrol the grid each timestep."""
 
     name = "DynamicObstacles-v0"
     description = "Navigate while obstacles move"
@@ -61,6 +63,8 @@ class DynamicObstaclesTask(TaskSpec):
     }
 
     _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+    # Map _DIRS index → metadata direction (0=up, 1=right, 2=down, 3=left)
+    _DIR_TO_META = {0: 0, 1: 2, 2: 3, 3: 1}
 
     def generate(self, seed):
         rng = np.random.default_rng(seed)
@@ -218,7 +222,8 @@ class DynamicObstaclesTask(TaskSpec):
                 if draw:
                     if grid.objects[oy, ox] != ObjectType.GOAL:
                         grid.objects[oy, ox] = ObjectType.NPC
-                        grid.metadata[oy, ox] = dirs[idx] if idx < len(dirs) else 0
+                        meta = self._DIR_TO_META.get(dirs[idx], 2) if idx < len(dirs) else 2
+                        grid.metadata[oy, ox] = meta
                 else:
                     if grid.objects[oy, ox] == ObjectType.NPC:
                         grid.objects[oy, ox] = ObjectType.NONE

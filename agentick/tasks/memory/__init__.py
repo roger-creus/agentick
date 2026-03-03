@@ -1,15 +1,13 @@
 """Memory tasks."""
 
-from agentick.tasks.memory.backtrack_puzzle import BacktrackPuzzleTask
-from agentick.tasks.memory.breadcrumb_trail import BreadcrumbTrailTask
 from agentick.tasks.memory.delayed_gratification import DelayedGratificationTask
-from agentick.tasks.memory.key_door_puzzle import KeyDoorPuzzleTask
+from agentick.tasks.memory.fog_of_war import FogOfWarExplorationTask
 from agentick.tasks.memory.sequence_memory import SequenceMemoryTask
+from agentick.tasks.memory.treasure_hunt import TreasureHuntTask
 
 __all__ = [
-    "KeyDoorPuzzleTask",
     "SequenceMemoryTask",
-    "BreadcrumbTrailTask",
     "DelayedGratificationTask",
-    "BacktrackPuzzleTask",
+    "FogOfWarExplorationTask",
+    "TreasureHuntTask",
 ]

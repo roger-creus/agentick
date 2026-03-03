@@ -9,19 +9,19 @@ Agentick provides 38 procedurally generated tasks for evaluating AI agents. Trai
 
 ## Key Features
 
-- **38 Tasks** across navigation, memory, reasoning, skill discovery, control, and more
-- **Multi-Modal Observations**: text, 3D isometric pixels, 2D sprites, language, structured state
-- **Training-First**: vectorized environments, trajectory export, curriculum learning
+- **38 Tasks** across navigation, planning, reasoning, memory, generalization, and multi-agent coordination
+- **Multi-Modal Observations**: isometric pixel sprites, flat 2D grid, ASCII text, language, structured state
+- **Training-First**: vectorized environments, trajectory export, SFT and RL fine-tuning
 - **Universal Support**: RL, LLMs, VLMs, bots, humans
 - **Capability Decomposition**: radar charts showing agent strengths/weaknesses
-- **Experiment System**: pre-configured suites, reproducible evaluation, leaderboard
+- **Experiment System**: pre-configured YAML configs, reproducible evaluation, leaderboard
 
 ## Quick Start
 
 ```python
 import agentick
 
-# Create environment
+# Create environment (default: ASCII observation)
 env = agentick.make("GoToGoal-v0")
 obs, info = env.reset()
 
@@ -56,19 +56,18 @@ uv run agentick --version
 uv sync --extra rl         # RL training (torch, wandb)
 uv sync --extra llm        # LLM agents (openai, anthropic)
 uv sync --extra viz        # Visualization (matplotlib, seaborn)
-uv sync --extra render3d   # 3D isometric rendering (trimesh, pyrender)
 uv sync --extra all        # Everything
 ```
 
 ## Examples
 
-40+ runnable examples in `examples/`:
+Runnable examples in `examples/`:
 
 ```bash
 # Basic usage
 uv run python examples/basics/01_make_and_step.py
 
-# RL training
+# RL training (flat 2D pixel observations)
 uv run python examples/rl/sb3_ppo.py
 
 # LLM agent (requires API key)
@@ -77,24 +76,42 @@ uv run python examples/llm/openai_text_agent.py
 
 # Data collection
 uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
+
+# Run a full benchmark experiment
+uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/random_agent.yaml
 ```
 
-See [examples/README.md](examples/README.md) for full list.
+See [examples/README.md](examples/README.md) for the full list.
+
+## Render Modes
+
+| Mode | Description | Output |
+|------|-------------|--------|
+| `"ascii"` | ANSI-colored text grid (default) | `str` |
+| `"language"` | Natural language description | `str` |
+| `"language_structured"` | Structured dict with position, surroundings | `dict` |
+| `"rgb_array"` | **Isometric pixel sprites** (512×512, Kenney assets) | `np.ndarray` |
+| `"rgb_array_flat"` | Flat 2D top-down grid sprites | `np.ndarray` |
+| `"state_dict"` | Numpy arrays for grid layers and agent state | `dict` |
+
+```python
+# Isometric rendering (default pixel mode)
+env = agentick.make("MazeNavigation-v0", render_mode="rgb_array")
+
+# Flat 2D grid (faster, good for RL training)
+env = agentick.make("MazeNavigation-v0", render_mode="rgb_array_flat")
+```
 
 ## Task Gallery
 
 | Capability | Example Tasks | Count |
 |------------|---------------|-------|
-| Navigation | GoToGoal, MazeNavigation, FogOfWar | 5 |
-| Memory | KeyDoorPuzzle, SequenceMemory, DelayedGratification | 5 |
-| Reasoning | SokobanPush, CausalChain, RuleInduction | 5 |
-| Skill Discovery | ToolUse, RecipeAssembly, EmergentStrategy | 5 |
-| Control | PreciseNavigation, TimingChallenge, ChaseEvade | 4 |
-| Combinatorial | LightsOut, GraphColoring, PackingPuzzle | 4 |
-| Adversarial | DeceptiveReward, DistributionShift, NoisyObservation | 3 |
-| Meta-Learning | FewShotAdaptation, TaskInterference | 2 |
-| Multi-Agent | CooperativeTransport, CompetitiveTag | 2 |
-| Compositional | InstructionFollowing, ProgramSynthesis, RecursiveRooms | 3 |
+| Navigation | GoToGoal, MazeNavigation, CuriosityMaze, TimingChallenge | 8 |
+| Planning | SokobanPush, KeyDoorPuzzle, PackingPuzzle, ToolUse | 9 |
+| Reasoning | CausalChain, SwitchCircuit, GraphColoring, ProgramSynthesis | 9 |
+| Memory | SequenceMemory, DelayedGratification, TreasureHunt, FogOfWar | 4 |
+| Generalization | FewShotAdaptation, DistributionShift, NoisyObservation | 3 |
+| Multi-Agent | CooperativeTransport, ChaseEvade, Herding, EmergentStrategy | 5 |
 
 **Total: 38 tasks**, each with 4 difficulty levels (easy, medium, hard, expert).
 
@@ -105,6 +122,14 @@ uv run agentick --version                     # Show version
 uv run agentick list-tasks                     # List all tasks
 uv run agentick list-suites                    # List benchmark suites
 uv run agentick evaluate --submission X --suite Y  # Run evaluation
+```
+
+## Try It First
+
+The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
+
+```bash
+uv run agentick webapp          # Opens http://localhost:5000
 ```
 
 ## Documentation
@@ -121,13 +146,17 @@ uv run agentick evaluate --submission X --suite Y  # Run evaluation
 ```
 agentick/
 ├── agentick/               # Core library
-│   ├── tasks/             # Task implementations
-│   ├── benchmark/         # Baseline agents
-│   ├── leaderboard/       # Evaluation system
-│   ├── data/              # Data collection
-│   └── visualization/     # Plotting utilities
-├── examples/              # 40+ runnable examples
-├── docs/                  # Documentation
+│   ├── core/              # Environment, grid, renderer, types
+│   ├── tasks/             # 38 task implementations
+│   ├── oracles/           # Optimal reference policies
+│   ├── agents/            # LLM/VLM/RL agent harnesses
+│   ├── leaderboard/       # Evaluation system and suites
+│   ├── rendering/         # Isometric sprite renderer
+│   ├── data/              # Trajectory collection
+│   ├── training/          # SFT, BC, and RL trainers
+│   └── human/             # Web showcase and human play
+├── examples/              # Runnable examples
+├── docs/                  # Documentation + showcase gallery
 └── tests/                 # Test suite
 ```
 
@@ -179,16 +208,15 @@ uv run ruff check agentick/ tests/
 uv run mypy agentick/
 
 # Build docs
-cd docs && uv run mkdocs serve
+uv run mkdocs serve
 ```
 
 ## Roadmap
 
 - [ ] Additional task categories (physics, language grounding)
-- [ ] Web-based human evaluation interface
 - [ ] Integration with more RL libraries
-- [ ] Curriculum learning utilities
 - [ ] Multi-agent task suite expansion
+- [ ] Leaderboard with public results
 
 ## Citation
 

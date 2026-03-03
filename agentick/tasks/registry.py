@@ -114,7 +114,7 @@ def make(
     Args:
         task_name: Name of the task (e.g., "GoToGoal-v0")
         difficulty: Difficulty level (easy, medium, hard, expert)
-        render_mode: Rendering mode. Use ``"rgb_array_2d"`` for the flat 2D sprite renderer.
+        render_mode: Rendering mode. ``"rgb_array"`` for isometric sprites, ``"rgb_array_flat"`` for flat 2D grid.
         reward_mode: Reward mode (sparse, dense)
         seed: Random seed for task generation
         fast_mode: Enable fast mode for state_dict rendering (skip expensive conversions)
@@ -396,6 +396,12 @@ class TaskEnv(AgentickEnv):
             }
         )
         return state
+
+    def _get_info(self) -> dict[str, Any]:
+        """Get info dict with task config for renderer access."""
+        info = super()._get_info()
+        info["task_config"] = self.task_config
+        return info
 
     def _compute_reward(
         self,

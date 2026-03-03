@@ -5,7 +5,7 @@ import pytest
 
 import agentick
 
-RENDER_MODES = ["ascii", "language", "language_structured", "rgb_array", "state_dict"]
+RENDER_MODES = ["ascii", "language", "language_structured", "rgb_array", "rgb_array_flat", "state_dict"]
 
 
 @pytest.mark.parametrize("task_name", agentick.list_tasks())
@@ -29,7 +29,7 @@ def test_render_mode_works(task_name, render_mode):
             assert isinstance(obs, dict)
             assert "description" in obs
             assert "position" in obs
-        elif render_mode == "rgb_array":
+        elif render_mode in ("rgb_array", "rgb_array_flat"):
             assert isinstance(obs, np.ndarray)
             assert obs.ndim == 3
             assert obs.shape[2] == 3
@@ -51,7 +51,7 @@ def test_render_mode_works(task_name, render_mode):
             assert isinstance(rendered, str)
         elif render_mode == "language_structured":
             assert isinstance(rendered, dict)
-        elif render_mode == "rgb_array":
+        elif render_mode in ("rgb_array", "rgb_array_flat"):
             assert isinstance(rendered, np.ndarray)
         elif render_mode == "state_dict":
             assert isinstance(rendered, dict)

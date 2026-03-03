@@ -1,12 +1,11 @@
 # Experiments
 
-Scripts for configuring, running, comparing, and visualizing benchmark
-experiments.
+Scripts and configs for running reproducible benchmark experiments.
 
 ## Prerequisites
 
 ```bash
-uv sync --extra all   # experiment runner, plotting, yaml support
+uv sync --extra all   # experiment runner, yaml support
 ```
 
 ## Scripts
@@ -14,48 +13,51 @@ uv sync --extra all   # experiment runner, plotting, yaml support
 - **run_predefined.py** -- Load an experiment configuration from a YAML file
   and run it through `ExperimentRunner`. Accepts `--config` and `--output-dir`
   arguments. Prints reward, step, and success-rate statistics on completion.
-- **run_custom.py** -- Build an `ExperimentConfig` programmatically in Python
-  (choosing tasks, agent type, seeds, episodes) and run it. Useful for quick
-  one-off evaluations without writing YAML.
-- **compare_experiments.py** -- Load two or more result directories, compute
-  summary metrics (mean reward, success rate), and display a side-by-side
-  comparison table with the best performer highlighted.
-- **generate_plots.py** -- Generate four standard plots from an experiment
-  result directory: reward distribution histogram, success rate by task,
-  steps-vs-reward scatter, and learning curve. Requires matplotlib.
-- **generate_paper_figures.py** -- Create publication-quality PDF and PNG
-  figures with high DPI, serif fonts, and error bars. Produces a performance
-  comparison bar chart and a capability radar chart.
+- **run_single_benchmark.py** -- CLI wrapper that runs a single benchmark
+  config and saves results to a JSON file. Accepts `--config`, `--output`,
+  and `--suite` arguments.
 
-Also includes a `configs/` directory with example experiment YAML files.
+## configs/
+
+46 pre-built YAML experiment configs covering:
+
+| Group | Configs |
+|-------|---------|
+| Random baseline | `random_agent.yaml` |
+| Oracle baseline | `oracle_agent.yaml` |
+| PPO (pixel RL) | `ppo_pixels_dense.yaml`, `ppo_pixels_sparse.yaml` |
+| OpenAI GPT-4o | `gpt4o_ascii.yaml`, `gpt4o_language.yaml`, `gpt4o_vision.yaml` |
+| Anthropic Claude | `claude_sonnet_ascii.yaml`, `claude_sonnet_language.yaml`, `claude_sonnet_vision.yaml` |
+| Qwen3 (30B-A3B) | 8 configs (ascii/lang × markov/nonmarkov/reasoner variants) |
+| Qwen3 (4B) | 8 configs |
+| Qwen3-VL (4B, 8B) | 16 configs |
+
+## slurm/
+
+SLURM job launcher for running experiments on a compute cluster:
+
+- **launch.py** -- Submits one SLURM job per task in a config. Supports `--dry-run`,
+  `--configs` glob filter, and `--partition` selection.
+- **profiles.yaml** -- Cluster resource profiles (CPU/GPU, memory, time limits).
+- **job_template.sh** -- SBATCH script template used by `launch.py`.
 
 ## Running
 
 ```bash
-# Run a predefined config
+# Run a quick baseline
 uv run python examples/experiments/run_predefined.py \
-    --config examples/experiments/configs/quick/sanity_check.yaml
+    --config examples/experiments/configs/random_agent.yaml
 
-# Run a custom experiment
-uv run python examples/experiments/run_custom.py
+# Run a single benchmark with output
+uv run python examples/experiments/run_single_benchmark.py \
+    examples/experiments/configs/oracle_agent.yaml
 
-# Compare two result directories
-uv run python examples/experiments/compare_experiments.py results/exp1 results/exp2
-
-# Generate plots from results
-uv run python examples/experiments/generate_plots.py results/my_experiment
-
-# Generate publication figures
-uv run python examples/experiments/generate_paper_figures.py results/my_experiment
+# Run on SLURM cluster (dry run first)
+python examples/experiments/slurm/launch.py --dry-run
+python examples/experiments/slurm/launch.py --configs "oracle_agent" --partition gpu
 ```
 
 ## Notes
 
 - `results/`: Generated experiment outputs (not committed to git).
-
-## Typical Workflow
-
-1. Run an experiment with `run_predefined.py` or `run_custom.py`.
-2. Visualize results with `generate_plots.py`.
-3. Compare runs with `compare_experiments.py`.
-4. Export publication figures with `generate_paper_figures.py`.
+- Analyze results with `examples/debug_results.ipynb`.

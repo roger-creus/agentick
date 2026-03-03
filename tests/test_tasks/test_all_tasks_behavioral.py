@@ -214,7 +214,6 @@ def test_task_truncation_is_not_success(task_name):
     ("MazeNavigation-v0", [0, 1, 42]),
     ("NoisyObservation-v0", [0, 1, 42]),
     ("DeceptiveReward-v0", [0, 42]),
-    ("MultiRoomEscape-v0", [0, 42]),
 ])
 @pytest.mark.timeout(60)
 def test_nav_task_can_succeed(task_name, seeds):
@@ -315,6 +314,18 @@ def test_switch_task_can_succeed(task_name, switch_key):
                     break
             if term or trunc:
                 break
+    elif task_name == "SwitchCircuit-v0":
+        # SwitchCircuit uses INTERACT to toggle switches
+        from agentick.core.types import ActionType
+        interact = int(ActionType.INTERACT)
+        term = False
+        for wp in switches:
+            if term:
+                break
+            obs, rew, term, trunc, info = _walk_to(env, wp[0], wp[1])
+            if not term and not trunc:
+                obs, rew, term, trunc, info = env.step(interact)
+                term = term or trunc
     else:
         term = False
         for wp in switches:
@@ -355,9 +366,9 @@ def test_chase_evade_success_condition():
 
 
 @pytest.mark.timeout(60)
-def test_multi_goal_route_can_succeed():
-    """MultiGoalRoute: visit ALL goals in order to trigger success."""
-    env = agentick.make("MultiGoalRoute-v0", difficulty="easy", seed=3, reward_mode="sparse")
+def test_shortest_path_can_succeed():
+    """ShortestPath: visit ALL goals in order to trigger success."""
+    env = agentick.make("ShortestPath-v0", difficulty="easy", seed=3, reward_mode="sparse")
     env.reset(seed=3)
     cfg = env.task_config
     term, trunc, info = False, False, {}
@@ -366,31 +377,27 @@ def test_multi_goal_route_can_succeed():
             break
         obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     env.close()
-    assert info.get("success"), "MultiGoalRoute: couldn't trigger success"
+    assert info.get("success"), "ShortestPath: couldn't trigger success"
 
 
 @pytest.mark.timeout(60)
 def test_distribution_shift_can_succeed():
-    """DistributionShift: wait for goal to shift, then navigate to goal_b."""
+    """DistributionShift: navigate to 3 goals across shifting maze phases."""
     env = agentick.make("DistributionShift-v0", difficulty="easy", seed=3, reward_mode="sparse")
     env.reset(seed=3)
     cfg = env.task_config
-    shift_step = cfg.get("shift_step", 10)
-    goal_b = cfg.get("goal_b")
-    assert goal_b is not None, "DistributionShift: missing goal_b in config"
-    # NOOP until shift fires
     term, trunc, info = False, False, {}
-    for _ in range(shift_step + 1):
-        obs, rew, term, trunc, info = _noop(env)
+    # Must reach 3 goals; after each, the maze shifts and goal_positions updates
+    for i in range(3):
         if term or trunc:
             break
-    # Now navigate to goal_b
-    if not term and not trunc:
-        obs, rew, term, trunc, info = _walk_to(env, goal_b[0], goal_b[1])
+        goal = cfg["goal_positions"][0]
+        assert goal is not None, f"DistributionShift: missing goal in phase {i}"
+        obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     if not term and not trunc:
         obs, rew, term, trunc, info = _noop(env)
     env.close()
-    assert info.get("success"), f"DistributionShift: couldn't reach goal_b={goal_b} after shift"
+    assert info.get("success"), "DistributionShift: couldn't reach all 3 goals"
 
 
 @pytest.mark.timeout(60)
@@ -424,10 +431,11 @@ def test_tool_use_can_succeed():
     env = agentick.make("ToolUse-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    # tool_positions is a dict mapping tool_name -> [x, y]
+    # tool_positions is a dict mapping tool_name -> [[x, y], ...]
     tool_positions = cfg.get("tool_positions", {})
-    for tool_name, pos in tool_positions.items():
-        _walk_to(env, pos[0], pos[1])
+    for tool_name, positions in tool_positions.items():
+        for pos in positions:
+            _walk_to(env, pos[0], pos[1])
     goal = cfg["goal_positions"][0]
     obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     if not (term or trunc):
@@ -471,7 +479,7 @@ def test_delayed_gratification_decoy_is_not_success():
     env.close()
     assert term, "DelayedGratification: episode should terminate on decoy step"
     assert not info["success"], "DelayedGratification: decoy should NOT be success"
-    assert abs(rew - 0.2) < 0.01, f"DelayedGratification: expected decoy reward 0.2, got {rew}"
+    assert abs(rew - 0.05) < 0.01, f"DelayedGratification: expected decoy reward 0.05, got {rew}"
 
 
 @pytest.mark.timeout(60)
@@ -620,35 +628,29 @@ def _push_box(env, steps: int, direction: int) -> tuple:
 
 @pytest.mark.timeout(60)
 def test_task_interference_can_succeed():
-    """TaskInterference: collect coins and gems, deliver to matching goals."""
+    """TaskInterference: alternate red/blue collection to fill both meters."""
     env = agentick.make("TaskInterference-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    coins = cfg.get("coin_positions", [])
-    gems = cfg.get("gem_positions", [])
-    coin_goal = cfg.get("coin_goal")
-    gem_goal = cfg.get("gem_goal")
+    reds = list(cfg.get("red_positions", []))
+    blues = list(cfg.get("blue_positions", []))
     term, trunc, info = False, False, {}
-    # Collect all coins first
-    for cp in coins:
-        if term or trunc:
-            break
-        _walk_to(env, cp[0], cp[1])
-    # Deliver coins
-    if coin_goal and not term and not trunc:
-        _walk_to(env, coin_goal[0], coin_goal[1])
-    # Collect all gems
-    for gp in gems:
-        if term or trunc:
-            break
-        _walk_to(env, gp[0], gp[1])
-    # Deliver gems
-    if gem_goal and not term and not trunc:
-        obs, rew, term, trunc, info = _walk_to(env, gem_goal[0], gem_goal[1])
+    # Alternate: red, blue, red, blue, ...
+    while (reds or blues) and not term and not trunc:
+        if reds:
+            r = reds.pop(0)
+            obs, rew, term, trunc, info = _walk_to(env, r[0], r[1])
+            if term or trunc:
+                break
+        if blues:
+            b = blues.pop(0)
+            obs, rew, term, trunc, info = _walk_to(env, b[0], b[1])
+            if term or trunc:
+                break
     if not term and not trunc:
         obs, rew, term, trunc, info = _noop(env)
     env.close()
-    assert info.get("success"), "TaskInterference: couldn't complete all objectives"
+    assert info.get("success"), "TaskInterference: couldn't fill both meters"
 
 
 @pytest.mark.timeout(60)
@@ -702,7 +704,6 @@ def test_program_synthesis_can_succeed():
 @pytest.mark.timeout(60)
 def test_sokoban_push_can_succeed():
     """SokobanPush: push box onto target using can_agent_enter mechanic."""
-    from agentick.core.types import ObjectType
     # Try multiple seeds to find one where box and target are aligned on one axis
     success = False
     for seed in range(100):
@@ -764,79 +765,93 @@ def test_packing_puzzle_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_cooperative_transport_can_succeed():
-    """CooperativeTransport: push box to target using Sokoban mechanic (any direction)."""
-    # Direction maps: (push_action, pre_push_offset_from_box, box_delta)
-    # To push east: stand west of box, take east action
-    # To push west: stand east of box, take west action
-    # To push south: stand north of box, take south action
-    # To push north: stand south of box, take north action
-    ACTION_FOR_DELTA = {(1, 0): 4, (-1, 0): 3, (0, 1): 2, (0, -1): 1}
+    """CooperativeTransport: push heavy box into hole with NPC cooperation."""
+    from agentick.core.types import CellType, ObjectType
 
     env = agentick.make("CooperativeTransport-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
+    task = env.task
     cfg = env.task_config
-    box = cfg.get("box_pos", [3, 3])
-    target = cfg.get("target_pos", [3, 5])
-    bx, by = box[0], box[1]
-    tx, ty = target[0], target[1]
-    last_info = {"success": False}
 
-    # Determine push direction(s) needed
-    push_steps = []
-    if tx > bx:  # push east: stand west (bx-1, by), step east
-        for _ in range(tx - bx):
-            push_steps.append(((1, 0), (-1, 0)))  # (box_delta, pre_offset)
-    elif tx < bx:  # push west: stand east (bx+1, by), step west
-        for _ in range(bx - tx):
-            push_steps.append(((-1, 0), (1, 0)))
-    if ty > by:  # push south: stand north (bx, by-1), step south
-        for _ in range(ty - by):
-            push_steps.append(((0, 1), (0, -1)))
-    elif ty < by:  # push north: stand south (bx, by+1), step north
-        for _ in range(by - ty):
-            push_steps.append(((0, -1), (0, 1)))
+    bx, by = task._box_positions[0]
+    hx, hy = task._hole_positions[0]
 
-    for box_delta, pre_offset in push_steps:
-        if env.done:
-            break
-        # Navigate to position opposite the push direction (pre_offset from current box)
-        pre_x = bx + pre_offset[0]
-        pre_y = by + pre_offset[1]
-        path = _bfs_nobox(env, pre_x, pre_y)
-        if path:
-            prev = env.agent.position
-            for nxt in path[1:]:
-                if env.done:
-                    break
-                ddx, ddy = nxt[0] - prev[0], nxt[1] - prev[1]
-                env.step(ACTION_FOR_DELTA[(ddx, ddy)])
-                prev = env.agent.position
-        if not env.done:
-            push_action = ACTION_FOR_DELTA[box_delta]
-            _, rew, term, trunc, last_info = env.step(push_action)
-            bx += box_delta[0]
-            by += box_delta[1]
+    # --- Step A: verify agent CANNOT push alone (NPC far away) ---
+    # Move agent adjacent to box if not already
+    # Place agent south of box, try pushing north
+    env.grid.objects[by, bx] = ObjectType.BOX  # ensure box is placed
+    env.agent.position = (bx, by + 1)
+    old_pos = env.agent.position
+    env.step(1)  # MOVE_UP into box
+    assert env.agent.position == old_pos, "Agent should NOT push box alone"
 
-    if not env.done:
-        _, rew, term, trunc, last_info = _noop(env)
+    # --- Step B: set up cooperative push into hole ---
+    # Clear grid of stale NPC
+    for yy in range(env.grid.height):
+        for xx in range(env.grid.width):
+            if env.grid.objects[yy, xx] == ObjectType.NPC:
+                env.grid.objects[yy, xx] = ObjectType.NONE
+
+    # Remove old box, place box one cell above hole
+    env.grid.objects[by, bx] = ObjectType.NONE
+    new_bx, new_by = hx, hy - 1
+    # Make sure destination is walkable for box placement
+    if env.grid.terrain[new_by, new_bx] in (CellType.WALL, CellType.HOLE):
+        # fallback: place box one cell left of hole instead, push east
+        new_bx, new_by = hx - 1, hy
+        env.grid.objects[new_by, new_bx] = ObjectType.BOX
+        task._box_positions = [[new_bx, new_by]]
+        cfg["_box_positions"] = task._box_positions
+        # Agent west of box, push east
+        env.agent.position = (new_bx - 1, new_by)
+        # NPC adjacent to box (north)
+        npc_x, npc_y = new_bx, new_by - 1
+        task._npc_pos = [npc_x, npc_y]
+        cfg["_npc_pos"] = task._npc_pos
+        env.grid.objects[npc_y, npc_x] = ObjectType.NPC
+        push_action = 4  # MOVE_RIGHT
+    else:
+        env.grid.objects[new_by, new_bx] = ObjectType.BOX
+        task._box_positions = [[new_bx, new_by]]
+        cfg["_box_positions"] = task._box_positions
+        # Agent north of box, push south
+        env.agent.position = (new_bx, new_by - 1)
+        # NPC adjacent to box (east side)
+        npc_x, npc_y = new_bx + 1, new_by
+        task._npc_pos = [npc_x, npc_y]
+        cfg["_npc_pos"] = task._npc_pos
+        env.grid.objects[npc_y, npc_x] = ObjectType.NPC
+        push_action = 2  # MOVE_DOWN
+
+    _, rew, term, trunc, last_info = env.step(push_action)
     env.close()
-    assert last_info.get("success"), "CooperativeTransport: couldn't push box to target"
+    assert last_info.get("success"), "CooperativeTransport: couldn't push box into hole"
 
 
 @pytest.mark.timeout(60)
 def test_rule_induction_can_succeed():
-    """RuleInduction: visit switch to learn rule, then navigate to true target."""
+    """RuleInduction: INTERACT on real switches in order, then navigate to goal."""
+    from agentick.core.types import ActionType
+
     env = agentick.make("RuleInduction-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
-    sw = cfg.get("switch_pos")
+    # Walk to each real switch (in order) and INTERACT to activate
+    real_switches = cfg.get("real_switch_positions", [])
+    term, trunc = False, False
+    for sw in real_switches:
+        obs, rew, term, trunc, info = _walk_to(env, sw[0], sw[1])
+        if term or trunc:
+            break
+        obs, rew, term, trunc, info = env.step(ActionType.INTERACT)
+        if term or trunc:
+            break
+    assert cfg.get("_door_opened"), "RuleInduction: door didn't open after all switches"
     goal = cfg.get("goal_positions", [None])[0]
-    obs, rew, term, trunc, info = _walk_to(env, sw[0], sw[1])
-    assert cfg.get("_rule_revealed"), "RuleInduction: switch didn't reveal rule"
     if goal and not (term or trunc):
         obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     env.close()
-    assert info.get("success"), "RuleInduction: couldn't reach true goal after revealing rule"
+    assert info.get("success"), "RuleInduction: couldn't reach goal after opening door"
 
 
 @pytest.mark.timeout(60)
@@ -871,14 +886,21 @@ def test_causal_chain_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_switch_circuit_can_succeed():
-    """SwitchCircuit: toggle all switches → gate opens → reach goal."""
+    """SwitchCircuit: INTERACT on all switches → barriers open → reach goal."""
+    from agentick.core.types import ActionType
+    interact = int(ActionType.INTERACT)
+
     env = agentick.make("SwitchCircuit-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
     for sw in cfg["switch_positions"]:
         _walk_to(env, sw[0], sw[1])
+        if not env.done:
+            env.step(interact)  # Toggle the switch via INTERACT
     if not env.done:
         obs, rew, term, trunc, info = _walk_to(env, *cfg["goal_positions"][0])
+    else:
+        info = {}
     env.close()
     assert info.get("success"), "SwitchCircuit: switches or gate didn't work"
 

@@ -94,6 +94,43 @@ class ASCIIRenderer:
             Multi-line ASCII representation with colors and legend
         """
         output = []
+        task_config = info.get("task_config", {})
+        task_name = info.get("task_name", "")
+
+        # ── Task-specific annotation headers ────────────────────────────
+        if "InstructionFollowing" in task_name and "target_type" in task_config:
+            target_val = task_config["target_type"]
+            _OBJ_NAMES = {
+                int(ObjectType.GEM): "GEM", int(ObjectType.SCROLL): "SCROLL",
+                int(ObjectType.ORB): "ORB", int(ObjectType.COIN): "COIN",
+            }
+            tname = _OBJ_NAMES.get(int(target_val), f"OBJ_{target_val}")
+            output.append(f"Target: [{tname}]")
+
+        if "TaskInterference" in task_name:
+            red = task_config.get("_red_meter", 0.0)
+            blue = task_config.get("_blue_meter", 0.0)
+            r_bar = "=" * int(red * 10) + " " * (10 - int(red * 10))
+            b_bar = "=" * int(blue * 10) + " " * (10 - int(blue * 10))
+            output.append(f"GEM:[{r_bar}] {red:.2f}  ORB:[{b_bar}] {blue:.2f}")
+
+        if "TreasureHunt" in task_name:
+            clue_info = task_config.get("_clue_info", {})
+            clues_read = task_config.get("_clues_read", [])
+            dirs = {0: "N", 1: "E", 2: "S", 3: "W"}
+            clue_parts = []
+            for cpos in clues_read:
+                key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
+                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                if ci:
+                    d = dirs.get(ci.get("direction", 0), "?")
+                    dist = ci.get("distance", "?")
+                    clue_parts.append(f"{d}{dist}")
+            # Wrap clues: max 5 per line to avoid overflow
+            max_per_line = 5
+            for row_start in range(0, len(clue_parts), max_per_line):
+                row = clue_parts[row_start:row_start + max_per_line]
+                output.append("Clue: " + "  ".join(row))
 
         # Build character grid
         char_grid = np.full((grid.height, grid.width), ".", dtype=object)
@@ -147,31 +184,52 @@ class ASCIIRenderer:
                     char_grid[y, x] = str(meta_val) if meta_val > 0 else "N"
                 elif obj_val == ObjectType.BOX:
                     meta_val = int(grid.metadata[y, x])
-                    if meta_val != 0:
+                    if meta_val >= 100:
+                        # Correctly placed tile (TileSorting): green tint
+                        real_tile = meta_val - 100
+                        char_grid[y, x] = (
+                            str(real_tile) if real_tile <= 9
+                            else chr(ord("A") + real_tile - 10)
+                        )
+                        color_grid[y, x] = "goal"  # green color for correct
+                    elif meta_val != 0:
                         # Numbered tile (TileSorting): show tile number
-                        char_grid[y, x] = str(meta_val) if meta_val <= 9 else chr(ord("A") + meta_val - 10)
+                        char_grid[y, x] = (
+                            str(meta_val) if meta_val <= 9
+                            else chr(ord("A") + meta_val - 10)
+                        )
+                        color_grid[y, x] = "box"
                     else:
                         char_grid[y, x] = "B"
-                    color_grid[y, x] = "box"
+                        color_grid[y, x] = "box"
                 elif obj_val == ObjectType.TARGET:
                     meta_val = int(grid.metadata[y, x])
-                    # Typed target: show expected object type character
-                    _TYPED_TARGET_CHARS = {
-                        5: ("B", "box"),    # BOX slot
-                        14: ("d", "gem"),   # GEM slot
-                        15: ("L", "lever"), # LEVER slot
-                        16: ("P", "potion"),# POTION slot
-                        17: ("?", "scroll"),# SCROLL slot
-                        18: ("c", "coin"),  # COIN slot
-                        19: ("O", "orb"),   # ORB slot
-                    }
-                    if meta_val in _TYPED_TARGET_CHARS:
-                        ch, col = _TYPED_TARGET_CHARS[meta_val]
-                        char_grid[y, x] = ch
-                        color_grid[y, x] = col
-                    else:
-                        char_grid[y, x] = "T"
+                    if meta_val >= 200:
+                        # TileSorting: goal slot — show expected tile number
+                        slot_tile = meta_val - 200
+                        char_grid[y, x] = (
+                            str(slot_tile) if slot_tile <= 9
+                            else chr(ord("A") + slot_tile - 10)
+                        )
                         color_grid[y, x] = "goal"
+                    else:
+                        # Typed target: show expected object type character
+                        _TYPED_TARGET_CHARS = {
+                            5: ("B", "box"),    # BOX slot
+                            14: ("d", "gem"),   # GEM slot
+                            15: ("L", "lever"), # LEVER slot
+                            16: ("P", "potion"),# POTION slot
+                            17: ("?", "scroll"),# SCROLL slot
+                            18: ("c", "coin"),  # COIN slot
+                            19: ("O", "orb"),   # ORB slot
+                        }
+                        if meta_val in _TYPED_TARGET_CHARS:
+                            ch, col = _TYPED_TARGET_CHARS[meta_val]
+                            char_grid[y, x] = ch
+                            color_grid[y, x] = col
+                        else:
+                            char_grid[y, x] = "T"
+                            color_grid[y, x] = "goal"
                 elif obj_val == ObjectType.TOOL:
                     char_grid[y, x] = "t"
                     color_grid[y, x] = "key"
@@ -461,8 +519,8 @@ def create_renderer(
             verbosity=verbosity,
             perspective=perspective,
         )
-    elif mode in ("rgb_array", "rgb_array_2d", "human"):
-        # Simple 2D grid renderer (clean, functional, publication-ready)
+    elif mode in ("rgb_array_flat", "rgb_array_2d", "human"):
+        # Flat 2D top-down grid renderer
         from agentick.core.simple_grid_renderer import SimpleGridRenderer
 
         return SimpleGridRenderer(tile_size=tile_size)

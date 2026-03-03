@@ -556,42 +556,37 @@ class ExperimentRunner:
         # Handle suite names
         suite_name = self.config.tasks
 
-        if suite_name == "quick":
-            return [
-                "GoToGoal-v0",
-                "CollectKeys-v0",
-                "AvoidObstacles-v0",
-                "MemoryPath-v0",
-                "DoorKey-v0",
-            ]
-        elif suite_name == "full":
-            # Import registry to get all tasks
+        if suite_name == "full":
             from agentick.tasks.registry import list_tasks
 
             return list_tasks()
-        elif suite_name == "navigation":
-            return [
-                "GoToGoal-v0",
-                "AvoidObstacles-v0",
-                "Maze-v0",
-                "MultiGoal-v0",
-            ]
-        elif suite_name == "memory":
-            return [
-                "MemoryPath-v0",
-                "MemorySequence-v0",
-                "MemoryPairs-v0",
-            ]
-        elif suite_name == "reasoning":
-            return [
-                "BlocksWorld-v0",
-                "PushBlock-v0",
-                "LightsOut-v0",
-                "GraphColoring-v0",
-            ]
-        else:
-            # Assume it's a single task name
-            return [suite_name]
+
+        # Map suite names to task lists from the suites module
+        from agentick.leaderboard.suites import (
+            GENERALIZATION_TASKS,
+            MEMORY_TASKS,
+            MULTIAGENT_TASKS,
+            NAVIGATION_TASKS,
+            PLANNING_TASKS,
+            QUICK_TASKS,
+            REASONING_TASKS,
+        )
+
+        suite_map = {
+            "quick": QUICK_TASKS,
+            "navigation": NAVIGATION_TASKS,
+            "planning": PLANNING_TASKS,
+            "reasoning": REASONING_TASKS,
+            "memory": MEMORY_TASKS,
+            "generalization": GENERALIZATION_TASKS,
+            "multi_agent": MULTIAGENT_TASKS,
+        }
+
+        if suite_name in suite_map:
+            return suite_map[suite_name]
+
+        # Assume it's a single task name
+        return [suite_name]
 
     def _run_task(
         self,

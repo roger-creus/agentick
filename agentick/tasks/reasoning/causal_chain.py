@@ -23,7 +23,7 @@ from agentick.tasks.registry import register_task
 
 @register_task("CausalChain-v0", tags=["reasoning", "causal_reasoning"])
 class CausalChainTask(TaskSpec):
-    """Activate levers in causal order; each causes a physical grid change."""
+    """Activate LEVER objects in causal order; each causes a physical grid change."""
 
     name = "CausalChain-v0"
     description = "Activate causal chain of levers with physical consequences"

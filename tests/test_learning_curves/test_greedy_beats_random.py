@@ -9,7 +9,7 @@ from agentick.benchmark.baselines import GreedyAgent, RandomAgent
 NAVIGATION_TASKS = [
     "GoToGoal-v0",
     "MazeNavigation-v0",
-    "MultiGoalRoute-v0",
+    "ShortestPath-v0",
 ]
 
 

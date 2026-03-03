@@ -88,7 +88,7 @@ def load_reference_render(task_id: str, render_mode: str, step: int = 0):
     return None
 
 
-@pytest.mark.parametrize("render_mode", ["ascii", "language", "rgb_array"])
+@pytest.mark.parametrize("render_mode", ["ascii", "language", "rgb_array_flat"])
 @pytest.mark.parametrize(
     "task_id",
     [

@@ -7,18 +7,17 @@ import json
 from dataclasses import dataclass, field
 from typing import Literal
 
-# Core tasks (original 27 tasks - excluding new Phase 2/3 additions)
+# Core tasks (25 tasks - excluding new Phase 2/3 additions)
 CORE_TASKS = [
     "GoToGoal-v0",
     "MazeNavigation-v0",
     "FogOfWarExploration-v0",
     "DynamicObstacles-v0",
-    "MultiGoalRoute-v0",
+    "ShortestPath-v0",
     "KeyDoorPuzzle-v0",
     "SequenceMemory-v0",
     "DelayedGratification-v0",
     "BacktrackPuzzle-v0",
-    "BreadcrumbTrail-v0",
     "SokobanPush-v0",
     "CausalChain-v0",
     "SymbolMatching-v0",
@@ -26,7 +25,6 @@ CORE_TASKS = [
     "SwitchCircuit-v0",
     "ToolUse-v0",
     "RecipeAssembly-v0",
-    "MultiRoomEscape-v0",
     "EmergentStrategy-v0",
     "ResourceManagement-v0",
     "PreciseNavigation-v0",
@@ -38,7 +36,7 @@ CORE_TASKS = [
     "TileSorting-v0",
 ]
 
-# All 35 tasks for full benchmark (core + key Phase 2/3 tasks)
+# All 38 tasks for full benchmark (core + Phase 2/3 + compositional/exploration)
 FULL_TASKS = CORE_TASKS + [
     "PackingPuzzle-v0",
     "DeceptiveReward-v0",
@@ -47,70 +45,69 @@ FULL_TASKS = CORE_TASKS + [
     "FewShotAdaptation-v0",
     "TaskInterference-v0",
     "CooperativeTransport-v0",
-    "CompetitiveTag-v0",
+    "TagHunt-v0",
+    "InstructionFollowing-v0",
+    "ProgramSynthesis-v0",
+    "RecursiveRooms-v0",
+    "CuriosityMaze-v0",
+    "TreasureHunt-v0",
 ]
 
-# Capability-specific task groups
+# Capability-specific task groups (6 categories)
 NAVIGATION_TASKS = [
     "GoToGoal-v0",
     "MazeNavigation-v0",
-    "FogOfWarExploration-v0",
+    "ShortestPath-v0",
     "DynamicObstacles-v0",
-    "MultiGoalRoute-v0",
+    "CuriosityMaze-v0",
+    "RecursiveRooms-v0",
+    "TimingChallenge-v0",
+    "InstructionFollowing-v0",
 ]
 
-MEMORY_TASKS = [
-    "KeyDoorPuzzle-v0",
-    "SequenceMemory-v0",
-    "DelayedGratification-v0",
-    "BacktrackPuzzle-v0",
-    "BreadcrumbTrail-v0",
-]
-
-REASONING_TASKS = [
+PLANNING_TASKS = [
     "SokobanPush-v0",
-    "CausalChain-v0",
-    "SymbolMatching-v0",
-    "RuleInduction-v0",
-    "SwitchCircuit-v0",
-]
-
-SKILL_TASKS = [
-    "ToolUse-v0",
+    "KeyDoorPuzzle-v0",
+    "BacktrackPuzzle-v0",
+    "TileSorting-v0",
+    "PackingPuzzle-v0",
+    "PreciseNavigation-v0",
     "RecipeAssembly-v0",
-    "MultiRoomEscape-v0",
-    "EmergentStrategy-v0",
+    "ToolUse-v0",
     "ResourceManagement-v0",
 ]
 
-CONTROL_TASKS = [
-    "PreciseNavigation-v0",
-    "TimingChallenge-v0",
-    "ChaseEvade-v0",
-    "Herding-v0",
-]
-
-COMBINATORIAL_TASKS = [
+REASONING_TASKS = [
+    "CausalChain-v0",
+    "SwitchCircuit-v0",
+    "RuleInduction-v0",
     "LightsOut-v0",
     "GraphColoring-v0",
-    "TileSorting-v0",
-    "PackingPuzzle-v0",
+    "SymbolMatching-v0",
+    "ProgramSynthesis-v0",
+    "TaskInterference-v0",
+    "DeceptiveReward-v0",
 ]
 
-ADVERSARIAL_TASKS = [
-    "DeceptiveReward-v0",
+MEMORY_TASKS = [
+    "SequenceMemory-v0",
+    "DelayedGratification-v0",
+    "TreasureHunt-v0",
+    "FogOfWarExploration-v0",
+]
+
+GENERALIZATION_TASKS = [
+    "FewShotAdaptation-v0",
     "DistributionShift-v0",
     "NoisyObservation-v0",
 ]
 
-META_TASKS = [
-    "FewShotAdaptation-v0",
-    "TaskInterference-v0",
-]
-
 MULTIAGENT_TASKS = [
     "CooperativeTransport-v0",
-    "CompetitiveTag-v0",
+    "TagHunt-v0",
+    "ChaseEvade-v0",
+    "Herding-v0",
+    "EmergentStrategy-v0",
 ]
 
 # Quick sanity check tasks (fast, easy)
@@ -231,7 +228,7 @@ def generate_deterministic_seeds(suite_name: str, n_seeds: int) -> tuple[int, ..
 AGENTICK_FULL_V1 = BenchmarkSuite(
     name="agentick-full-v1",
     display_name="Agentick Full Benchmark v1.0",
-    description="Complete benchmark with all 35 official tasks - the canonical score",
+    description="Complete benchmark with all 38 official tasks - the canonical score",
     tasks=tuple(FULL_TASKS),
     difficulty="medium",
     eval_seeds=generate_deterministic_seeds("agentick-full-v1", 50),
@@ -244,7 +241,7 @@ AGENTICK_FULL_V1 = BenchmarkSuite(
 AGENTICK_CORE_V1 = BenchmarkSuite(
     name="agentick-core-v1",
     display_name="Agentick Core Benchmark v1.0",
-    description="Original 27 core tasks",
+    description="Original 25 core tasks",
     tasks=tuple(CORE_TASKS),
     difficulty="medium",
     eval_seeds=generate_deterministic_seeds("agentick-core-v1", 50),
@@ -259,7 +256,7 @@ AGENTICK_NAVIGATION_V1 = BenchmarkSuite(
     display_name="Navigation Capability Suite v1.0",
     description="Deep-dive into navigation capability across 3 difficulty levels",
     tasks=tuple(NAVIGATION_TASKS),
-    difficulty="medium",  # Will also run easy, medium, hard
+    difficulty="medium",
     eval_seeds=generate_deterministic_seeds("agentick-navigation-v1", 30),
     episodes_per_seed=1,
     max_steps_override=None,
@@ -267,13 +264,13 @@ AGENTICK_NAVIGATION_V1 = BenchmarkSuite(
     version="1.0",
 )
 
-AGENTICK_MEMORY_V1 = BenchmarkSuite(
-    name="agentick-memory-v1",
-    display_name="Memory Capability Suite v1.0",
-    description="Deep-dive into memory capability across 3 difficulty levels",
-    tasks=tuple(MEMORY_TASKS),
+AGENTICK_PLANNING_V1 = BenchmarkSuite(
+    name="agentick-planning-v1",
+    display_name="Planning Capability Suite v1.0",
+    description="Deep-dive into planning capability across 3 difficulty levels",
+    tasks=tuple(PLANNING_TASKS),
     difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-memory-v1", 30),
+    eval_seeds=generate_deterministic_seeds("agentick-planning-v1", 30),
     episodes_per_seed=1,
     max_steps_override=None,
     scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
@@ -293,65 +290,26 @@ AGENTICK_REASONING_V1 = BenchmarkSuite(
     version="1.0",
 )
 
-AGENTICK_SKILL_V1 = BenchmarkSuite(
-    name="agentick-skill-v1",
-    display_name="Skill Discovery Suite v1.0",
-    description="Deep-dive into skill discovery capability across 3 difficulty levels",
-    tasks=tuple(SKILL_TASKS),
+AGENTICK_MEMORY_V1 = BenchmarkSuite(
+    name="agentick-memory-v1",
+    display_name="Memory Capability Suite v1.0",
+    description="Deep-dive into memory capability across 3 difficulty levels",
+    tasks=tuple(MEMORY_TASKS),
     difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-skill-v1", 30),
+    eval_seeds=generate_deterministic_seeds("agentick-memory-v1", 30),
     episodes_per_seed=1,
     max_steps_override=None,
     scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
     version="1.0",
 )
 
-AGENTICK_CONTROL_V1 = BenchmarkSuite(
-    name="agentick-control-v1",
-    display_name="Control Suite v1.0",
-    description="Deep-dive into control capability across 3 difficulty levels",
-    tasks=tuple(CONTROL_TASKS),
+AGENTICK_GENERALIZATION_V1 = BenchmarkSuite(
+    name="agentick-generalization-v1",
+    display_name="Generalization Capability Suite v1.0",
+    description="Deep-dive into generalization capability across 3 difficulty levels",
+    tasks=tuple(GENERALIZATION_TASKS),
     difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-control-v1", 30),
-    episodes_per_seed=1,
-    max_steps_override=None,
-    scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
-    version="1.0",
-)
-
-AGENTICK_COMBINATORIAL_V1 = BenchmarkSuite(
-    name="agentick-combinatorial-v1",
-    display_name="Combinatorial Suite v1.0",
-    description="Deep-dive into combinatorial reasoning across 3 difficulty levels",
-    tasks=tuple(COMBINATORIAL_TASKS),
-    difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-combinatorial-v1", 30),
-    episodes_per_seed=1,
-    max_steps_override=None,
-    scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
-    version="1.0",
-)
-
-AGENTICK_ADVERSARIAL_V1 = BenchmarkSuite(
-    name="agentick-adversarial-v1",
-    display_name="Adversarial Robustness Suite v1.0",
-    description="Robustness to adversarial conditions",
-    tasks=tuple(ADVERSARIAL_TASKS),
-    difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-adversarial-v1", 30),
-    episodes_per_seed=1,
-    max_steps_override=None,
-    scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
-    version="1.0",
-)
-
-AGENTICK_META_V1 = BenchmarkSuite(
-    name="agentick-meta-v1",
-    display_name="Meta-Learning Suite v1.0",
-    description="Meta-learning and adaptation capability",
-    tasks=tuple(META_TASKS),
-    difficulty="medium",
-    eval_seeds=generate_deterministic_seeds("agentick-meta-v1", 30),
+    eval_seeds=generate_deterministic_seeds("agentick-generalization-v1", 30),
     episodes_per_seed=1,
     max_steps_override=None,
     scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
@@ -415,18 +373,15 @@ OFFICIAL_SUITES: dict[str, BenchmarkSuite] = {
     "agentick-full-v1": AGENTICK_FULL_V1,
     "agentick-core-v1": AGENTICK_CORE_V1,
     "agentick-navigation-v1": AGENTICK_NAVIGATION_V1,
-    "agentick-memory-v1": AGENTICK_MEMORY_V1,
+    "agentick-planning-v1": AGENTICK_PLANNING_V1,
     "agentick-reasoning-v1": AGENTICK_REASONING_V1,
-    "agentick-skill-v1": AGENTICK_SKILL_V1,
-    "agentick-control-v1": AGENTICK_CONTROL_V1,
-    "agentick-combinatorial-v1": AGENTICK_COMBINATORIAL_V1,
-    "agentick-adversarial-v1": AGENTICK_ADVERSARIAL_V1,
-    "agentick-meta-v1": AGENTICK_META_V1,
+    "agentick-memory-v1": AGENTICK_MEMORY_V1,
+    "agentick-generalization-v1": AGENTICK_GENERALIZATION_V1,
     "agentick-multiagent-v1": AGENTICK_MULTIAGENT_V1,
     "agentick-quick-v1": AGENTICK_QUICK_V1,
     "agentick-difficulty-v1": AGENTICK_DIFFICULTY_V1,
     "agentick-multimodal-v1": AGENTICK_MULTIMODAL_V1,
-    # Note: 14 suites total
+    # Note: 11 suites total
 }
 
 

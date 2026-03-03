@@ -124,9 +124,9 @@ class BCPixelDataset(Dataset):
         ds = cls(data_path=None, image_size=image_size, grayscale=grayscale)
         for traj in dataset.trajectories:
             for step in traj.steps:
-                pixels = step.observations.get("rgb_array")
+                pixels = step.observations.get("rgb_array_flat")
                 if pixels is None:
-                    pixels = step.observations.get("rgb_array_2d")
+                    pixels = step.observations.get("rgb_array")
                 if pixels is not None:
                     arr = (
                         np.array(pixels, dtype=np.uint8)
@@ -148,7 +148,7 @@ class BCPixelDataset(Dataset):
                 for step in traj["steps"]:
                     obs = step["observations"]
                     # Prefer rgb_array, fall back to state_dict
-                    pixels = obs.get("rgb_array") or obs.get("rgb_array_2d")
+                    pixels = obs.get("rgb_array_flat") or obs.get("rgb_array")
                     if pixels is not None:
                         arr = np.array(pixels, dtype=np.uint8)
                         self.observations.append(arr)

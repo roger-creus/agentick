@@ -86,6 +86,40 @@ class AdvancedLanguageRenderer:
         else:  # omniscient
             parts.extend(self._describe_omniscient(grid, agent, entities))
 
+        # ── Task-specific annotations ───────────────────────────────────
+        task_config = info.get("task_config", {})
+        task_name = info.get("task_name", "")
+        if "InstructionFollowing" in task_name and "target_type" in task_config:
+            obj_names = {
+                int(ObjectType.GEM): "GEM", int(ObjectType.SCROLL): "SCROLL",
+                int(ObjectType.ORB): "ORB", int(ObjectType.COIN): "COIN",
+            }
+            tname = obj_names.get(
+                int(task_config["target_type"]), "UNKNOWN"
+            )
+            parts.append(f"Your target is: {tname}.")
+        if "TaskInterference" in task_name:
+            red = task_config.get("_red_meter", 0.0)
+            blue = task_config.get("_blue_meter", 0.0)
+            threshold = task_config.get("threshold", 0.5)
+            parts.append(
+                f"Gem meter: {red:.2f}/{threshold:.1f}. "
+                f"Orb meter: {blue:.2f}/{threshold:.1f}."
+            )
+        if "TreasureHunt" in task_name:
+            clue_info = task_config.get("_clue_info", {})
+            clues_read = task_config.get("_clues_read", [])
+            dir_names = {0: "North", 1: "East", 2: "South", 3: "West"}
+            for cpos in clues_read:
+                key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
+                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                if ci:
+                    d = dir_names.get(ci.get("direction", 0), "unknown")
+                    dist = ci.get("distance", "?")
+                    parts.append(
+                        f"A scroll pointed {d}, {dist} tiles away."
+                    )
+
         # Spatial surroundings with relative directions
         if self.config.include_spatial_reasoning:
             surroundings = self._describe_surroundings_relative(grid, agent, entities)
@@ -294,6 +328,20 @@ class AdvancedLanguageRenderer:
                     descriptions.append(f"a box {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.SWITCH:
                     descriptions.append(f"a switch {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.NPC:
+                    meta_val = int(grid.metadata[ny, nx])
+                    _npc_names = {
+                        1: "Follower NPC", 3: "Fearful NPC",
+                        4: "Mirror NPC", 5: "Contrarian NPC",
+                    }
+                    npc_name = _npc_names.get(meta_val, "NPC")
+                    descriptions.append(f"a {npc_name} {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.ENEMY:
+                    descriptions.append(f"an enemy {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.GEM:
+                    descriptions.append(f"a gem {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.ORB:
+                    descriptions.append(f"an orb {rel_dir} ({dist_desc})")
 
         # Check for nearby entities
         for entity in entities:

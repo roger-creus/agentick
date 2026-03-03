@@ -8,8 +8,8 @@ Seven modes via `render_mode`:
 - **ASCII**: Colored text grid
 - **Language**: Natural language descriptions
 - **Language Structured**: Dictionary with semantic info
-- **RGB Array**: 3D isometric pixel observations (default) or 2D sprites
-- **RGB Array 2D**: Flat 2D sprite-based pixel observations
+- **RGB Array**: Isometric sprite-based pixel observations (512x512)
+- **RGB Array Flat**: Flat 2D top-down sprite observations (512x512)
 - **State Dict**: Full state access
 - **Human**: Pygame window
 
@@ -64,7 +64,7 @@ Output:
 
 Space: `gymnasium.spaces.Dict`
 
-## 4. RGB Array Mode (3D Isometric)
+## 4. RGB Array Mode (Isometric)
 
 ```python
 env = agentick.make("GoToGoal-v0", render_mode="rgb_array")
@@ -72,60 +72,25 @@ obs, info = env.reset()
 print(obs.shape)  # (512, 512, 3), uint8
 ```
 
-Agentick includes a **3D isometric renderer** powered by GLB models generated via
-Meshy AI. Enable it with `render_3d=True` for visually rich observations with an
-orthographic isometric camera, warm key lighting, and cool fill lighting.
-
-**3D rendering options**:
-```python
-# 3D isometric (opt-in)
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array", render_3d=True)
-
-# Force 2D sprites (faster, for RL training)
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array", render_3d=False)
-
-# Custom GLB models directory
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array", asset_dir="my_models/")
-```
-
-If `trimesh` and `pyrender` are not installed, the renderer automatically falls back
-to 2D sprites. Install 3D dependencies with: `uv sync --extra render3d`
+The default visual mode uses an **isometric sprite renderer** powered by Kenney tile assets. Produces visually rich 512x512 images with an isometric diamond perspective.
 
 Space: `gymnasium.spaces.Box` shape `(512, 512, 3)`, dtype `uint8`, range `[0, 255]`
 
-## 4b. RGB Array 2D Mode (Flat Sprites)
+## 5. RGB Array Flat Mode (2D Sprites)
 
 For maximum speed (e.g., during RL training), use the flat 2D sprite renderer:
 
 ```python
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array_2d")
+env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")
 obs, info = env.reset()
-print(obs.shape)  # (H*32, W*32, 3), uint8
+print(obs.shape)  # (512, 512, 3), uint8
 ```
+
+Renders a top-down 2D grid with colored tile sprites. Includes a header with task name, step count, and task-specific indicators (e.g., target type for InstructionFollowing). Images are resized to a consistent 512x512.
 
 **Visual elements**: Agent (triangle), Goal (star), Keys (key icon), Doors (rectangle), Walls (gray), Hazards (red X)
 
-**Options**:
-```python
-env = agentick.make(
-    "GoToGoal-v0",
-    render_mode="rgb_array_2d",
-    tile_size=32,  # 8, 16, 32, 64
-    show_grid=True,
-    show_hud=True
-)
-```
-
-**Performance comparison**:
-
-| Mode | Speed | Use Case |
-|---|---|---|
-| `rgb_array` (3D) | ~10-50 FPS | LLM evaluation, human play, video recording |
-| `rgb_array_2d` (2D) | ~1000+ FPS | RL training, batch evaluation |
-
-Space: `gymnasium.spaces.Box` shape `(H, W, 3)`, dtype `uint8`, range `[0, 255]`
-
-## 5. State Dict Mode
+## 6. State Dict Mode
 
 ```python
 env = agentick.make("GoToGoal-v0", render_mode="state_dict")
@@ -163,7 +128,7 @@ env = agentick.make("GoToGoal-v0", render_mode="state_dict", fast_mode=True)
 
 Space: `gymnasium.spaces.Dict`
 
-## 6. Human Mode
+## 7. Human Mode
 
 ```python
 env = agentick.make("GoToGoal-v0", render_mode="human")
@@ -173,18 +138,6 @@ obs, info = env.reset()
 **Controls**: Arrow keys (move), Space (interact), R/L (rotate), Q (quit)
 
 **Display**: Large sprites, grid overlay, HUD
-
-## Selection Guide
-
-| Agent Type | Best Mode |
-|---|---|
-| LLM | ASCII, Language |
-| VLM (e.g. GPT-4o) | RGB Array (3D for richer visuals) |
-| Vision Transformer | RGB Array |
-| CNN-based RL | RGB Array 2D (fast) or RGB Array |
-| Programmatic bot | State Dict |
-| Search/Planning | State Dict (fast mode) |
-| Human baseline | Human |
 
 ## Multi-Modal Access
 
@@ -205,19 +158,4 @@ obs2, _ = env2.reset(seed=42)
 # Same internal state, different representations
 ```
 
-## Observation Wrappers
-
-```python
-from gymnasium import Wrapper
-
-class NormalizeObservationWrapper(Wrapper):
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        obs = obs.astype(np.float32) / 255.0  # Normalize to [0,1]
-        return obs, reward, terminated, truncated, info
-
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array")
-wrapped = NormalizeObservationWrapper(env)
-```
-
-See [Architecture](architecture.md) and [Tasks](tasks.md) for more details.
+See [Architecture](architecture.md) and [Tasks](../tasks.md) for more details.

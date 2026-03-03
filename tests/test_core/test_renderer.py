@@ -114,7 +114,7 @@ def test_pixel_renderer(simple_grid, agent, info_dict):
 
     assert isinstance(output, np.ndarray)
     assert output.dtype == np.uint8
-    assert output.shape == (5 * 32 + 32, 5 * 32, 3)  # Default tile size 32 + 32px task header
+    assert output.shape == (512, 512, 3)  # Fixed 512x512 output
     assert output.min() >= 0
     assert output.max() <= 255
 
@@ -124,8 +124,8 @@ def test_pixel_renderer_custom_tile_size(simple_grid, agent, info_dict):
     renderer = PixelRenderer(tile_size=16)
     output = renderer.render(simple_grid, [], agent, info_dict)
 
-    # tile_size rounded up to next multiple of 16 (FFMPEG compat), plus 32px task header
-    assert output.shape == (5 * 16 + 32, 5 * 16, 3)
+    # All outputs resized to fixed 512x512
+    assert output.shape == (512, 512, 3)
 
 
 def test_state_dict_renderer(simple_grid, agent, info_dict):
@@ -171,8 +171,8 @@ def test_create_renderer_language_structured():
 
 
 def test_create_renderer_rgb_array():
-    """Test renderer factory for pixels."""
-    renderer = create_renderer("rgb_array")
+    """Test renderer factory for flat 2D pixels."""
+    renderer = create_renderer("rgb_array_flat")
     assert isinstance(renderer, PixelRenderer)
 
 

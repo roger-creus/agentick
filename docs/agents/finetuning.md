@@ -1,166 +1,125 @@
-# Fine-Tuning Agents
+# Fine-Tuning
 
-Fine-tune language models on Agentick using Supervised Fine-Tuning (SFT).
+Fine-tune language models on expert trajectories from Agentick oracles.
 
-## Overview
+## Pipeline Overview
 
-Pipeline:
-1. Collect trajectories (oracle/human)
-2. Export to training format
-3. Supervised fine-tuning with TRL/HuggingFace
-4. Evaluate fine-tuned model
+1. Collect oracle trajectories → 2. Export to HuggingFace format → 3. SFT → 4. Evaluate
 
 ## Step 1: Collect Trajectories
 
 ```python
-from agentick.data import TrajectoryCollector
-from agentick.benchmark.baselines import OracleAgent
+import agentick
+from agentick.data.collector import DataCollector
+from agentick.oracles import get_oracle
 
 env = agentick.make("GoToGoal-v0", difficulty="easy", render_mode="language")
-collector = TrajectoryCollector(env)
-oracle = OracleAgent(env)
+oracle = get_oracle("GoToGoal-v0", env)
+collector = DataCollector(env, oracle, record_modalities=["language"])
 
-trajectories = collector.collect_trajectories(agent=oracle, n_episodes=100, seed=42)
-collector.save_trajectories(trajectories, "data/oracle_trajectories.json")
+dataset = collector.collect(num_episodes=100, seeds=range(100))
+dataset.save("data/oracle_trajectories/")
 ```
 
-**Examples**: `examples/data/collect_oracle_trajectories.py`, `collect_random_trajectories.py`
-
-## Step 2: Export Dataset
+## Step 2: Export
 
 ```python
-from agentick.data import export_to_format
-from datasets import load_dataset
-
-export_to_format(
-    trajectories,
-    output_path="data/hf_dataset",
-    format_type="hf_dataset",
-)
-
-dataset = load_dataset("data/hf_dataset")
-# Dataset({train: ..., test: ...})
+dataset.export_to_huggingface("data/hf_dataset/", format="conversation")
+# Formats: "conversation" (chat), "sft" (text/label), "instruction" (instruction tuning)
 ```
 
-Dataset format: `{"text": "<observation>", "label": "<action>"}`
+## Step 3: Fine-Tune
 
-**Example**: `examples/data/export_to_huggingface.py`
+### AgentickSFTTrainer (recommended)
 
-## Step 3: Supervised Fine-Tuning
+```python
+from agentick.training.trl.sft import AgentickSFTTrainer
+
+trainer = AgentickSFTTrainer(
+    model_name="Qwen/Qwen2.5-0.5B",
+    dataset_path="data/hf_dataset/",
+    output_dir="models/sft/",
+    use_lora=True,
+    lora_r=16,
+    num_train_epochs=3,
+    learning_rate=2e-5,
+)
+trainer.train()
+agent = trainer.as_agent()
+```
+
+### BehaviorCloningTrainer (pixel-based)
+
+```python
+from agentick.training.behavior_cloning import BehaviorCloningTrainer
+
+trainer = BehaviorCloningTrainer(
+    dataset_path="trajectories/oracle_pixels/",
+    output_dir="models/bc/",
+    num_epochs=50,
+)
+trainer.train()
+agent = trainer.as_agent()
+```
+
+### Tinker (remote SFT + RL)
+
+[Tinker](https://github.com/TinkerAI/tinker) provides remote LoRA fine-tuning infrastructure. Requires `uv add tinker` and a `TINKER_API_KEY`.
+
+**SFT** on oracle trajectories:
+
+```python
+from agentick.training.tinker.sft import TinkerSFTTrainer
+
+trainer = TinkerSFTTrainer(
+    base_model="Qwen/Qwen2.5-7B-Instruct",
+    dataset_path="data/hf_dataset/",
+    rank=32,
+)
+trainer.train(num_steps=100, learning_rate=1e-4)
+```
+
+**RL** on live environment interactions (optionally warmstarted from SFT):
+
+```python
+from agentick.training.tinker.rl import TinkerRLTrainer
+
+trainer = TinkerRLTrainer(
+    base_model="Qwen/Qwen2.5-7B-Instruct",
+    task_id="GoToGoal-v0",
+    difficulty="medium",
+    rank=32,
+)
+trainer.train(num_episodes=100, learning_rate=1e-5)
+```
+
+### TRL
 
 ```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from trl import SFTTrainer, SFTConfig
 from datasets import load_dataset
 
-model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-model = AutoModelForCausalLM.from_pretrained(model_name)
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
+model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B")
 dataset = load_dataset("data/hf_dataset")
-
-training_args = SFTConfig(
-    output_dir="./sft_output",
-    num_train_epochs=3,
-    per_device_train_batch_size=4,
-    learning_rate=2e-5,
-    max_seq_length=512
-)
 
 trainer = SFTTrainer(
     model=model,
-    args=training_args,
+    args=SFTConfig(output_dir="./sft_output", num_train_epochs=3, max_seq_length=512),
     train_dataset=dataset["train"],
     tokenizer=tokenizer,
-    dataset_text_field="text"
 )
-
 trainer.train()
-trainer.save_model("./sft_model")
 ```
-
-**Example**: `examples/data/sft_with_trl.py`
 
 ## Step 4: Evaluate
 
-For a complete example of loading and evaluating a finetuned model, see `examples/llm/huggingface_local_agent.py`.
+Use the finetuned model as an agent — see `examples/llm/huggingface_local_agent.py` for the pattern.
 
-To use your finetuned model:
-```python
-from transformers import AutoModelForCausalLM, AutoTokenizer
+## Complete Examples
 
-model = AutoModelForCausalLM.from_pretrained("./sft_model")
-tokenizer = AutoTokenizer.from_pretrained("./sft_model")
-# Then follow the pattern in examples/llm/huggingface_local_agent.py
-```
-
-### Compare Before/After
-
-```python
-def evaluate_model(model, tokenizer, env, n_episodes=10):
-    returns = []
-    for _ in range(n_episodes):
-        obs, _ = env.reset()
-        episode_return, done = 0, False
-
-        while not done:
-            prompt = llm_interface.format_prompt(obs, task_description="Navigate")
-            inputs = tokenizer(prompt, return_tensors="pt")
-            outputs = model.generate(**inputs, max_new_tokens=20)
-            action_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            action = llm_interface.parse_action(action_text)
-            obs, reward, terminated, truncated, _ = env.step(action)
-            episode_return += reward
-            done = terminated or truncated
-
-        returns.append(episode_return)
-
-    return sum(returns) / len(returns)
-
-base_model = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-finetuned_model = AutoModelForCausalLM.from_pretrained("./sft_model")
-tokenizer = AutoTokenizer.from_pretrained("./sft_model")
-
-env = agentick.make("GoToGoal-v0", difficulty="medium", render_mode="language")
-
-base_score = evaluate_model(base_model, tokenizer, env)
-finetuned_score = evaluate_model(finetuned_model, tokenizer, env)
-
-print(f"Base: {base_score:.2f}")
-print(f"Fine-tuned: {finetuned_score:.2f}")
-print(f"Improvement: {finetuned_score - base_score:.2f}")
-```
-
-## Complete Pipeline
-
-Full pipeline: `examples/data/sft_with_trl.py`
-
-Runs:
-1. Collect oracle trajectories
-2. Export to HuggingFace format
-3. Fine-tune model with TRL
-4. Evaluate fine-tuned model
-5. Compare before/after
-
-Run with:
-```bash
-uv run examples/data/sft_with_trl.py
-```
-
-## Dataset Formats
-
-```python
-# SFT (default)
-export_to_huggingface(trajectories, output_path, format="sft")
-# {"text": "<obs>", "label": "<action>"}
-
-# Chat
-export_to_huggingface(trajectories, output_path, format="chat")
-# {"messages": [{"role": "user", "content": "..."}, ...]}
-
-# Instruction
-export_to_huggingface(trajectories, output_path, format="instruction")
-# {"instruction": "<task>", "input": "<obs>", "output": "<action>"}
-```
-
-See `examples/data/` for complete examples.
+- `examples/data_and_finetuning/` — end-to-end collect → train → evaluate scripts
+- `agentick/training/tinker/` — Tinker SFT and RL trainer source
+- `agentick/training/trl/sft.py` — AgentickSFTTrainer source
+- `agentick/training/behavior_cloning.py` — BehaviorCloningTrainer source

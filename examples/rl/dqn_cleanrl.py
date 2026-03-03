@@ -3,10 +3,10 @@ CleanRL DQN training example with wandb logging, evaluation, video recording, an
 
 This example demonstrates:
 - DQN training from scratch using CleanRL-style implementation
+- Vectorized environments for parallel data collection
 - Integration with wandb for experiment tracking
 - Periodic evaluation with video recording
 - Model checkpointing
-- Performance metrics logging
 - Experience replay buffer
 
 Requirements:
@@ -37,7 +37,7 @@ try:
     WANDB_AVAILABLE = True
 except ImportError:
     WANDB_AVAILABLE = False
-    print("⚠️  wandb not available. Install with: uv sync --extra all")
+    print("wandb not available. Install with: uv sync --extra all")
 
 
 @dataclass
@@ -46,6 +46,7 @@ class DQNConfig:
 
     # Environment
     env_id: str = "GoToGoal-v0"
+    num_envs: int = 8
 
     # Training
     total_timesteps: int = 500_000
@@ -89,16 +90,12 @@ class QNetwork(nn.Module):
     def __init__(self, obs_space: gym.Space, action_space: gym.Space):
         super().__init__()
 
-        # Get action dimension
         if isinstance(action_space, gym.spaces.Discrete):
             action_dim = action_space.n
         else:
             raise ValueError(f"Unsupported action space: {action_space}")
 
-        # Check if we have image observations
         if isinstance(obs_space, gym.spaces.Box) and len(obs_space.shape) == 3:
-            # Nature CNN for image observations
-            # Input is (H, W, C) but we need (C, H, W) for PyTorch
             h, w, c = obs_space.shape
             in_channels = c
 
@@ -112,8 +109,6 @@ class QNetwork(nn.Module):
                 nn.Flatten(),
             )
 
-            # Calculate output size with a dummy forward pass
-            # Create dummy input as (1, C, H, W)
             with torch.no_grad():
                 dummy_input = torch.zeros(1, c, h, w)
                 dummy_output = self.network(dummy_input)
@@ -125,7 +120,6 @@ class QNetwork(nn.Module):
                 nn.Linear(512, action_dim),
             )
         else:
-            # Fallback for non-image observations
             if isinstance(obs_space, gym.spaces.Dict):
                 obs_dim = int(np.prod(obs_space["text"].shape))
             else:
@@ -141,7 +135,6 @@ class QNetwork(nn.Module):
             self.fc = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Get Q-values for all actions."""
         features = self.network(x)
         if self.fc is not None:
             return self.fc(features)
@@ -149,7 +142,7 @@ class QNetwork(nn.Module):
 
 
 class ReplayBuffer:
-    """Experience replay buffer with efficient storage."""
+    """Experience replay buffer with efficient uint8 storage."""
 
     def __init__(self, capacity: int, obs_shape: tuple, device: str):
         self.capacity = capacity
@@ -157,7 +150,6 @@ class ReplayBuffer:
         self.pos = 0
         self.size = 0
 
-        # Use uint8 for observations to save memory (4x smaller than float32)
         self.observations = torch.zeros((capacity, *obs_shape), dtype=torch.uint8)
         self.next_observations = torch.zeros((capacity, *obs_shape), dtype=torch.uint8)
         self.actions = torch.zeros((capacity,), dtype=torch.long)
@@ -165,8 +157,6 @@ class ReplayBuffer:
         self.dones = torch.zeros((capacity,), dtype=torch.uint8)
 
     def add(self, obs, next_obs, action, reward, done):
-        """Add experience to buffer."""
-        # Store as uint8 (observations should already be in [0, 255] range)
         self.observations[self.pos] = torch.from_numpy(np.array(obs).astype(np.uint8))
         self.next_observations[self.pos] = torch.from_numpy(np.array(next_obs).astype(np.uint8))
         self.actions[self.pos] = action
@@ -176,11 +166,14 @@ class ReplayBuffer:
         self.pos = (self.pos + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
 
-    def sample(self, batch_size: int):
-        """Sample batch of experiences."""
-        indices = np.random.randint(0, self.size, size=batch_size)
+    def add_batch(self, obs_batch, next_obs_batch, actions, rewards, dones):
+        """Add a batch of transitions (one per env)."""
+        batch_size = len(actions)
+        for i in range(batch_size):
+            self.add(obs_batch[i], next_obs_batch[i], actions[i], rewards[i], dones[i])
 
-        # Convert uint8 to float32 and normalize to [0, 1]
+    def sample(self, batch_size: int):
+        indices = np.random.randint(0, self.size, size=batch_size)
         return (
             self.observations[indices].float().to(self.device) / 255.0,
             self.next_observations[indices].float().to(self.device) / 255.0,
@@ -188,6 +181,56 @@ class ReplayBuffer:
             self.rewards[indices].to(self.device),
             self.dones[indices].float().to(self.device),
         )
+
+
+def make_env(env_id: str, seed: int, idx: int):
+    """Create a single environment with Atari preprocessing."""
+
+    def thunk():
+        env = make_atari_env(env_id, seed=seed)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env.action_space.seed(seed + idx)
+        env.observation_space.seed(seed + idx)
+        return env
+
+    return thunk
+
+
+def _format_obs(obs, device):
+    """Convert observation to tensor: (N, H, W, C) -> (N, C, H, W), normalized."""
+    if isinstance(obs, dict):
+        if "rgb" in obs:
+            obs_array = np.transpose(obs["rgb"], (0, 3, 1, 2)) / 255.0
+            return torch.FloatTensor(obs_array).to(device)
+        return torch.FloatTensor(obs["text"].reshape(obs["text"].shape[0], -1)).to(device)
+    if len(obs.shape) == 4:
+        obs_array = np.transpose(obs, (0, 3, 1, 2)) / 255.0
+        return torch.FloatTensor(obs_array).to(device)
+    return torch.FloatTensor(obs.reshape(obs.shape[0], -1)).to(device) / 255.0
+
+
+def _format_obs_single(obs, device):
+    """Convert single observation to tensor for evaluation."""
+    if isinstance(obs, dict):
+        if "rgb" in obs:
+            obs_array = obs["rgb"].transpose(2, 0, 1) / 255.0
+            return torch.FloatTensor(obs_array).unsqueeze(0).to(device)
+        return torch.FloatTensor(obs["text"].flatten()).unsqueeze(0).to(device)
+    if len(obs.shape) == 3:
+        obs_array = obs.transpose(2, 0, 1) / 255.0
+        return torch.FloatTensor(obs_array).unsqueeze(0).to(device)
+    return torch.FloatTensor(obs.flatten()).unsqueeze(0).to(device) / 255.0
+
+
+def _format_obs_for_buffer(obs):
+    """Convert observation to (C, H, W) uint8 for replay buffer storage."""
+    if isinstance(obs, dict):
+        if "rgb" in obs:
+            return obs["rgb"].transpose(2, 0, 1)
+        return obs["text"].flatten()
+    if len(obs.shape) == 3:
+        return obs.transpose(2, 0, 1)
+    return obs.flatten()
 
 
 def evaluate(
@@ -207,10 +250,9 @@ def evaluate(
             eval_env = gym.wrappers.RecordVideo(
                 eval_env,
                 video_folder=video_dir,
-                episode_trigger=lambda x: x < 3,  # Record first 3 episodes
+                episode_trigger=lambda x: x < 3,
             )
         except Exception:
-            # Skip video if moviepy not available
             pass
 
     returns = []
@@ -224,22 +266,7 @@ def evaluate(
         episode_length = 0
 
         while not done:
-            # Get observation - normalize images to [0, 1]
-            if isinstance(obs, dict):
-                if "rgb" in obs:
-                    # Image observation: (H, W, C) -> (C, H, W) and normalize
-                    obs_array = obs["rgb"].transpose(2, 0, 1) / 255.0
-                    obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(device)
-                else:
-                    obs_tensor = torch.FloatTensor(obs["text"].flatten()).unsqueeze(0).to(device)
-            elif len(obs.shape) == 3:
-                # Image observation: (H, W, C) -> (C, H, W) and normalize
-                obs_array = obs.transpose(2, 0, 1) / 255.0
-                obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(device)
-            else:
-                obs_tensor = torch.FloatTensor(obs.flatten()).unsqueeze(0).to(device)
-
-            # Get greedy action
+            obs_tensor = _format_obs_single(obs, device)
             with torch.no_grad():
                 q_values = q_network(obs_tensor)
                 action = q_values.argmax(dim=1).item()
@@ -252,7 +279,6 @@ def evaluate(
         returns.append(episode_return)
         lengths.append(episode_length)
 
-        # Track success if available
         if "success" in info:
             successes.append(float(info["success"]))
 
@@ -273,12 +299,10 @@ def evaluate(
 
 def train(config: DQNConfig):
     """Train DQN agent."""
-    # Set seeds
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
 
-    # Initialize wandb
     run_name = f"{config.env_id.split('/')[-1]}_{int(time.time())}"
     if config.use_wandb and WANDB_AVAILABLE:
         wandb.init(
@@ -289,30 +313,29 @@ def train(config: DQNConfig):
             sync_tensorboard=False,
         )
 
-    # Create environment with Atari preprocessing
-    env = make_atari_env(config.env_id, seed=config.seed)
-    env.action_space.seed(config.seed)
-    env.observation_space.seed(config.seed)
+    # Create vectorized environments
+    envs = gym.vector.SyncVectorEnv(
+        [make_env(config.env_id, config.seed, i) for i in range(config.num_envs)]
+    )
 
-    # Get observation shape for buffer
-    if isinstance(env.observation_space, gym.spaces.Dict):
-        if "rgb" in env.observation_space.spaces:
-            # Use rgb observation (C, H, W)
-            obs_shape = env.observation_space["rgb"].shape
+    # Get observation shape for buffer (C, H, W)
+    if isinstance(envs.single_observation_space, gym.spaces.Dict):
+        if "rgb" in envs.single_observation_space.spaces:
+            obs_shape = envs.single_observation_space["rgb"].shape
             obs_shape = (obs_shape[2], obs_shape[0], obs_shape[1])
         else:
-            # Use text observation (flattened)
-            obs_shape = (int(np.prod(env.observation_space["text"].shape)),)
-    elif len(env.observation_space.shape) == 3:
-        # Image observation (H, W, C) -> store as (C, H, W)
-        h, w, c = env.observation_space.shape
+            obs_shape = (int(np.prod(envs.single_observation_space["text"].shape)),)
+    elif len(envs.single_observation_space.shape) == 3:
+        h, w, c = envs.single_observation_space.shape
         obs_shape = (c, h, w)
     else:
-        obs_shape = (int(np.prod(env.observation_space.shape)),)
+        obs_shape = (int(np.prod(envs.single_observation_space.shape)),)
 
     # Create networks
-    q_network = QNetwork(env.observation_space, env.action_space).to(config.device)
-    target_network = QNetwork(env.observation_space, env.action_space).to(config.device)
+    q_network = QNetwork(envs.single_observation_space, envs.single_action_space).to(config.device)
+    target_network = QNetwork(envs.single_observation_space, envs.single_action_space).to(
+        config.device
+    )
     target_network.load_state_dict(q_network.state_dict())
     optimizer = optim.Adam(q_network.parameters(), lr=config.learning_rate)
 
@@ -323,13 +346,12 @@ def train(config: DQNConfig):
     learning_curve = {"steps": [], "returns": [], "lengths": []}
 
     # Training loop
-    obs, _ = env.reset(seed=config.seed)
-    episode_return = 0
-    episode_length = 0
+    obs, _ = envs.reset(seed=config.seed)
     episode_count = 0
 
     print(f"Training DQN on {config.env_id}")
     print(f"Device: {config.device}")
+    print(f"Num envs: {config.num_envs}")
     print(f"Total timesteps: {config.total_timesteps:,}")
     print(f"Wandb: {config.use_wandb and WANDB_AVAILABLE}")
     print()
@@ -340,113 +362,86 @@ def train(config: DQNConfig):
             0, 1 - global_step / config.epsilon_decay_steps
         )
 
-        # Get action - normalize image observations to [0, 1]
-        if isinstance(obs, dict):
-            if "rgb" in obs:
-                # Image observation: (H, W, C) -> (C, H, W) and normalize
-                obs_array = obs["rgb"].transpose(2, 0, 1) / 255.0
-                obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(config.device)
-            else:
-                obs_tensor = (
-                    torch.FloatTensor(obs["text"].flatten()).unsqueeze(0).to(config.device) / 255.0
-                )
-        elif len(obs.shape) == 3:
-            # Image observation: (H, W, C) -> (C, H, W) and normalize
-            obs_array = obs.transpose(2, 0, 1) / 255.0
-            obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(config.device)
-        else:
-            obs_tensor = torch.FloatTensor(obs.flatten()).unsqueeze(0).to(config.device) / 255.0
+        # Batched epsilon-greedy action selection
+        obs_tensor = _format_obs(obs, config.device)
 
         if random.random() < epsilon:
-            action = env.action_space.sample()
+            actions = np.array(
+                [envs.single_action_space.sample() for _ in range(config.num_envs)]
+            )
         else:
             with torch.no_grad():
                 q_values = q_network(obs_tensor)
-                action = q_values.argmax(dim=1).item()
+                actions = q_values.argmax(dim=1).cpu().numpy()
 
-        # Step environment
-        next_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
+        # Step all environments
+        next_obs, rewards, terminations, truncations, infos = envs.step(actions)
+        dones = np.logical_or(terminations, truncations)
 
-        # Store in replay buffer (keep observations in original format)
-        if isinstance(obs, dict):
-            if "rgb" in obs:
-                # Store as (C, H, W) for images
-                obs_formatted = obs["rgb"].transpose(2, 0, 1)
-                next_obs_formatted = next_obs["rgb"].transpose(2, 0, 1)
-            else:
-                obs_formatted = obs["text"].flatten()
-                next_obs_formatted = next_obs["text"].flatten()
-        elif len(obs.shape) == 3:
-            # Image: (H, W, C) -> (C, H, W)
-            obs_formatted = obs.transpose(2, 0, 1)
-            next_obs_formatted = next_obs.transpose(2, 0, 1)
-        else:
-            obs_formatted = obs.flatten()
-            next_obs_formatted = next_obs.flatten()
+        # Handle auto-reset: use final_observation for terminal transitions
+        real_next_obs = next_obs.copy()
+        if "final_observation" in infos:
+            for idx in range(config.num_envs):
+                if dones[idx] and infos["final_observation"][idx] is not None:
+                    real_next_obs[idx] = infos["final_observation"][idx]
 
-        replay_buffer.add(obs_formatted, next_obs_formatted, action, reward, done)
+        # Add all transitions to replay buffer
+        for idx in range(config.num_envs):
+            obs_fmt = _format_obs_for_buffer(obs[idx])
+            next_obs_fmt = _format_obs_for_buffer(real_next_obs[idx])
+            replay_buffer.add(obs_fmt, next_obs_fmt, actions[idx], rewards[idx], dones[idx])
 
-        # Update episode stats
-        episode_return += reward
-        episode_length += 1
+        obs = next_obs
 
-        # Handle episode end
-        if done:
-            episode_count += 1
+        # Log episode returns
+        if "final_info" in infos:
+            for item in infos["final_info"]:
+                if item and "episode" in item:
+                    episode_count += 1
+                    learning_curve["steps"].append(global_step)
+                    learning_curve["returns"].append(item["episode"]["r"])
+                    learning_curve["lengths"].append(item["episode"]["l"])
 
-            # Track learning curve
-            learning_curve["steps"].append(global_step)
-            learning_curve["returns"].append(episode_return)
-            learning_curve["lengths"].append(episode_length)
+                    if episode_count % config.log_freq == 0:
+                        print(
+                            f"Step {global_step:,}: episode={episode_count}, "
+                            f"return={item['episode']['r']:.2f}, "
+                            f"length={item['episode']['l']}, epsilon={epsilon:.3f}"
+                        )
 
-            if episode_count % config.log_freq == 0:
-                print(
-                    f"Step {global_step:,}: episode={episode_count}, return={episode_return:.2f}, length={episode_length}, epsilon={epsilon:.3f}"
-                )
-
-            if config.use_wandb and WANDB_AVAILABLE:
-                wandb.log(
-                    {
-                        "train/episode_return": episode_return,
-                        "train/episode_length": episode_length,
-                        "train/epsilon": epsilon,
-                        "train/global_step": global_step,
-                    }
-                )
-
-            obs, _ = env.reset()
-            episode_return = 0
-            episode_length = 0
-        else:
-            obs = next_obs
+                    if config.use_wandb and WANDB_AVAILABLE:
+                        wandb.log(
+                            {
+                                "train/episode_return": item["episode"]["r"],
+                                "train/episode_length": item["episode"]["l"],
+                                "train/epsilon": epsilon,
+                                "train/global_step": global_step,
+                            }
+                        )
 
         # Training
-        if global_step >= config.learning_starts and global_step % config.train_frequency == 0:
-            # Sample batch
+        if (
+            replay_buffer.size >= config.learning_starts
+            and global_step % config.train_frequency == 0
+        ):
             obs_batch, next_obs_batch, actions_batch, rewards_batch, dones_batch = (
                 replay_buffer.sample(config.batch_size)
             )
 
-            # Compute target Q-values
             with torch.no_grad():
                 target_q_values = target_network(next_obs_batch)
                 target_max = target_q_values.max(dim=1)[0]
                 target = rewards_batch + config.gamma * target_max * (1 - dones_batch)
 
-            # Compute current Q-values
             current_q_values = q_network(obs_batch)
             current = current_q_values.gather(1, actions_batch.unsqueeze(1)).squeeze(1)
 
-            # Compute loss
             loss = F.mse_loss(current, target)
 
-            # Optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Log training metrics
             if global_step % (config.log_freq * config.train_frequency) == 0:
                 if config.use_wandb and WANDB_AVAILABLE:
                     wandb.log(
@@ -462,7 +457,9 @@ def train(config: DQNConfig):
             if config.tau == 1.0:
                 target_network.load_state_dict(q_network.state_dict())
             else:
-                for target_param, param in zip(target_network.parameters(), q_network.parameters()):
+                for target_param, param in zip(
+                    target_network.parameters(), q_network.parameters()
+                ):
                     target_param.data.copy_(
                         config.tau * param.data + (1 - config.tau) * target_param.data
                     )
@@ -517,7 +514,7 @@ def train(config: DQNConfig):
     final_results = evaluate(
         q_network,
         config.env_id,
-        config.eval_episodes * 2,  # More episodes for final eval
+        config.eval_episodes * 2,
         config.device,
         config.record_video,
         video_dir,
@@ -548,7 +545,6 @@ def train(config: DQNConfig):
 
     # Save and plot learning curves
     if learning_curve["steps"]:
-        # Save raw data
         learning_curve_path = Path(config.checkpoint_dir) / "learning_curve.npz"
         np.savez(
             learning_curve_path,
@@ -558,12 +554,9 @@ def train(config: DQNConfig):
         )
         print(f"Learning curve data saved: {learning_curve_path}")
 
-        # Create plots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 
-        # Plot returns
         ax1.plot(learning_curve["steps"], learning_curve["returns"], alpha=0.6)
-        # Add smoothed curve (moving average)
         window = min(50, len(learning_curve["returns"]) // 10)
         if window > 1:
             smoothed_returns = np.convolve(
@@ -577,7 +570,6 @@ def train(config: DQNConfig):
         ax1.legend()
         ax1.grid(True, alpha=0.3)
 
-        # Plot episode lengths
         ax2.plot(learning_curve["steps"], learning_curve["lengths"], alpha=0.6)
         if window > 1:
             smoothed_lengths = np.convolve(
@@ -596,7 +588,7 @@ def train(config: DQNConfig):
         print(f"Learning curve plot saved: {plot_path}")
         plt.close()
 
-    env.close()
+    envs.close()
 
 
 if __name__ == "__main__":

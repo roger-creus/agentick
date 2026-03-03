@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import deque
+
 from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
 from agentick.oracles.registry import register_oracle
@@ -148,7 +150,6 @@ class MazeNavigationOracle(OracleAgent):
     def plan(self):
         ax, ay = self.api.agent_position
         grid = self.api.grid
-        config = self.api.task_config
         agent = self.api.agent
 
         # Check for locked doors blocking the path
@@ -241,8 +242,8 @@ class MazeNavigationOracle(OracleAgent):
         )
 
 
-@register_oracle("MultiGoalRoute-v0")
-class MultiGoalRouteOracle(OracleAgent):
+@register_oracle("ShortestPath-v0")
+class ShortestPathOracle(OracleAgent):
     """Greedily visit the nearest unvisited goal."""
 
     def plan(self):
@@ -355,3 +356,367 @@ class DynamicObstaclesOracle(OracleAgent):
                     self.action_queue = [actions[0]]
                     return
             self.action_queue = self.api.move_toward(*goal_pos)
+
+
+@register_oracle("CuriosityMaze-v0")
+class CuriosityMazeOracle(OracleAgent):
+    """Coverage-based exploration: visit all reachable cells efficiently.
+
+    Uses a nearest-unvisited greedy strategy: at each planning step, BFS to
+    the closest reachable cell not yet visited. This produces a near-optimal
+    traversal that minimises revisits.
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self._visited: set[tuple[int, int]] = set()
+
+    def reset(self, obs, info):
+        """Reset visited tracking on episode start."""
+        super().reset(obs, info)
+        self._visited = {tuple(self.api.agent_position)}
+
+    def act(self, obs, info):
+        """Track visited cells and delegate to base."""
+        self.api.update(obs, info)
+        self._visited.add(tuple(self.api.agent_position))
+        if not self.action_queue:
+            self.plan()
+        if self.action_queue:
+            return self.action_queue.pop(0)
+        return 0
+
+    def plan(self):
+        """Greedily BFS to the nearest unvisited reachable cell."""
+        start = tuple(self.api.agent_position)
+        self._visited.add(start)
+
+        # Get all walkable cells
+        walkable = set(self.api.get_walkable_cells())
+
+        # Find unvisited walkable cells
+        unvisited = walkable - self._visited
+
+        if not unvisited:
+            return  # Nothing left to visit
+
+        # BFS from current position to find nearest unvisited cell
+        target = self._nearest_unvisited_bfs(start, unvisited)
+        if target is None:
+            return
+
+        actions = self.api.move_to(*target)
+        self.action_queue.extend(actions)
+
+    def _nearest_unvisited_bfs(
+        self,
+        start: tuple[int, int],
+        unvisited: set[tuple[int, int]],
+    ) -> tuple[int, int] | None:
+        """BFS from start, return the first unvisited cell found."""
+        queue: deque[tuple[int, int]] = deque([start])
+        seen: set[tuple[int, int]] = {start}
+        grid = self.api.grid
+
+        while queue:
+            pos = queue.popleft()
+            if pos in unvisited:
+                return pos
+            x, y = pos
+            for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+                npos = (x + dx, y + dy)
+                if npos not in seen and grid.in_bounds(npos) and grid.is_walkable(npos):
+                    seen.add(npos)
+                    queue.append(npos)
+
+        return None
+
+
+@register_oracle("RecursiveRooms-v0")
+class RecursiveRoomsOracle(OracleAgent):
+    """Navigate nested rooms to reach goal in deepest room."""
+
+    def plan(self):
+        goal = self.api.get_nearest("goal")
+        if goal:
+            path = self.api.path_to(*goal.position)
+            if path:
+                self.action_queue = path
+                return
+
+        if self.api.has_in_inventory("key"):
+            doors = self.api.get_entities_of_type("door")
+            if doors:
+                nearest = min(doors, key=lambda d: d.distance)
+                path = self.api.bfs_path_positions(
+                    self.api.agent_position,
+                    nearest.position,
+                    extra_passable={nearest.position},
+                )
+                if path:
+                    self.action_queue = self.api.positions_to_actions(path)
+                    return
+
+        keys = self.api.get_entities_of_type("key")
+        if keys:
+            nearest = min(keys, key=lambda k: k.distance)
+            self.action_queue = self.api.move_to(*nearest.position)
+            return
+
+        if goal:
+            self.action_queue = self.api.move_toward(*goal.position)
+
+
+@register_oracle("TimingChallenge-v0")
+class TimingChallengeOracle(OracleAgent):
+    """Navigate past moving blockers by predicting their positions.
+
+    Uses config's _bx_i and _bdir_i to predict where blockers will be
+    after on_env_step, and only crosses gaps when safe.
+    """
+
+    def plan(self):
+        config = self.api.task_config
+        goal = self.api.get_nearest("goal")
+        if not goal:
+            return
+
+        ax, ay = self.api.agent_position
+        gx, gy = goal.position
+        grid = self.api.grid
+        mid_row = config.get("mid_row", grid.height // 2)
+        gap_cols = config.get("gap_cols", [config.get("gap_col", grid.width // 2)])
+        specs = config.get("_blocker_specs", [])
+
+        # Predict where all blockers will be AFTER the next on_env_step
+        next_step = self.api.current_step + 1
+        danger_cells = set()
+        current_blocker_cells = set()
+
+        for i, s in enumerate(specs):
+            speed = s.get("speed", 1)
+            bx = config.get(f"_bx_{i}", s["x"])
+            d = config.get(f"_bdir_{i}", 1)
+            by = s["row"]
+            p0, p1 = s["p0"], s["p1"]
+            current_blocker_cells.add((bx, by))
+
+            if next_step % speed == 0:
+                # Blocker will move
+                new_x = bx + d
+                if new_x > p1:
+                    new_x = bx - 1
+                elif new_x < p0:
+                    new_x = bx + 1
+                new_x = max(p0, min(p1, new_x))
+                danger_cells.add((new_x, by))
+            else:
+                # Blocker stays put
+                danger_cells.add((bx, by))
+
+        # Do we need to cross the barrier?
+        need_cross = (ay < mid_row and gy > mid_row) or (ay > mid_row and gy < mid_row)
+
+        if need_cross:
+            nearest_gap = min(gap_cols, key=lambda gc: abs(gc - ax))
+
+            # Are we adjacent to the gap?
+            if ax == nearest_gap and abs(ay - mid_row) == 1:
+                cross_target = (nearest_gap, mid_row)
+                if cross_target not in danger_cells:
+                    # Safe to cross!
+                    dy_step = 1 if gy > ay else -1
+                    step = self.api.step_action(0, dy_step)
+                    if step is not None:
+                        self.action_queue = [step]
+                        return
+                # Not safe - wait
+                self.action_queue = [0]
+                return
+
+            # Are we ON the barrier row at a gap?
+            if ay == mid_row and ax in gap_cols:
+                dy_step = 1 if gy > ay else -1
+                next_pos = (ax, ay + dy_step)
+                if next_pos not in danger_cells:
+                    step = self.api.step_action(0, dy_step)
+                    if step is not None:
+                        self.action_queue = [step]
+                        return
+                self.action_queue = [0]
+                return
+
+            # Navigate to the cell adjacent to the gap
+            target_y = mid_row - 1 if ay < mid_row else mid_row + 1
+            target_y = max(1, min(grid.height - 2, target_y))
+
+            # Avoid all current blocker cells
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                (nearest_gap, target_y),
+                avoid=current_blocker_cells,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    # Check first step isn't dangerous
+                    first_pos = path[1] if len(path) > 1 else path[0]
+                    if first_pos not in danger_cells:
+                        self.action_queue = [actions[0]]
+                        return
+                    # First step is dangerous - wait
+                    self.action_queue = [0]
+                    return
+
+            # Fallback: try without avoidance
+            path = self.api.bfs_path_positions(
+                (ax, ay),
+                (nearest_gap, target_y),
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+        # After crossing or no barrier - go to goal avoiding blockers
+        avoid = danger_cells | current_blocker_cells
+        path = self.api.bfs_path_positions((ax, ay), (gx, gy), avoid=avoid)
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                first_pos = path[1] if len(path) > 1 else path[0]
+                if first_pos not in danger_cells:
+                    self.action_queue = [actions[0]]
+                    return
+                self.action_queue = [0]
+                return
+
+        # Fallback without avoidance
+        path = self.api.bfs_path_positions((ax, ay), (gx, gy))
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                self.action_queue = [actions[0]]
+                return
+
+        self.action_queue = self.api.move_toward(gx, gy)
+
+
+@register_oracle("InstructionFollowing-v0")
+class InstructionFollowingOracle(OracleAgent):
+    """Navigate to the unique target object while avoiding distractors.
+
+    Strategy:
+    1. Collect keys (if any) to unlock doors gating the target.
+    2. Navigate to the target position, treating all distractor positions
+       as impassable so the agent never steps on them.
+    One action per call for reactivity.
+    """
+
+    def plan(self):
+        config = self.api.task_config
+        ax, ay = self.api.agent_position
+        grid = self.api.grid
+
+        target_pos = tuple(config.get("goal_positions", [None])[0] or ())
+        target_type = config.get("target_type")
+
+        # Build distractor avoidance set: every cell that holds one of the
+        # four collectible types that is NOT the target type.
+        distractor_types = {
+            int(ObjectType.GEM),
+            int(ObjectType.SCROLL),
+            int(ObjectType.ORB),
+            int(ObjectType.COIN),
+        }
+        if target_type is not None:
+            distractor_types.discard(int(target_type))
+        distractor_cells = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if int(grid.objects[y, x]) in distractor_types:
+                    distractor_cells.add((x, y))
+
+        avoid = distractor_cells
+
+        # Step 1: If there are doors, collect keys first (in order).
+        key_positions = config.get("key_positions", [])
+        door_positions = config.get("door_positions", [])
+        agent_inv = self.api.agent.inventory
+        has_key = any(e.entity_type == "key" for e in agent_inv)
+
+        # Check which doors are still closed
+        for i, dp in enumerate(door_positions):
+            dx, dy = dp
+            door_meta = int(grid.metadata[dy, dx])
+            if door_meta < 10:
+                # Door i is still closed -- need key i
+                if not has_key:
+                    # Navigate to the matching key (if it still exists on grid)
+                    if i < len(key_positions):
+                        kp = tuple(key_positions[i])
+                        # Check key is still on grid
+                        if grid.objects[kp[1], kp[0]] == ObjectType.KEY:
+                            path = self.api.bfs_path_positions((ax, ay), kp, avoid=avoid)
+                            if path:
+                                actions = self.api.positions_to_actions(path)
+                                if actions:
+                                    self.action_queue = [actions[0]]
+                                    return
+                            # Fallback without avoidance
+                            path = self.api.bfs_path_positions((ax, ay), kp)
+                            if path:
+                                actions = self.api.positions_to_actions(path)
+                                if actions:
+                                    self.action_queue = [actions[0]]
+                                    return
+
+                # Navigate to the door (will auto-open via can_agent_enter)
+                door_pos = tuple(dp)
+                path = self.api.bfs_path_positions(
+                    (ax, ay),
+                    door_pos,
+                    avoid=avoid,
+                    extra_passable={door_pos},
+                )
+                if path:
+                    actions = self.api.positions_to_actions(path)
+                    if actions:
+                        self.action_queue = [actions[0]]
+                        return
+                # Fallback without avoidance
+                path = self.api.bfs_path_positions(
+                    (ax, ay),
+                    door_pos,
+                    extra_passable={door_pos},
+                )
+                if path:
+                    actions = self.api.positions_to_actions(path)
+                    if actions:
+                        self.action_queue = [actions[0]]
+                        return
+                break  # Must deal with this door before proceeding
+
+        # Step 2: Navigate to target
+        if not target_pos:
+            self.action_queue = [0]
+            return
+
+        path = self.api.bfs_path_positions((ax, ay), target_pos, avoid=avoid)
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                self.action_queue = [actions[0]]
+                return
+
+        # Fallback: no avoidance
+        path = self.api.bfs_path_positions((ax, ay), target_pos)
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                self.action_queue = [actions[0]]
+                return
+
+        # Last resort: greedy move toward target
+        self.action_queue = self.api.move_toward(*target_pos) or [0]

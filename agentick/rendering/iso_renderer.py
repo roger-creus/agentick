@@ -46,6 +46,17 @@ _GC_TINTS: dict[int, tuple[float, float, float]] = {
     4: (1.0, 0.87, 0.0),   # yellow
 }
 
+# EmergentStrategy NPC colors by metadata (1,3-5)
+_EMERGENT_NPC_TINTS: dict[int, tuple[float, float, float]] = {
+    1: (0.07, 0.67, 0.93),  # Follower — cyan
+    3: (0.27, 0.80, 0.27),  # Fearful — green
+    4: (0.67, 0.27, 1.0),   # Mirror — purple
+    5: (1.0, 0.80, 0.0),    # Contrarian — gold
+}
+_EMERGENT_NPC_LABELS: dict[int, str] = {
+    1: "F", 3: "X", 4: "M", 5: "C",
+}
+
 # Door color names by metadata value (KeyDoorPuzzle color-coding)
 _DOOR_COLOR_NAMES: dict[int, str] = {0: "golden", 1: "red", 2: "blue"}
 
@@ -219,6 +230,9 @@ class IsometricRenderer:
         canvas = Image.new(
             "RGBA", (canvas_w, canvas_h), (*self.background_color, 255)
         )
+
+        # Store task name for _draw_object to access
+        self._render_task_name = info.get("task_name", "")
 
         # Offsets — extra cube_h padding at top for elevated entities
         offset_x = calculate_offset(rows, tile_w)
@@ -412,11 +426,41 @@ class IsometricRenderer:
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
             return
 
+        # --- EmergentStrategy NPC (metadata 1-5 = behavior type) ---
+        task_name = getattr(self, "_render_task_name", "")
+        if (
+            obj_val == ObjectType.NPC
+            and meta in _EMERGENT_NPC_TINTS
+            and "EmergentStrategy" in task_name
+        ):
+            tile = atlas.get_tile("npc_down")
+            # Tint the tile to the behavior color
+            tint = _EMERGENT_NPC_TINTS[meta]
+            tile = self._tint_tile(tile, tint)
+            self._safe_paste(canvas, tile, draw_x, draw_y - elev)
+            label = _EMERGENT_NPC_LABELS.get(meta, "")
+            if label:
+                self._draw_tile_label(canvas, label, draw_x, draw_y - elev, atlas)
+            return
+
         # --- NPC / ENEMY / SHEEP (directional from metadata) ---
         if obj_val in (ObjectType.NPC, ObjectType.ENEMY, ObjectType.SHEEP):
             suffix = _DIRECTION_SUFFIX.get(meta, "down")
             tile = atlas.get_tile(f"{obj_name}_{suffix}")
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
+            return
+
+        # --- TARGET: TileSorting goal slot (meta >= 200) ---
+        if obj_val == ObjectType.TARGET and meta >= 200:
+            slot_tile = meta - 200
+            label = (
+                str(slot_tile) if slot_tile <= 9
+                else chr(ord("A") + slot_tile - 10)
+            )
+            tile = atlas.get_tile("target")
+            tile = self._reduce_alpha(tile, 120)
+            self._safe_paste(canvas, tile, draw_x, draw_y)
+            self._draw_tile_label(canvas, label, draw_x, draw_y, atlas)
             return
 
         # --- TARGET with ghost tiles (typed slots — PackingPuzzle, etc.) ---
@@ -442,7 +486,11 @@ class IsometricRenderer:
         if obj_val == ObjectType.BOX and meta != 0:
             tile = atlas.get_tile("box")
             self._safe_paste(canvas, tile, draw_x, draw_y - elev)
-            label = str(meta) if meta <= 9 else chr(ord("A") + meta - 10)
+            real_tile = meta - 100 if meta >= 100 else meta
+            label = (
+                str(real_tile) if real_tile <= 9
+                else chr(ord("A") + real_tile - 10)
+            )
             self._draw_tile_label(canvas, label, draw_x, draw_y - elev, atlas)
             return
 
@@ -661,6 +709,18 @@ class IsometricRenderer:
         self._safe_paste(canvas, small_tile, tile_x, tile_y)
 
     @staticmethod
+    def _tint_tile(
+        tile: Image.Image, tint: tuple[float, float, float]
+    ) -> Image.Image:
+        """Apply a color tint to a tile (multiply RGB channels by tint factors)."""
+        tile = tile.copy()
+        r, g, b, a = tile.split()
+        r = r.point(lambda p: min(255, int(p * tint[0])))
+        g = g.point(lambda p: min(255, int(p * tint[1])))
+        b = b.point(lambda p: min(255, int(p * tint[2])))
+        return Image.merge("RGBA", (r, g, b, a))
+
+    @staticmethod
     def _reduce_alpha(tile: Image.Image, alpha_val: int) -> Image.Image:
         """Return a copy of tile with alpha channel capped at alpha_val.
 
@@ -716,3 +776,76 @@ class IsometricRenderer:
             font = ImageFont.load_default()
 
         draw.text((8, 8), text, fill=(255, 255, 255, 255), font=font)
+
+        # ── Task-specific HUD elements ──────────────────────────────────
+        task_config = info.get("task_config", {})
+        task_name_str = info.get("task_name", "")
+
+        # TaskInterference meters (GEM/ORB)
+        if "TaskInterference" in task_name_str:
+            red = task_config.get("_red_meter", 0.0)
+            blue = task_config.get("_blue_meter", 0.0)
+            bar_w, bar_h, bar_y = 80, 10, 28
+            draw.rectangle([8, bar_y, 8 + bar_w, bar_y + bar_h],
+                           outline=(180, 60, 60, 255))
+            red_x1 = max(9, 8 + int(red * (bar_w - 1)))
+            draw.rectangle(
+                [9, bar_y + 1, red_x1, bar_y + bar_h - 1],
+                fill=(220, 50, 50, 255),
+            )
+            draw.text((8 + bar_w + 6, bar_y - 2), f"GEM {red:.0%}",
+                      fill=(220, 80, 80, 255), font=font)
+            bx = canvas.width // 2
+            draw.rectangle([bx, bar_y, bx + bar_w, bar_y + bar_h],
+                           outline=(60, 60, 180, 255))
+            blue_x1 = max(bx + 1, bx + int(blue * (bar_w - 1)))
+            draw.rectangle(
+                [bx + 1, bar_y + 1, blue_x1, bar_y + bar_h - 1],
+                fill=(50, 50, 220, 255),
+            )
+            draw.text((bx + bar_w + 6, bar_y - 2), f"ORB {blue:.0%}",
+                      fill=(80, 80, 220, 255), font=font)
+
+        # InstructionFollowing target indicator (bottom-right — show sprite)
+        if "InstructionFollowing" in task_name_str and "target_type" in task_config:
+            obj_sprite_names = {14: "gem", 17: "scroll", 19: "orb", 18: "coin"}
+            sprite_name = obj_sprite_names.get(
+                int(task_config["target_type"]), "goal"
+            )
+            if self._atlas is not None:
+                target_tile = self._atlas.get_tile(sprite_name)
+                # Scale sprite to 48x48 for the annotation
+                sprite_size = 48
+                small_tile = target_tile.resize(
+                    (sprite_size, sprite_size), Image.LANCZOS
+                )
+                sprite_x = canvas.width - sprite_size - 8
+                sprite_y = canvas.height - sprite_size - 8
+                self._safe_paste(canvas, small_tile, sprite_x, sprite_y)
+
+        # TreasureHunt: show discovered clues
+        if "TreasureHunt" in task_name_str:
+            clue_info = task_config.get("_clue_info", {})
+            clues_read = task_config.get("_clues_read", [])
+            dir_labels = {0: "N", 1: "E", 2: "S", 3: "W"}
+            clue_parts = []
+            for cpos in clues_read:
+                key = (
+                    f"{cpos[0]},{cpos[1]}"
+                    if isinstance(cpos, (list, tuple)) else cpos
+                )
+                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                if ci:
+                    d = dir_labels.get(ci.get("direction", 0), "?")
+                    dist = ci.get("distance", "?")
+                    clue_parts.append(f"{d}{dist}")
+            if clue_parts:
+                # Wrap clues: max 5 per line to avoid running off-screen.
+                max_per_line = 5
+                base_y = 28 + 16
+                for ri in range(0, len(clue_parts), max_per_line):
+                    row = clue_parts[ri:ri + max_per_line]
+                    clue_text = "Clue: " + "  ".join(row)
+                    y_pos = base_y + (ri // max_per_line) * 14
+                    draw.text((8, y_pos), clue_text,
+                              fill=(200, 200, 100, 255), font=font)
