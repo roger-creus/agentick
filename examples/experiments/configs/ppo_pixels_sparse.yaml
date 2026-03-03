@@ -22,7 +22,7 @@ training:
   n_envs: 8
   eval_frequency: 10000
   n_eval_episodes: 10
-  checkpoint_frequency: 100000
+  checkpoint_frequency: 500000
   save_best_model: true
   device: auto
 n_episodes: 10

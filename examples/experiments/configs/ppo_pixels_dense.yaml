@@ -18,7 +18,7 @@ tasks: "full"
 difficulties: [easy, medium, hard, expert]
 reward_mode: dense
 training:
-  total_timesteps: 1000000
+  total_timesteps: 500000
   n_envs: 8
   eval_frequency: 10000
   n_eval_episodes: 10
