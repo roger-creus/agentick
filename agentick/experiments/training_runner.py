@@ -433,7 +433,10 @@ class TrainingBenchmarkRunner:
             eval_model = model
 
         # Create eval env
+        # SB3's VecVideoRecorder requires render_mode="rgb_array", so when
+        # recording video we force that mode; otherwise use the configured mode.
         render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+        eval_render_mode = "rgb_array" if video_dir else render_mode
 
         def make_env():
             env = make_atari_env(
@@ -441,7 +444,7 @@ class TrainingBenchmarkRunner:
                 seed=seed,
                 difficulty=difficulty,
                 reward_mode=self.config.reward_mode,
-                render_mode=render_mode,
+                render_mode=eval_render_mode,
             )
             env = Monitor(env)
             return env
