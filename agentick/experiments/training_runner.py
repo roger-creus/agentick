@@ -432,39 +432,24 @@ class TrainingBenchmarkRunner:
         else:
             eval_model = model
 
-        # Create eval env
-        # SB3's VecVideoRecorder requires render_mode="rgb_array", so when
-        # recording video we force that mode; otherwise use the configured mode.
+        # Create eval env with same render mode as training so observations match
         render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
-        eval_render_mode = "rgb_array" if video_dir else render_mode
 
-        def make_env():
+        def make_eval_env():
             env = make_atari_env(
                 task_name,
                 seed=seed,
                 difficulty=difficulty,
                 reward_mode=self.config.reward_mode,
-                render_mode=eval_render_mode,
+                render_mode=render_mode,
             )
             env = Monitor(env)
             return env
 
-        vec_env = DummyVecEnv([make_env])
+        vec_env = DummyVecEnv([make_eval_env])
         vec_env = VecTransposeImage(vec_env)
 
-        # Optionally wrap with video recorder
-        if video_dir:
-            from stable_baselines3.common.vec_env import VecVideoRecorder
-
-            video_dir.mkdir(parents=True, exist_ok=True)
-            vec_env = VecVideoRecorder(
-                vec_env,
-                str(video_dir),
-                record_video_trigger=lambda x: x == 0,
-                video_length=500,
-                name_prefix=f"eval_{task_name}_{difficulty}",
-            )
-
+        # Run evaluation episodes (same observation distribution as training)
         returns = []
         lengths = []
         successes = []
@@ -490,6 +475,39 @@ class TrainingBenchmarkRunner:
             successes.append(ep_success)
 
         vec_env.close()
+
+        # Record a separate video with render_mode="rgb_array" (SB3 requirement)
+        if video_dir:
+            from stable_baselines3.common.vec_env import VecVideoRecorder
+
+            def make_video_env():
+                env = make_atari_env(
+                    task_name,
+                    seed=seed,
+                    difficulty=difficulty,
+                    reward_mode=self.config.reward_mode,
+                    render_mode="rgb_array",
+                )
+                env = Monitor(env)
+                return env
+
+            vid_env = DummyVecEnv([make_video_env])
+            vid_env = VecTransposeImage(vid_env)
+            video_dir.mkdir(parents=True, exist_ok=True)
+            vid_env = VecVideoRecorder(
+                vid_env,
+                str(video_dir),
+                record_video_trigger=lambda x: x == 0,
+                video_length=500,
+                name_prefix=f"eval_{task_name}_{difficulty}",
+            )
+            obs = vid_env.reset()
+            done = False
+            while not done:
+                action, _ = eval_model.predict(obs, deterministic=True)
+                obs, _, dones, _ = vid_env.step(action)
+                done = dones[0]
+            vid_env.close()
 
         return {
             "mean_return": float(np.mean(returns)),
