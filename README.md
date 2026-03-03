@@ -159,65 +159,6 @@ agentick/
 ├── docs/                  # Documentation + showcase gallery
 └── tests/                 # Test suite
 ```
-
-## Contributing
-
-Contributions welcome! Areas of interest:
-
-### New Tasks
-- Implement tasks in `agentick/tasks/`
-- Follow existing patterns (see `tasks/navigation/go_to_goal.py`)
-- Register in `tasks/__init__.py`
-- Add tests
-
-### New Examples
-- Add to `examples/` directory
-- Include docstring with runtime estimate
-- Make self-contained (no dependencies on other examples)
-- Test that it runs: `uv run python examples/your_example.py`
-
-### Bug Fixes
-- Write a test that reproduces the bug
-- Fix the issue
-- Verify test passes
-
-### Documentation
-- Keep pages concise (<200 lines)
-- Focus on library features, not general advice
-- Include runnable code examples
-- Update navigation in `mkdocs.yml`
-
-## Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/agentick/agentick.git
-cd agentick
-
-# Install dependencies
-uv sync --extra all
-
-# Install dev tools
-uv sync --group dev
-
-# Run tests
-uv run pytest tests/ -v
-
-# Run linters
-uv run ruff check agentick/ tests/
-uv run mypy agentick/
-
-# Build docs
-uv run mkdocs serve
-```
-
-## Roadmap
-
-- [ ] Additional task categories (physics, language grounding)
-- [ ] Integration with more RL libraries
-- [ ] Multi-agent task suite expansion
-- [ ] Leaderboard with public results
-
 ## Citation
 
 ```bibtex

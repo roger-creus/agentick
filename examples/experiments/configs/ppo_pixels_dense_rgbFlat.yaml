@@ -27,7 +27,7 @@ training:
   device: auto
 n_episodes: 10
 n_seeds: 1
-render_modes: [rgb_array]
+render_modes: [rgb_array_flat]
 record_videos: true
 record_trajectories: false
 output_dir: results/ppo_benchmarks

@@ -1,5 +1,5 @@
-name: ppo-pixels-dense-1M
-description: "PPO CnnPolicy from pixels, dense rewards, 1M steps, all tasks x all difficulties"
+name: ppo-pixels-sparse-1M
+description: "PPO CnnPolicy from pixels, sparse rewards, 1M steps, all tasks x all difficulties"
 agent:
   type: ppo
   hyperparameters:
@@ -16,7 +16,7 @@ agent:
     gae_lambda: 0.95
 tasks: "full"
 difficulties: [easy, medium, hard, expert]
-reward_mode: dense
+reward_mode: sparse
 training:
   total_timesteps: 1000000
   n_envs: 8
@@ -27,9 +27,9 @@ training:
   device: auto
 n_episodes: 10
 n_seeds: 1
-render_modes: [rgb_array]
+render_modes: [rgb_array_flat]
 record_videos: true
 record_trajectories: false
 output_dir: results/ppo_benchmarks
-tags: [ppo, dense, pixel, benchmark]
+tags: [ppo, sparse, pixel, benchmark]
 metrics: [mean_return, success_rate, mean_length, std_return]
