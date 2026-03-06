@@ -16,20 +16,17 @@ class ActionSpace:
     and supports computing valid actions based on environment state.
     """
 
-    # Default action set (9 basic actions)
+    # Default action set (6 basic actions)
     BASIC_ACTIONS = [
         ActionType.NOOP,
         ActionType.MOVE_UP,
         ActionType.MOVE_DOWN,
         ActionType.MOVE_LEFT,
         ActionType.MOVE_RIGHT,
-        ActionType.PICKUP,
-        ActionType.DROP,
-        ActionType.USE,
         ActionType.INTERACT,
     ]
 
-    # Extended action set with orientation (12 actions)
+    # Extended action set with orientation (9 actions)
     EXTENDED_ACTIONS = BASIC_ACTIONS + [
         ActionType.ROTATE_LEFT,
         ActionType.ROTATE_RIGHT,
@@ -43,9 +40,6 @@ class ActionSpace:
         ActionType.MOVE_DOWN: "move_down",
         ActionType.MOVE_LEFT: "move_left",
         ActionType.MOVE_RIGHT: "move_right",
-        ActionType.PICKUP: "pickup",
-        ActionType.DROP: "drop",
-        ActionType.USE: "use",
         ActionType.INTERACT: "interact",
         ActionType.ROTATE_LEFT: "rotate_left",
         ActionType.ROTATE_RIGHT: "rotate_right",
@@ -117,9 +111,6 @@ def compute_action_mask(
     action_space: ActionSpace,
     agent_pos: Position,
     grid_walkable: np.ndarray,
-    has_item_to_drop: bool = False,
-    can_pickup: bool = False,
-    can_use: bool = False,
     can_interact: bool = False,
 ) -> np.ndarray:
     """
@@ -129,9 +120,6 @@ def compute_action_mask(
         action_space: The action space
         agent_pos: Agent position (x, y)
         grid_walkable: Boolean array indicating walkable cells
-        has_item_to_drop: Whether agent has items in inventory
-        can_pickup: Whether there's an item to pick up
-        can_use: Whether USE action is valid
         can_interact: Whether INTERACT action is valid
 
     Returns:
@@ -162,15 +150,6 @@ def compute_action_mask(
         elif action_type == ActionType.MOVE_RIGHT:
             if x < w - 1 and grid_walkable[y, x + 1]:
                 mask[i] = True
-
-        elif action_type == ActionType.PICKUP:
-            mask[i] = can_pickup
-
-        elif action_type == ActionType.DROP:
-            mask[i] = has_item_to_drop
-
-        elif action_type == ActionType.USE:
-            mask[i] = can_use
 
         elif action_type == ActionType.INTERACT:
             mask[i] = can_interact

@@ -271,7 +271,7 @@ class SwitchCircuitOracle(OracleAgent):
                 sw_pos = (switches[sw_idx][0], switches[sw_idx][1])
                 # Already on the switch? Use INTERACT
                 if (ax, ay) == sw_pos:
-                    self.action_queue = [8]  # INTERACT
+                    self.action_queue = [5]  # INTERACT
                     return
                 # Avoid stepping on other switches to prevent accidental toggles
                 avoid = set()
@@ -491,12 +491,12 @@ class RuleInductionOracle(OracleAgent):
     Strategy:
     1. Find the next real switch in the activation chain (index 0, 1, 2, ...).
     2. Navigate to it (avoiding decoy switch positions).
-    3. Use INTERACT (action 8) to activate it.
+    3. Use INTERACT (action 5) to activate it.
     4. After all real switches are activated the barrier door opens.
     5. Navigate through the door to the GOAL.
     """
 
-    _INTERACT = 8  # ActionType.INTERACT
+    _INTERACT = 5  # ActionType.INTERACT
 
     def plan(self):
         config = self.api.task_config
@@ -658,7 +658,7 @@ class GraphColoringOracle(OracleAgent):
             # Navigate to this node
             if (ax, ay) == (nx, ny):
                 # We're at the node -- INTERACT to cycle color
-                interact_action = 8
+                interact_action = 5
                 # Cycles: current -> (current+1)%(n_colors+1) -> ...
                 cycles_needed = (target_color - current_color) % (n_colors + 1)
                 if cycles_needed == 0:

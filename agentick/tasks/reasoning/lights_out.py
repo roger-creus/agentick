@@ -313,8 +313,8 @@ class LightsOutTask(TaskSpec):
         )
         self._lights_remaining_last = self._lights_remaining
 
-    def on_agent_moved(self, pos, agent, grid):
-        """Toggle lights immediately on step — fires BEFORE reward computation."""
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT while standing on a SWITCH toggles it (and neighbors if adjacent mode)."""
         x, y = pos
         self._toggle_cell(x, y, grid)
 

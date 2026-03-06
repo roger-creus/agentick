@@ -312,15 +312,11 @@ class AgentickEnv(gym.Env):
         # Optimized: avoid expensive np.isin call
         terrain = self.grid.terrain
         walkable = (terrain != CellType.WALL) & (terrain != CellType.HOLE)
-        can_pickup = self._can_pickup()
-        has_item = len(self.agent.inventory) > 0
 
         mask = compute_action_mask(
             self.action_space_obj,
             self.agent.position,
             walkable,
-            has_item_to_drop=has_item,
-            can_pickup=can_pickup,
         )
 
         # Cache the result
@@ -374,10 +370,6 @@ class AgentickEnv(gym.Env):
             ActionType.MOVE_RIGHT,
         ):
             self._move_agent(action_type)
-        elif action_type == ActionType.PICKUP:
-            self._pickup()
-        elif action_type == ActionType.DROP:
-            self._drop()
         elif action_type == ActionType.ROTATE_LEFT:
             self.agent.orientation = self.agent.orientation.rotate_left()
         elif action_type == ActionType.ROTATE_RIGHT:
@@ -416,55 +408,6 @@ class AgentickEnv(gym.Env):
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
         if self.grid.is_walkable(new_pos):
             self.agent.position = new_pos
-
-    def _pickup(self) -> bool:
-        """Try to pickup object at current position."""
-        x, y = self.agent.position
-        obj_type = ObjectType(self.grid.objects[y, x])
-
-        if obj_type == ObjectType.NONE:
-            return False
-
-        # Create entity for the object
-        entity = Entity(
-            id=f"{obj_type.name.lower()}_{x}_{y}",
-            entity_type=obj_type.name.lower(),
-            position=(x, y),
-        )
-
-        # Add to inventory
-        if self.agent.add_to_inventory(entity):
-            self.grid.objects[y, x] = ObjectType.NONE
-            return True
-
-        return False
-
-    def _drop(self) -> bool:
-        """Try to drop an item from inventory."""
-        if not self.agent.inventory:
-            return False
-
-        item = self.agent.inventory.pop()
-        # Place at current position (if empty)
-        x, y = self.agent.position
-        if self.grid.objects[y, x] == ObjectType.NONE:
-            # Convert entity type string back to ObjectType enum
-            try:
-                obj_type = ObjectType[item.entity_type.upper()]
-                self.grid.objects[y, x] = obj_type
-            except KeyError:
-                # Unknown type, just remove from inventory
-                pass
-            return True
-
-        # Can't drop, add back to inventory
-        self.agent.inventory.append(item)
-        return False
-
-    def _can_pickup(self) -> bool:
-        """Check if there's an object to pickup at current position."""
-        x, y = self.agent.position
-        return self.grid.objects[y, x] != ObjectType.NONE
 
     def _compute_reward(
         self,

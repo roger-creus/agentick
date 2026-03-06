@@ -18,10 +18,10 @@ def test_action_space_basic():
     """Test basic action space."""
     space = ActionSpace()
 
-    assert space.n_actions == 9
+    assert space.n_actions == 6
     assert space.contains(ActionType.NOOP)
     assert space.contains(ActionType.MOVE_UP)
-    assert space.contains(ActionType.PICKUP)
+    assert space.contains(ActionType.INTERACT)
     assert not space.contains(ActionType.ROTATE_LEFT)
 
 
@@ -29,7 +29,7 @@ def test_action_space_extended():
     """Test extended action space."""
     space = ActionSpace(extended=True)
 
-    assert space.n_actions == 12
+    assert space.n_actions == 9
     assert space.contains(ActionType.ROTATE_LEFT)
     assert space.contains(ActionType.ROTATE_RIGHT)
     assert space.contains(ActionType.MOVE_FORWARD)
@@ -42,7 +42,7 @@ def test_action_space_custom():
 
     assert space.n_actions == 3
     assert space.contains(ActionType.MOVE_UP)
-    assert not space.contains(ActionType.PICKUP)
+    assert not space.contains(ActionType.INTERACT)
 
 
 def test_action_type_conversion():
@@ -82,10 +82,10 @@ def test_get_all_action_names():
     space = ActionSpace()
     names = space.get_all_action_names()
 
-    assert len(names) == 9
+    assert len(names) == 6
     assert "noop" in names
     assert "move_up" in names
-    assert "pickup" in names
+    assert "interact" in names
 
 
 def test_action_space_sample():
@@ -157,27 +157,20 @@ def test_compute_action_mask_corner():
     assert mask[space.get_action_idx(ActionType.MOVE_RIGHT)]
 
 
-def test_compute_action_mask_pickup_drop():
-    """Test action mask with pickup/drop."""
+def test_compute_action_mask_interact():
+    """Test action mask with interact."""
     space = ActionSpace()
 
     grid = np.ones((5, 5), dtype=bool)
     agent_pos = (2, 2)
 
-    # No item to pickup or drop
-    mask = compute_action_mask(space, agent_pos, grid, can_pickup=False, has_item_to_drop=False)
-    assert not mask[space.get_action_idx(ActionType.PICKUP)]
-    assert not mask[space.get_action_idx(ActionType.DROP)]
+    # No interact available
+    mask = compute_action_mask(space, agent_pos, grid, can_interact=False)
+    assert not mask[space.get_action_idx(ActionType.INTERACT)]
 
-    # Can pickup
-    mask = compute_action_mask(space, agent_pos, grid, can_pickup=True, has_item_to_drop=False)
-    assert mask[space.get_action_idx(ActionType.PICKUP)]
-    assert not mask[space.get_action_idx(ActionType.DROP)]
-
-    # Can drop
-    mask = compute_action_mask(space, agent_pos, grid, can_pickup=False, has_item_to_drop=True)
-    assert not mask[space.get_action_idx(ActionType.PICKUP)]
-    assert mask[space.get_action_idx(ActionType.DROP)]
+    # Can interact
+    mask = compute_action_mask(space, agent_pos, grid, can_interact=True)
+    assert mask[space.get_action_idx(ActionType.INTERACT)]
 
 
 def test_get_move_delta():
@@ -186,7 +179,7 @@ def test_get_move_delta():
     assert get_move_delta(ActionType.MOVE_DOWN) == (0, 1)
     assert get_move_delta(ActionType.MOVE_LEFT) == (-1, 0)
     assert get_move_delta(ActionType.MOVE_RIGHT) == (1, 0)
-    assert get_move_delta(ActionType.PICKUP) is None
+    assert get_move_delta(ActionType.INTERACT) is None
 
 
 def test_is_movement_action():
@@ -194,7 +187,7 @@ def test_is_movement_action():
     assert is_movement_action(ActionType.MOVE_UP)
     assert is_movement_action(ActionType.MOVE_DOWN)
     assert is_movement_action(ActionType.MOVE_FORWARD)
-    assert not is_movement_action(ActionType.PICKUP)
+    assert not is_movement_action(ActionType.INTERACT)
     assert not is_movement_action(ActionType.NOOP)
 
 
@@ -204,4 +197,4 @@ def test_action_to_direction():
     assert action_to_direction(ActionType.MOVE_DOWN) == Direction.SOUTH
     assert action_to_direction(ActionType.MOVE_LEFT) == Direction.WEST
     assert action_to_direction(ActionType.MOVE_RIGHT) == Direction.EAST
-    assert action_to_direction(ActionType.PICKUP) is None
+    assert action_to_direction(ActionType.INTERACT) is None

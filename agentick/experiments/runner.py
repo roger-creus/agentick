@@ -789,6 +789,47 @@ class ExperimentRunner:
                 with open(ep_file, "w") as f:
                     json.dump(traj, f, indent=2)
 
+            # Save agent trace (LLM observations, responses, reasoning)
+            if result.call_log:
+                trace = {
+                    "metadata": {
+                        "task": task_name,
+                        "difficulty": difficulty,
+                        "seed": result.seed,
+                        "config_name": self.config.name,
+                        "model_id": self.config.agent.hyperparameters.get(
+                            "model", ""
+                        ),
+                        "harness": self.config.agent.hyperparameters.get(
+                            "harness", ""
+                        ),
+                        "observation_modes": self.agent.observation_modes,
+                        "success": result.success,
+                        "total_reward": result.total_reward,
+                        "episode_length": result.episode_length,
+                        "total_tokens": result.agent_stats.get(
+                            "total_tokens", 0
+                        ),
+                    },
+                    "steps": [],
+                }
+                for j, log_entry in enumerate(result.call_log):
+                    step_data = dict(log_entry)
+                    if j < len(result.steps):
+                        step_data["reward"] = result.steps[j]["reward"]
+                        step_data["terminated"] = result.steps[j]["terminated"]
+                        step_data["truncated"] = result.steps[j]["truncated"]
+                    trace["steps"].append(step_data)
+
+                trace_dir = episodes_dir.parent / "traces" / difficulty
+                trace_dir.mkdir(parents=True, exist_ok=True)
+                trace_file = (
+                    trace_dir
+                    / f"seed_{result.seed_idx}_ep_{result.episode_idx}.json"
+                )
+                with open(trace_file, "w") as f:
+                    json.dump(trace, f, indent=2)
+
             status = "SUCCESS" if result.success else "FAIL"
             print(
                 f"    ep[{i}] {status} | {result.episode_length} steps | "

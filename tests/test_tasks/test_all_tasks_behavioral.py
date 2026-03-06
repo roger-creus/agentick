@@ -298,10 +298,13 @@ def test_switch_task_can_succeed(task_name, switch_key):
     cfg = env.task_config
     switches = cfg.get(switch_key, [])
 
+    # All switch/lever tasks now use INTERACT: walk to switch, then INTERACT
+    from agentick.core.types import ActionType, CellType
+    interact = int(ActionType.INTERACT)
+
     if task_name == "LightsOut-v0":
-        # LightsOut toggles cells when stepped on — teleport next to each light
-        # then step onto it to avoid toggling other lights along the path
-        from agentick.core.types import CellType
+        # LightsOut toggles cells via INTERACT — teleport next to each light
+        # then step onto it and INTERACT to avoid toggling other lights along the path
         for wp in switches:
             lx, ly = wp
             # Place agent adjacent to light (try left first, then other directions)
@@ -310,14 +313,14 @@ def test_switch_task_can_succeed(task_name, switch_key):
                 if (0 < nx < env.grid.width - 1 and 0 < ny < env.grid.height - 1
                         and env.grid.terrain[ny, nx] != CellType.WALL):
                     env.agent.position = (nx, ny)
-                    obs, rew, term, trunc, info = env.step(action)
+                    obs, rew, term, trunc, info = env.step(action)  # walk onto switch
+                    if not term and not trunc:
+                        obs, rew, term, trunc, info = env.step(interact)  # INTERACT
                     break
             if term or trunc:
                 break
-    elif task_name == "SwitchCircuit-v0":
-        # SwitchCircuit uses INTERACT to toggle switches
-        from agentick.core.types import ActionType
-        interact = int(ActionType.INTERACT)
+    else:
+        # SwitchCircuit, CausalChain: walk to switch, then INTERACT
         term = False
         for wp in switches:
             if term:
@@ -326,14 +329,6 @@ def test_switch_task_can_succeed(task_name, switch_key):
             if not term and not trunc:
                 obs, rew, term, trunc, info = env.step(interact)
                 term = term or trunc
-    else:
-        term = False
-        for wp in switches:
-            if term:
-                break
-            obs, rew, term, trunc, info = _walk_to(env, wp[0], wp[1])
-            if not term and not trunc:
-                obs, rew, term, trunc, info = _noop(env)  # register step-on
 
     # LightsOut success is state-based (all lights off) — no goal position required
     goal_positions = cfg.get("goal_positions", [])
@@ -856,13 +851,18 @@ def test_rule_induction_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_backtrack_puzzle_can_succeed():
-    """BacktrackPuzzle: visit switch to open gate, then reach goal."""
+    """BacktrackPuzzle: visit switch, INTERACT to open gate, then reach goal."""
+    from agentick.core.types import ActionType
+    interact = int(ActionType.INTERACT)
+
     env = agentick.make("BacktrackPuzzle-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
     sw = cfg.get("switch_pos")
     goal = cfg.get("goal_positions", [None])[0]
     _walk_to(env, sw[0], sw[1])
+    if not env.done:
+        env.step(interact)  # Activate switch via INTERACT
     assert cfg.get("_switch_activated"), "BacktrackPuzzle: switch didn't activate"
     if goal and not env.done:
         obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
@@ -872,12 +872,17 @@ def test_backtrack_puzzle_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_causal_chain_can_succeed():
-    """CausalChain: visit switches in order → gate opens → reach goal."""
+    """CausalChain: INTERACT switches in order → gate opens → reach goal."""
+    from agentick.core.types import ActionType
+    interact = int(ActionType.INTERACT)
+
     env = agentick.make("CausalChain-v0", difficulty="easy", seed=42, reward_mode="sparse")
     env.reset(seed=42)
     cfg = env.task_config
     for sw in cfg["switch_positions"]:
         _walk_to(env, sw[0], sw[1])
+        if not env.done:
+            env.step(interact)  # Activate switch via INTERACT
     if not env.done:
         obs, rew, term, trunc, info = _walk_to(env, *cfg["goal_positions"][0])
     env.close()

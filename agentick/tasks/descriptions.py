@@ -107,7 +107,9 @@ _td(
     "(patrolling, collision penalty), Decoy GOALs (false targets).",
     "Reach the GOAL position. Stepping on HAZARD or colliding with a guard "
     "ends the episode.",
-    "Move in 4 directions (up/down/left/right). No interact action needed.",
+    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete the task. "
+    "Stepping on HAZARD or colliding with a guard NPC ends the episode. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "5x5 open grid, no walls, guards, or hazards. Straightforward path to goal."),
         ("medium", "10x10 grid, 1 guard, no decoys. Obstacle avoidance needed."),
@@ -127,8 +129,10 @@ _td(
     "GOAL (maze exit), WALL (maze structure), KEY objects (collect to unlock doors, "
     "medium+), DOOR (blocks path, opens with matching key, medium+), HAZARD (dead ends, hard+).",
     "Navigate the maze to reach the GOAL exit. Collect keys and open doors blocking the path.",
-    "Move in 4 directions. Keys are picked up automatically. Walk into a DOOR with the "
-    "matching key to open it.",
+    "Move in 4 directions only (actions 1-4). Walk onto a KEY cell to auto-collect it. "
+    "Walk into a DOOR with the matching-color key to open it. Walk onto the GOAL cell "
+    "(maze exit) to complete the task. No INTERACT action needed "
+    "— all interactions are automatic on step.",
     [
         ("easy", "7x7 binary-tree maze. No keys or hazards. Simple pathfinding exercise."),
         ("medium", "11x11 recursive-backtracker maze, 1 key-door pair blocking the path."),
@@ -147,7 +151,10 @@ _td(
     "GOAL objects (multiple, consumed on visit), WALL (obstacles), "
     "TARGET objects (decoy false targets, medium+).",
     "Visit all real GOAL objects within the step budget (optimal path × budget multiplier).",
-    "Move in 4 directions. Step on GOAL to collect it automatically. Avoid decoy TARGETs.",
+    "Move in 4 directions only (actions 1-4). Walk onto a GOAL cell to auto-collect it "
+    "(goals are consumed on visit). Avoid stepping on decoy TARGET cells. Visit all real "
+    "GOAL objects within the step budget to win. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 open grid with 2 goals and no obstacles. Simple multi-stop navigation."),
         ("medium", "10x10, 3 goals, 3 obstacles, 1 decoy. Route planning needed."),
@@ -165,7 +172,9 @@ _td(
     "GOAL (static destination), NPC objects (moving obstacles, fatal on collision), "
     "WALL (static barriers).",
     "Reach GOAL without colliding with any NPC. Collision ends episode.",
-    "Move in 4 directions. Timing and prediction of NPC movement is key.",
+    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete the task. "
+    "Stepping on or colliding with any NPC ends the episode immediately. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid with 2 NPCs (50% move chance). Open layout, easy avoidance."),
         ("medium", "10x10 grid with 3 NPCs (75% move chance) and 3 scattered walls."),
@@ -184,7 +193,10 @@ _td(
     "GOAL (hidden behind fog), WALL (revealed only when adjacent), HAZARD (dangerous), "
     "Guard NPCs (hard+), Decoy GOALs (medium+), FOG (all non-adjacent cells).",
     "Find and reach the GOAL using spatial memory — previously seen cells re-fog.",
-    "Move in 4 directions. Only adjacent cells are visible; fog returns when you move away.",
+    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete the task. "
+    "Only your 4 orthogonal neighbor cells are visible; everything else is hidden by fog. "
+    "Previously seen cells re-fog when you move away — you must memorize the layout. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7, no hazards/guards/decoys. Build spatial memory of layout."),
         ("medium", "10x10 grid, 2 decoy goals. Must remember which goals are real."),
@@ -206,8 +218,11 @@ _td(
     "treasures (not rendered — step on exact cell to collect), WALL (obstacles).",
     "Read scroll clues, triangulate hidden treasure positions, and step on "
     "each treasure cell to collect all treasures.",
-    "Move in 4 directions. Step on SCROLL to read it (consumed). Step on a "
-    "hidden treasure cell to collect it. Metadata encodes direction*10+distance.",
+    "Move in 4 directions only (actions 1-4). Walk onto a SCROLL cell to read and consume "
+    "it (the scroll clue tells you the direction and distance to a treasure). Walk onto "
+    "a hidden treasure cell to collect it (treasures are invisible — you must triangulate "
+    "from scroll clues). No INTERACT action needed — all interactions "
+    "are automatic on step.",
     [
         ("easy", "9x9 grid, 2 treasures, 6 scrolls, 0 misleading. Simple triangulation."),
         ("medium", "12x12 grid, 3 treasures, 8 scrolls, 1 misleading. Must cross-check clues."),
@@ -227,8 +242,10 @@ _td(
     "objects or landmarks on the grid.",
     "Visit at least the required percentage of all reachable cells before the "
     "step budget runs out.",
-    "Move in 4 directions. Each new cell visited counts toward coverage. No "
-    "visual markers for visited/unvisited — the agent must track its own path.",
+    "Move in 4 directions only (actions 1-4). Each new cell you step on counts toward "
+    "coverage. There are no visual markers for visited vs unvisited cells — you must "
+    "track your own path from memory. No INTERACT action needed "
+    "— only movement.",
     [
         ("easy", "9x9 maze, 70% coverage needed, 80 steps. Low wall density."),
         ("medium", "13x13 maze, 75% coverage needed, 150 steps. Moderate wall density."),
@@ -251,8 +268,11 @@ _td(
     "(opens with matching-color key), GOAL (in final room behind ALL doors), Guard NPCs "
     "(hard+), WALL (room separators and corridors).",
     "Reach GOAL after unlocking ALL doors with matching keys. Every door must be opened.",
-    "Move in 4 directions. Keys are picked up automatically when you step on them "
-    "(drops any currently held key). Walk into a DOOR with the matching key to unlock it.",
+    "Move in 4 directions only (actions 1-4). Walk onto a KEY cell to auto-pick it up "
+    "(one key at a time — picking up a new key drops any currently held key). Walk into "
+    "a DOOR with the matching-color key to unlock and open it. Walk onto the GOAL cell "
+    "after all doors are unlocked to win. No INTERACT action "
+    "needed — all interactions are automatic on step.",
     [
         ("easy", "9x9 grid with 1 color-coded key-door pair. No guards. Key in hub, "
          "goal behind the single door."),
@@ -274,7 +294,10 @@ _td(
     "GOAL (true objective, distant), KEY objects (decoy traps, closer to start), "
     "WALL (optional obstacles), HAZARD (hard+, blocks paths).",
     "Reach GOAL without collecting decoy KEYs. Collecting a decoy ends episode.",
-    "Move in 4 directions. Avoid stepping on KEY objects which act as traps.",
+    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete the task. "
+    "KEYs are auto-collected when you step on them — collecting any KEY ends the episode "
+    "in failure. Plan your path to avoid all KEY cells. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid with 2 decoy KEYs. Open layout, clear path to goal."),
         ("medium", "10x10 grid with 4 decoy KEYs, 4 walls. Must navigate around traps."),
@@ -292,7 +315,11 @@ _td(
     "GOAL (initially blocked), SWITCH objects (trigger gate opening), "
     "WALL (gate barrier, opens after switch), dead-end paths.",
     "Activate the correct SWITCH to open the gate, then backtrack to reach GOAL.",
-    "Move in 4 directions. Switches activate automatically when you step on them.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a SWITCH "
+    "cell, then use INTERACT (action 5) to activate it. Simply walking onto the switch "
+    "does NOT activate it — you MUST use INTERACT. After all switches are activated, "
+    "the wall gate opens and the GOAL appears — walk onto the GOAL cell to win. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 L-shaped layout with 1 switch. No dead ends. Clear backtrack path."),
         ("medium", "11x11 T-shaped layout with 2 switches and 1 dead end."),
@@ -311,8 +338,11 @@ _td(
     "GEM objects (shown during show phase, then removed), distractor positions "
     "(invalid positions, medium+, no visual marker — tracked internally only).",
     "Memorize shown GEM positions, then visit them in exact order during reproduce phase.",
-    "Move in 4 directions. Walk to each memorized position in order. Visiting a wrong "
-    "position (distractor) incurs a penalty.",
+    "Move in 4 directions only (actions 1-4). During the show phase, observe which cells "
+    "display GEM objects and memorize their positions and order. During the reproduce phase, "
+    "walk onto each memorized position in the exact order they were shown. Positions are "
+    "auto-registered when you step on them. No INTERACT action "
+    "needed — all interactions are automatic on step.",
     [
         ("easy", "7x7 grid, 3 targets shown for 4 steps each. No distractors. Short sequence."),
         ("medium", "10x10, 4 targets (3 steps each), 2 distractors, 4 obstacles."),
@@ -332,8 +362,9 @@ _td(
     "BOX objects (pushable), TARGET positions (where boxes must go), "
     "WALL (immovable obstacles).",
     "Push all BOX objects onto matching TARGET positions.",
-    "Move in 4 directions. Walk into a BOX to push it in your movement direction. "
-    "Cannot push boxes into walls or other boxes.",
+    "Move in 4 directions only (actions 1-4). Walk into a BOX cell to push it one cell "
+    "in your movement direction. Cannot push boxes into walls or other boxes. "
+    "No INTERACT action needed — pushing is automatic on movement.",
     [
         ("easy", "7x7 grid with 1 box and 1 target. Open layout, no dead-end traps."),
         ("medium", "10x10 grid with 2 boxes, 2 targets, 3 obstacles creating push constraints."),
@@ -352,8 +383,12 @@ _td(
     "LEVER objects (real: remove wall barriers; decoy: no effect or harmful), "
     "WALL barriers (between zones, removed by correct levers), GOAL (in final zone).",
     "Activate levers in causal order to open all barriers, then reach GOAL.",
-    "Move in 4 directions. Levers activate automatically when you step on them. "
-    "Identify real levers from decoys by their causal effects.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a LEVER "
+    "cell, then use INTERACT (action 5) to activate it. Simply walking onto the lever "
+    "does NOT activate it — you MUST use INTERACT. Real levers remove wall barriers; "
+    "decoy levers do nothing. Identify real levers from decoys by observing their causal "
+    "effects on barriers. Walk onto the GOAL cell after all barriers are opened. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid with 2 levers in linear chain. No decoys. Clear zone progression."),
         ("medium", "11x11 grid with 3 levers, 1 decoy lever, maze zones."),
@@ -373,8 +408,11 @@ _td(
     "SWITCH objects (color-coded, toggled via INTERACT), WALL barrier segments "
     "(1-3 cells, metadata = barrier index), GOAL (behind final barrier).",
     "Plan switch activation order to open all barriers blocking the path to GOAL.",
-    "Move in 4 directions. Use INTERACT (action 5) on a SWITCH to toggle it ON/OFF. "
-    "Mutual exclusion: toggling one switch may deactivate another.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To toggle a switch: "
+    "first walk onto the SWITCH cell, then use INTERACT (action 5) to toggle it ON/OFF. "
+    "WARNING: simply walking onto a switch does NOT activate it — you MUST use INTERACT. "
+    "Mutual exclusion: toggling one switch may deactivate another. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 2 switches. Simple dependency: A opens path to B, B opens goal."),
         ("medium", "11x11 grid, 3 switches. One mutual exclusion requires planning order."),
@@ -394,8 +432,11 @@ _td(
     "SWITCH (real: ICE south; decoy: no ICE south), ICE terrain cues, GEM hints (easy), "
     "DOOR (barrier, opens when all real switches active), GOAL (behind barrier), WALL.",
     "Identify real switches via ICE pattern, INTERACT all real ones, pass barrier to GOAL.",
-    "Move in 4 directions. INTERACT on a switch to toggle it. Wrong switches undo "
-    "your last correct activation.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To toggle a switch: "
+    "first walk onto the SWITCH cell, then use INTERACT (action 5) to toggle it. "
+    "WARNING: simply walking onto a switch does NOT activate it — you MUST use INTERACT. "
+    "Wrong (decoy) switches undo your last correct activation. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 2 real + 1 decoy switches, GEM hints + ICE pattern."),
         ("medium", "11x11 grid, 3 real + 2 decoy switches, ICE pattern only."),
@@ -417,8 +458,10 @@ _td(
     "target, medium+).",
     "Pick up each symbol item and deliver it to the matching target of the same type "
     "on the right side of the grid.",
-    "Move in 4 directions. Step on a symbol item to pick it up (one at a time). "
-    "Step on a matching target (same symbol type) to deliver it.",
+    "Move in 4 directions only (actions 1-4). Walk onto a symbol item cell to auto-pick "
+    "it up (one at a time). Walk onto a matching target cell (same symbol type) to deliver. "
+    "Placing on wrong type = mismatch penalty. No INTERACT action "
+    "needed — all interactions are automatic on step.",
     [
         ("easy", "7x7 grid with 2 symbol-target pairs. No fake items. Clear pairing."),
         ("medium", "10x10 grid with 3 pairs, 1 fake item, 3 obstacles."),
@@ -438,8 +481,11 @@ _td(
     "Recipe zone (TARGET objects with ingredient type metadata), ingredient items "
     "(GEM, SCROLL, ORB, COIN), crafting station (NPC object), decoy ingredients, WALL.",
     "Collect and deliver all ingredients in recipe order to the crafting station.",
-    "Move in 4 directions. Ingredients are picked up automatically. Step on crafting "
-    "station to deliver the held ingredient.",
+    "Move in 4 directions only (actions 1-4). Walk onto an ingredient cell to auto-pick "
+    "it up (one at a time). Walk onto the crafting station (NPC) cell to deliver the held "
+    "ingredient. Ingredients must be delivered in recipe order (left-to-right in the recipe "
+    "zone). No INTERACT action needed — all interactions are "
+    "automatic on step.",
     [
         ("easy", "9x9 grid, 2-ingredient recipe. No decoys, open layout. Simple collect-deliver."),
         ("medium", "11x11, 3-ingredient recipe, 2 decoys, 3 obstacles. Route planning."),
@@ -460,8 +506,11 @@ _td(
     "collected), WATER (river band), GOAL (on far side of river).",
     "Collect all SCROLLs to spawn the ORB, pick up the ORB, cross the river, "
     "and reach the GOAL for full reward (1.0). Without the ORB, reward is only 0.2.",
-    "Move in 4 directions. Scrolls, coins, and the ORB are picked up automatically "
-    "when you step on them. The ORB only appears after all scrolls are collected.",
+    "Move in 4 directions only (actions 1-4). Walk onto SCROLL, COIN, or ORB cells to "
+    "auto-collect them. The ORB only appears after all scrolls are collected. Collect "
+    "the ORB, then cross the WATER river and walk onto the GOAL cell. Without the ORB, "
+    "reaching GOAL gives only partial reward (0.2). No INTERACT action "
+    "needed — all pickups are automatic on step.",
     [
         ("easy", "9x9 grid, 2 scrolls, 0 decoys, 1 river (2 cells wide)."),
         ("medium", "11x11 grid, 3 scrolls, 1 decoy, 1 river (3 cells wide)."),
@@ -480,7 +529,10 @@ _td(
     "RESOURCE stations (energy 0-100, drain over time), WALL (obstacles between stations).",
     "Keep ALL stations above 0 energy for the entire episode (survive max_steps). "
     "Any station reaching 0 = failure.",
-    "Move in 4 directions. Step on a RESOURCE station to recharge it to full (100).",
+    "Move in 4 directions only (actions 1-4). Walk onto a RESOURCE station cell to "
+    "recharge it to full energy (100). You can step on the same station multiple times. "
+    "Monitor all stations and revisit them before they drain to 0. "
+    "No INTERACT action needed — recharging is automatic on step.",
     [
         ("easy", "9x9 grid, 2 stations, slow drain (every 8 steps). No obstacles."),
         ("medium", "12x12 grid, 3 stations, moderate drain (every 5 steps), 3 obstacles."),
@@ -505,9 +557,13 @@ _td(
     "(Follower/Fearful/Contrarian/Mirror), GOAL (behind last barrier).",
     "Exploit NPC behaviors to lure/scare them onto locking pressure plates, permanently "
     "opening barriers to reach the GOAL in the final zone.",
-    "Move in 4 directions. Cannot walk through NPCs. Follower stays 1 tile behind you; "
-    "Fearful flees from you; Mirror mirrors your position; Contrarian moves opposite to "
-    "you. Guide NPCs onto plates to lock them.",
+    "Move in 4 directions only (actions 1-4). Cannot walk through NPCs. Follower (cyan) stays "
+    "1 tile behind you; Fearful (green) flees from you; Mirror (purple) mirrors your position; "
+    "Contrarian (gold) moves opposite to your last action. When an NPC steps onto a TARGET "
+    "plate, it locks permanently and opens the corresponding barrier. You do NOT interact with "
+    "plates directly — guide NPCs onto them by exploiting their behaviors. Walk onto the GOAL "
+    "cell after all barriers are open. No INTERACT action needed "
+    "— only movement.",
     [
         ("easy", "9x9 grid, 1 locking plate, 1 follower. Single barrier."),
         ("medium", "12x12 grid, 2 locking plates, 1 follower + 1 fearful. Two barriers."),
@@ -532,8 +588,11 @@ _td(
     "ICE (slides across), EMPTY (stops), WALL (segments), GOAL (on EMPTY), "
     "BOX (pushable, slides on ice at hard+).",
     "Slide across ice to reach the GOAL by planning trajectories through stopping points.",
-    "Move in 4 directions. On ICE, the agent slides until hitting a wall, EMPTY cell, "
-    "or BOX. On EMPTY, movement is normal. Push BOX objects (hard+) by sliding into them.",
+    "Move in 4 directions only (actions 1-4). On ICE terrain, choosing a direction makes "
+    "you slide continuously in that direction until you hit a WALL, an EMPTY cell, or a BOX "
+    "— you cannot stop mid-slide. On EMPTY terrain, movement is normal (one cell per action). "
+    "Push BOX objects (hard+) by sliding into them — they also slide on ice. Walk onto the "
+    "GOAL cell to win. No INTERACT action needed — only movement.",
     [
         ("easy", "9x9, fewer stops, wall segments. 3-4 slides to goal."),
         ("medium", "11x11 grid, fewer stops, L/T-shaped walls. 5-6 slides."),
@@ -551,8 +610,10 @@ _td(
     "SHEEP NPCs (flee from agent), pen zone (TARGET cells), leader sheep (hard+, "
     "influence herd), ENEMY predators (scatter sheep at hard+), WALL (obstacles).",
     "Move all SHEEP into the pen zone (TARGET cells).",
-    "Move in 4 directions. Your position influences sheep movement; approach from "
-    "the opposite side to push them toward the pen.",
+    "Move in 4 directions only (actions 1-4). Sheep flee from you when you are within "
+    "distance 2 — approach from the opposite side to push them toward the pen (TARGET cells). "
+    "You cannot walk through NPCs. All sheep must be on TARGET cells simultaneously to win. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "9x9 grid, 2 sheep, 2x2 pen. No obstacles or predators. Simple herding."),
         ("medium", "12x12 grid, 3 sheep, 3x3 pen, 2 obstacles, random pen corner."),
@@ -573,7 +634,10 @@ _td(
     "ENEMY demons (4 behavior types distinguished by metadata), SWITCH objects (freeze "
     "all enemies for 5 steps, one-time use), WALL (obstacles).",
     "Survive the required steps without enemy collision.",
-    "Move in 4 directions. Evade coordinated enemies using obstacles and freeze switches.",
+    "Move in 4 directions only (actions 1-4). Step on a SWITCH cell to freeze ALL enemies "
+    "for 5 steps (one-time use, auto-activates on step). Avoid stepping on ENEMY cells — "
+    "collision ends the episode immediately. Survive the required number of steps to win. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid, 1 chaser, survive 30 steps, 1 freeze switch. Open layout."),
         ("medium", "10x10, chaser + ambusher, survive 50 steps, 1 freeze switch, 3 obstacles."),
@@ -591,7 +655,10 @@ _td(
     "BLOCKER (moving patrol obstacle), gap zone (patrol area), safe refuge spots "
     "(hard+), GOAL (beyond patrol zone), WALL (boundaries).",
     "Cross the patrol zone without collision, then reach GOAL. Collision ends episode.",
-    "Move in 4 directions. Wait for BLOCKER to move away, then cross quickly.",
+    "Move in 4 directions only (actions 1-4). Wait (use NOOP action 0) for the BLOCKER "
+    "patrol to move away, then cross the gap quickly. Colliding with a BLOCKER ends the "
+    "episode immediately. Walk onto the GOAL cell after crossing to win. "
+    "No INTERACT action needed — only movement and waiting.",
     [
         ("easy", "7x7 grid, 1 slow blocker, 1 gap. No safe spots. Simple timing."),
         ("medium", "9x9 grid, 2 blockers, 1 gap. Random gap position."),
@@ -611,7 +678,10 @@ _td(
     "Piece objects (BOX, GEM, ORB, SCROLL, typed), TARGET slots (with required type "
     "metadata), distractor pieces (unused types, medium+).",
     "Push each piece onto its matching-type target slot.",
-    "Move in 4 directions. Walk into a piece to push it. Match piece type to target type.",
+    "Move in 4 directions only (actions 1-4). Walk into a piece to push it one cell in "
+    "your movement direction. Match piece type to target type — push each piece onto "
+    "its matching-type TARGET slot. Cannot push pieces into walls or other pieces. "
+    "No INTERACT action needed — pushing is automatic on movement.",
     [
         ("easy", "7x7 grid, 2 pieces of 2 types, 2 targets. No distractors, open layout."),
         ("medium", "9x9 grid, 3 pieces of 2 types, 3 targets, 1 distractor."),
@@ -629,7 +699,10 @@ _td(
     "Numbered tiles (1..N-1 with unique numbers/colors), empty slot (agent position), "
     "target positions marked on floor showing goal arrangement.",
     "Arrange tiles to goal configuration (1,2,3...N-1 in row-major order).",
-    "Move in 4 directions into a tile to swap positions with it (push into empty slot).",
+    "Move in 4 directions only (actions 1-4). Walk into an adjacent numbered tile to "
+    "swap positions with it (the tile slides into the empty slot you just occupied). "
+    "Arrange tiles in row-major order (1,2,3...N-1). "
+    "No INTERACT action needed — tile swapping is automatic on movement.",
     [
         ("easy", "7x7 grid, 2x2 puzzle (3 tiles), 5 scrambles. Few moves to solve."),
         ("medium", "9x9 grid, 3x3 puzzle (8 tiles), 15 scrambles."),
@@ -647,7 +720,11 @@ _td(
     "SWITCH objects (lights, ON/OFF state visible via color), decoy switches (medium+, "
     "outside puzzle grid).",
     "Turn all lights OFF by toggling switches.",
-    "Move in 4 directions. Step on a SWITCH to toggle it (and adjacent neighbors at medium+).",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a SWITCH "
+    "cell, then use INTERACT (action 5) to toggle it ON/OFF. Simply walking onto the "
+    "switch does NOT toggle it — you MUST use INTERACT. At medium+, toggling a switch "
+    "also flips its 4 adjacent neighbor switches. Goal: turn ALL switches OFF. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "7x7 grid, 3x3 puzzle, self-only toggle. Each switch is independent."),
         ("medium", "9x9 grid, 4x4 puzzle, adjacent toggle (self + 4 neighbors), 1 decoy."),
@@ -666,7 +743,11 @@ _td(
     "SWITCH objects (graph nodes, cluster-based placement, color state in metadata), "
     "WALL (obstacles).",
     "Color all nodes so no two adjacent nodes share the same color.",
-    "Move in 4 directions. Use INTERACT (action 5) on a node to cycle its color.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To color a node: "
+    "first walk onto the SWITCH (node) cell, then use INTERACT (action 5) to cycle its "
+    "color. WARNING: simply walking onto a node does NOT change its color — you MUST "
+    "use INTERACT. Each INTERACT cycles to the next color. "
+    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 4 nodes, 2 colors, linear graph. Simple constraint."),
         ("medium", "11x11 grid, 6 nodes, 3 colors, cycle graph with cluster-based adjacency."),
@@ -687,8 +768,11 @@ _td(
     "BOX (heavy, requires NPC cooperation to push), HOLE terrain (destination for boxes), "
     "NPC helper (must be adjacent for push), WALL (obstacles).",
     "Push all heavy boxes into holes with NPC cooperation.",
-    "Move in 4 directions into BOX to push it. Push only works when NPC is also adjacent "
-    "to the same box. Box pushed onto HOLE removes both box and hole.",
+    "Move in 4 directions only (actions 1-4). Walk into a BOX cell to push it one cell "
+    "in your movement direction. Push only succeeds when the NPC helper is also adjacent "
+    "to the same box (the NPC pathfinds to help when you're adjacent). A box pushed onto "
+    "a HOLE cell removes both the box and the hole. No INTERACT action "
+    "needed — pushing is automatic on movement.",
     [
         ("easy", "9x9 grid, 1 box, 1 hole, no obstacles."),
         ("medium", "12x12 grid, 2 boxes, 2 holes, 3 obstacles."),
@@ -705,7 +789,10 @@ _td(
     "SWITCH objects freeze all NPCs for 5 steps when activated (one-time use).",
     "ENEMY (fleeing NPCs), SWITCH (freeze power-up, one-time use), WALL (obstacles).",
     "Tag all NPCs by stepping onto them. Use freeze switches strategically.",
-    "Move in 4 directions. Step on ENEMY to tag it. Step on SWITCH to freeze all NPCs for 5 steps.",
+    "Move in 4 directions only (actions 1-4). Walk onto an ENEMY cell to tag and remove it. "
+    "Walk onto a SWITCH cell to freeze all NPCs for 5 steps (one-time use, auto-activates "
+    "on step). Tag all NPCs before time runs out to win. No INTERACT action "
+    "needed — tagging and switch activation are automatic on step.",
     [
         ("easy", "7x7 grid, 1 NPC (50% evade), 1 freeze switch, no obstacles."),
         ("medium", "10x10 grid, 2 NPCs (65% evade), 1 freeze switch, 3 obstacles."),
@@ -727,8 +814,10 @@ _td(
     "KEY and DOOR (hard+, color-coded).",
     "Reach the unique target object without touching any distractor. "
     "Hard+ requires collecting a key to unlock the door.",
-    "Move in 4 directions. Stepping on a KEY auto-collects it. Walking into a DOOR "
-    "with the matching key opens it.",
+    "Move in 4 directions only (actions 1-4). Walk onto the target object cell to complete "
+    "the task. Stepping on a distractor object ends the episode with penalty. "
+    "At hard+: walk onto a KEY cell to auto-collect it, then walk into the DOOR with the "
+    "matching key to open it. No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid, 1 target, 3 distractors, no doors."),
         ("medium", "10x10 grid, 1 target, 6 distractors, no doors."),
@@ -748,8 +837,10 @@ _td(
     "SCROLL objects (immovable reference pattern), GEM objects (pushable, Sokoban-style), "
     "WALL (obstacles). No TARGET markers — GEMs just need to match the SCROLL shape.",
     "Push all GEM objects so they form the same relative pattern as the reference SCROLLs.",
-    "Move in 4 directions. Walk into a GEM to push it one cell in your movement direction. "
-    "Cannot push gems into walls, other gems, or SCROLL blocks.",
+    "Move in 4 directions only (actions 1-4). Walk into a GEM to push it one cell in your "
+    "movement direction (Sokoban-style). Cannot push gems into walls, other gems, or SCROLL "
+    "blocks. GEMs must form the same relative pattern as SCROLLs (translation-invariant). "
+    "No INTERACT action needed — pushing is automatic on movement.",
     [
         ("easy", "9x9 grid, line pattern, 3 gems to push."),
         ("medium", "11x11 grid, L-shape pattern, 4 gems."),
@@ -767,7 +858,9 @@ _td(
     "Recursive room structure (walls and doorways), doorways (EMPTY gaps in walls, "
     "3 of 4 sides open), GOAL (deepest nested room), sealed doors (1 side per level).",
     "Navigate through nested rooms to reach GOAL in the deepest room.",
-    "Move in 4 directions through doorways between rooms.",
+    "Move in 4 directions only (actions 1-4). Navigate through doorway gaps in walls "
+    "to move between rooms. Walk onto the GOAL cell in the deepest nested room to win. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "13x13 grid, depth 2 (4 rooms), 3 doorways per level."),
         ("medium", "19x19 grid, depth 3 (16 rooms), 3 doorways per level."),
@@ -787,7 +880,10 @@ _td(
     "True GOAL (single), decoy TARGETs (look similar), ghost objects (SCROLL/ORB/LEVER "
     "appearing/disappearing), moving decoys (hard+), Guard NPCs (medium+).",
     "Locate and reach the true GOAL amid visual noise.",
-    "Move in 4 directions. Identify the true GOAL among decoys and noise.",
+    "Move in 4 directions only (actions 1-4). Walk onto the true GOAL cell to complete "
+    "the task. The true GOAL is a GOAL object; decoys are TARGET objects that look similar. "
+    "Ghost objects appear and disappear randomly each step — ignore them. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid, 3 decoys, 2 ghosts per step. No guards. Low noise level."),
         ("medium", "9x9 grid, 6 decoys, 4 ghosts, 1 guard. Moderate noise."),
@@ -807,8 +903,11 @@ _td(
     "GOAL (1 per phase, 3 total), WALL (DFS maze, toggling walls at hard+), "
     "KEY/DOOR (hard+, color-coded), action remap (expert, UP<->DOWN LEFT<->RIGHT).",
     "Reach all 3 goals across shifting maze phases.",
-    "Move in 4 directions. Pick up KEYs to unlock DOORs. Maze layout and wall "
-    "configuration change between phases. At expert, action controls flip.",
+    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete each "
+    "phase. After each goal, the maze regenerates with a new layout. At hard+: walk onto "
+    "a KEY cell to auto-collect it, then walk into a DOOR with the matching key to open it. "
+    "At expert: action controls flip (UP<->DOWN, LEFT<->RIGHT) between phases. "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "9x9 DFS maze, 3 goals, maze shifts between phases. max_steps=200."),
         ("medium", "11x11 DFS maze, 3 goals, maze shifts. max_steps=350."),
@@ -831,8 +930,10 @@ _td(
     "(hard+, gate the true path).",
     "Resist the coin reward gradient. Navigate the true (reward-free) path to GOAL "
     "without collecting any coins.",
-    "Move in 4 directions. Coins are auto-collected on contact. Collecting a coin "
-    "permanently closes the true path gate. Step on TARGET = failure.",
+    "Move in 4 directions only (actions 1-4). COINs are auto-collected when you walk onto "
+    "them — collecting ANY coin permanently closes the true path gate. Stepping on a "
+    "TARGET cell = failure (episode ends). Walk onto the GOAL cell via the reward-free "
+    "path to win. No INTERACT action needed — only movement.",
     [
         ("easy", "9x9 grid, Y-fork, 1 decoy path, 3 coins. Direct true path, no keys."),
         ("medium", "12x12 grid, 2 decoy paths (right + L-turn), 5 coins each. "
@@ -859,8 +960,10 @@ _td(
     "demos, reverts after reveal_steps), WALL (obstacles at medium+).",
     "Watch demo trials to infer the hidden rule, then navigate to the correct "
     "candidate object in the test trial. Stepping on wrong candidate = failure.",
-    "Move in 4 directions. Demo trials auto-advance (no interaction). In the test "
-    "trial, step on a candidate object to select it.",
+    "Move in 4 directions only (actions 1-4). Demo trials auto-advance with no agent "
+    "interaction — just observe. In the test trial, walk onto a candidate object cell "
+    "to select it. Stepping on the wrong candidate = failure (episode ends). "
+    "No INTERACT action needed — only movement.",
     [
         ("easy", "7x7 grid, 2 candidates, 2 demos, 12-step reveal. "
          "Rules: goto_type, nearest_corner."),
@@ -884,8 +987,11 @@ _td(
     "open floor. At medium+ items move away from agent every 3 steps.",
     "Raise both GEM and ORB meters to >= threshold simultaneously. Alternate collection "
     "to avoid cross-drain and consecutive penalty.",
-    "Move in 4 directions. Items auto-collected on contact. "
-    "Collecting raises one meter and cross-drains the other.",
+    "Move in 4 directions only (actions 1-4). Walk onto a GEM or ORB cell to auto-collect "
+    "it. Collecting a GEM raises the GEM meter +0.25 but drains the ORB meter; collecting "
+    "an ORB raises the ORB meter +0.25 but drains the GEM meter. Alternate collection to "
+    "avoid excessive cross-drain. Both meters must reach the threshold simultaneously to win. "
+    "No INTERACT action needed — collection is automatic on step.",
     [
         ("easy", "9x9, 4 gem + 4 orb, threshold=0.6, 0.10 cross-drain, items stationary."),
         ("medium", "11x11, 5+5, threshold=0.7, 0.10 cross-drain, items flee every 3 steps."),

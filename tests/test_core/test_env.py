@@ -93,26 +93,6 @@ def test_env_noop(simple_env):
     assert simple_env.agent.position == initial_pos
 
 
-def test_env_pickup_drop(simple_env):
-    """Test pickup and drop actions."""
-    simple_env.reset()
-
-    # Place key at agent position
-    x, y = simple_env.agent.position
-    simple_env.grid.objects[y, x] = ObjectType.KEY
-
-    # Pickup
-    initial_inv_size = len(simple_env.agent.inventory)
-    simple_env.step(5)  # PICKUP
-    assert len(simple_env.agent.inventory) == initial_inv_size + 1
-    assert simple_env.grid.objects[y, x] == ObjectType.NONE
-
-    # Drop
-    simple_env.step(6)  # DROP
-    assert len(simple_env.agent.inventory) == initial_inv_size
-    assert simple_env.grid.objects[y, x] == ObjectType.KEY
-
-
 def test_env_truncation(simple_env):
     """Test episode truncation at max_steps."""
     simple_env.reset()

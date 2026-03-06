@@ -71,6 +71,9 @@ class VLLMVLMBackend(ModelBackend):
             "tensor_parallel_size": self.tensor_parallel_size,
             "limit_mm_per_prompt": self.limit_mm_per_prompt,
             "max_model_len": self.max_model_len,
+            # Use Triton attention to avoid FlashInfer JIT compilation
+            # failures on clusters where libcuda.so is not in linker path.
+            "attention_backend": "TRITON_ATTN",
         }
 
         self._llm = LLM(**engine_kwargs)

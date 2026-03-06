@@ -34,6 +34,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "matplotlib>=3.10.8",
     "datasets>=2.14.4",
+    "torch-c-dlpack-ext>=0.1.5",
 ]
 
 [project.scripts]

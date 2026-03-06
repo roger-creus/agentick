@@ -191,8 +191,8 @@ class CausalChainTask(TaskSpec):
         gx, gy = config["goal_positions"][0]
         grid.objects[gy, gx] = ObjectType.NONE
 
-    def on_agent_moved(self, pos, agent, grid):
-        """Activate next switch in causal sequence → open corresponding barrier."""
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT while standing on a LEVER activates it in causal sequence."""
         config = getattr(self, "_config", {})
         progress = config.get("_switch_progress", 0)
         switches = config.get("switch_positions", [])
@@ -200,14 +200,13 @@ class CausalChainTask(TaskSpec):
         decoys = config.get("decoy_positions", [])
         ax, ay = pos
 
-        # Check if stepped on a decoy
+        # Check if standing on a decoy
         if (ax, ay) in [tuple(d) for d in decoys]:
             if grid.objects[ay, ax] == ObjectType.LEVER:
                 grid.objects[ay, ax] = ObjectType.NONE  # consumed
-                # Decoy effect: remove from decoys list (harmless visual)
             return
 
-        # Check if stepped on the next switch in sequence
+        # Check if standing on the next switch in sequence
         if progress < len(switches):
             sx, sy = switches[progress]
             if (ax, ay) == (sx, sy) and grid.objects[sy, sx] == ObjectType.LEVER:

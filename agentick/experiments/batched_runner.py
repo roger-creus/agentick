@@ -124,7 +124,7 @@ class BatchedEpisodeRunner:
                 messages = all_messages[idx_in_batch]
 
                 # Parse action
-                action = parse_action_from_text(response.text, list(range(8)))
+                action = parse_action_from_text(response.text, list(range(6)))
 
                 # Extract reasoning
                 reasoning = None

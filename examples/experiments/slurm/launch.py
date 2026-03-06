@@ -210,6 +210,15 @@ def get_required_api_key(config: dict) -> str | None:
     return None
 
 
+def is_vllm_backend(config: dict) -> bool:
+    """Return True if the config uses a vLLM backend (LLM or VLM)."""
+    agent = config.get("agent")
+    if agent and isinstance(agent, dict):
+        backend = agent.get("hyperparameters", {}).get("backend", "")
+        return backend in ("vllm_llm", "vllm_vlm")
+    return False
+
+
 def build_env_exports() -> str:
     """Build export lines for API keys that are set in the current environment."""
     lines = []

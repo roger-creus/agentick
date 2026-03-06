@@ -304,7 +304,8 @@ class BacktrackPuzzleTask(TaskSpec):
         self._switch_milestone_given = False
         self._config = config
 
-    def on_agent_moved(self, pos, agent, grid):
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT while standing on a SWITCH activates it."""
         config = getattr(self, "_config", {})
         ax, ay = pos
         switches = config.get("switch_positions", [])

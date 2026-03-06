@@ -20,9 +20,7 @@ The available actions are:
 2: MOVE_DOWN
 3: MOVE_LEFT
 4: MOVE_RIGHT
-5: TOGGLE (interact with objects like doors, switches)
-6: PICKUP (pick up items)
-7: DROP (drop items from inventory)
+5: INTERACT (interact with objects like switches, levers — walk onto them first, then INTERACT)
 
 ## Task Objective
 {task_description}
@@ -30,7 +28,7 @@ The available actions are:
 ## Instructions
 1. Observe the current grid state
 2. Reason about the best action to take
-3. Output your selected action as a single integer (0-7)
+3. Output your selected action as a single integer (0-5)
 
 Respond with ONLY the action number, nothing else."""
 
@@ -235,9 +233,8 @@ def parse_action_from_text(
             "MOVE_LEFT": 3,
             "RIGHT": 4,
             "MOVE_RIGHT": 4,
+            "INTERACT": 5,
             "TOGGLE": 5,
-            "PICKUP": 6,
-            "DROP": 7,
         }
 
         for name, action_idx in action_names.items():

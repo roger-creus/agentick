@@ -321,50 +321,52 @@ class ASCIIRenderer:
 
             output.append("".join(row_parts))
 
-        # Add legend
-        legend_parts = [
-            "\n--- Legend ---",
-            f"{'^ v < >' if self.config.use_ansi_colors else 'A'}: Agent (facing direction)",
-            "#: Wall",
-            "G: Goal",
-            "K: Key",
-            "D: Door",
-            "B: Box",
-            "X: Hazard",
-            "~: Water",
+        # Build dynamic legend based on symbols present in the grid
+        present_chars = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                ch = str(char_grid[y, x]).strip()
+                for c in ch:
+                    present_chars.add(c)
+
+        # Full symbol → (description, color_key) mapping
+        _LEGEND_MAP: list[tuple[str, str, str]] = [
+            ("^ v < >" if self.config.use_ansi_colors else "A",
+             "Agent (facing direction)", "agent"),
+            ("#", "Wall", "wall"),
+            (".", "Empty space", ""),
+            ("G", "Goal", "goal"),
+            ("K", "Key", "key"),
+            ("D", "Door", "door"),
+            ("N", "Switch", "npc"),
+            ("B", "Box", "box"),
+            ("T", "Target", "goal"),
+            ("X", "Hazard", "hazard"),
+            ("~", "Water", "water"),
+            ("E", "Enemy", "enemy"),
+            ("o", "Sheep", "goal"),
+            ("d", "Gem", "gem"),
+            ("L", "Lever", "lever"),
+            ("P", "Potion", "potion"),
+            ("?", "Scroll", "scroll"),
+            ("c", "Coin", "coin"),
+            ("O", "Orb", "orb"),
+            ("t", "Tool", "key"),
+            ("r", "Resource", "key"),
+            ("*", "Breadcrumb", "key"),
         ]
 
-        if self.config.use_ansi_colors:
-            # Colorize legend
-            colored_legend = []
-            for line in legend_parts:
-                if ":" in line and line != legend_parts[0]:
-                    parts = line.split(":", 1)
-                    symbol = parts[0].strip()
-                    desc = parts[1].strip()
-
-                    # Find color for this symbol
-                    color_map = {
-                        "^ v < >": "agent",
-                        "A": "agent",
-                        "#": "wall",
-                        "G": "goal",
-                        "K": "key",
-                        "D": "door",
-                        "X": "hazard",
-                        "B": "box",
-                        "~": "water",
-                    }
-
-                    if symbol in color_map:
-                        color = ANSI_COLORS.get(color_map[symbol], "")
-                        reset = ANSI_COLORS["reset"]
-                        colored_legend.append(f"{color}{symbol}{reset}: {desc}")
-                    else:
-                        colored_legend.append(line)
-                else:
-                    colored_legend.append(line)
-            legend_parts = colored_legend
+        legend_parts = ["\n--- Legend ---"]
+        for symbol, desc, color_key in _LEGEND_MAP:
+            # Agent line always included; others only if present
+            symbol_chars = set(symbol.replace(" ", ""))
+            if symbol_chars & present_chars or symbol in ("^ v < >", "A"):
+                line = f"{symbol}: {desc}"
+                if self.config.use_ansi_colors and color_key:
+                    color = ANSI_COLORS.get(color_key, "")
+                    reset = ANSI_COLORS["reset"]
+                    line = f"{color}{symbol}{reset}: {desc}"
+                legend_parts.append(line)
 
         output.extend(legend_parts)
 

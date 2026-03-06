@@ -91,14 +91,11 @@ class ActionType(IntEnum):
     MOVE_DOWN = 2
     MOVE_LEFT = 3
     MOVE_RIGHT = 4
-    PICKUP = 5
-    DROP = 6
-    USE = 7
-    INTERACT = 8
+    INTERACT = 5
     # Extended actions for partial observability
-    ROTATE_LEFT = 9
-    ROTATE_RIGHT = 10
-    MOVE_FORWARD = 11
+    ROTATE_LEFT = 6
+    ROTATE_RIGHT = 7
+    MOVE_FORWARD = 8
 
 
 # Color constants for rendering

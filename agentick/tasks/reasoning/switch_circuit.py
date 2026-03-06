@@ -4,7 +4,7 @@ MECHANICS:
   - Grid divided into rooms connected by single-cell doors
   - N switches, one per room (Si in room Ri)
   - Each switch opens the NEXT door; dual switches also close the PREVIOUS door
-  - INTERACT (action 8) on a switch toggles it ON/OFF; effects reverse when OFF
+  - INTERACT (action 5) on a switch toggles it ON/OFF; effects reverse when OFF
   - A barrier is OPEN if at least one switch that 'opens' it is ON
     AND no switch that 'closes' it is ON
 
