@@ -1,5 +1,5 @@
-name: ppo-pixels-dense-1M
-description: "PPO CnnPolicy from pixels, dense rewards, 1M steps, all tasks x all difficulties"
+name: ppo-pixels-dense-flat-1M
+description: "PPO CnnPolicy from flat pixels, dense rewards, 1M steps, all tasks x all difficulties"
 agent:
   type: ppo
   hyperparameters:

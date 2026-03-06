@@ -239,9 +239,13 @@ class TrainingBenchmarkRunner:
             json.dump(summary, f, indent=2, default=_json_default)
 
         # Build training_summary.json (for plotting)
+        render_mode = (
+            self.config.render_modes[0] if self.config.render_modes else "rgb_array"
+        )
         training_summary = {
             "config_name": self.config.name,
             "reward_mode": self.config.reward_mode,
+            "render_mode": render_mode,
             "total_timesteps": self.training_config.total_timesteps,
             "tasks": task_names,
             "difficulties": difficulties,
@@ -529,11 +533,13 @@ class TrainingBenchmarkRunner:
 
         curve = []
         for i, ts in enumerate(timesteps):
+            ep_returns = results[i]
             curve.append(
                 {
                     "timestep": int(ts),
-                    "mean_reward": float(np.mean(results[i])),
-                    "std_reward": float(np.std(results[i])),
+                    "mean_reward": float(np.mean(ep_returns)),
+                    "std_reward": float(np.std(ep_returns)),
+                    "success_rate": float(np.mean(ep_returns > 0)),
                 }
             )
         return curve
