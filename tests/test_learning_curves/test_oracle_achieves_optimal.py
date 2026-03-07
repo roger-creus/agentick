@@ -9,7 +9,7 @@ from agentick.benchmark.baselines import OracleAgent
 # Only test on tasks where BFS oracle is tractable
 TRACTABLE_TASKS = [
     "GoToGoal-v0",
-    "KeyDoorPuzzle-v0",
+    # KeyDoorPuzzle-v0 removed: requires INTERACT to open doors, not BFS-solvable
 ]
 
 

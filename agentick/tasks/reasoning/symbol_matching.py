@@ -27,7 +27,6 @@ _SYMBOL_TYPES = [
     ObjectType.SCROLL,
     ObjectType.COIN,
     ObjectType.ORB,
-    ObjectType.LEVER,
 ]
 
 

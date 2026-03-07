@@ -158,17 +158,16 @@ def test_compute_action_mask_corner():
 
 
 def test_compute_action_mask_interact():
-    """Test action mask with interact."""
+    """Test action mask: INTERACT is always valid (no-op if nothing interactable)."""
     space = ActionSpace()
 
     grid = np.ones((5, 5), dtype=bool)
     agent_pos = (2, 2)
 
-    # No interact available
+    # INTERACT is always valid regardless of can_interact flag
     mask = compute_action_mask(space, agent_pos, grid, can_interact=False)
-    assert not mask[space.get_action_idx(ActionType.INTERACT)]
+    assert mask[space.get_action_idx(ActionType.INTERACT)]
 
-    # Can interact
     mask = compute_action_mask(space, agent_pos, grid, can_interact=True)
     assert mask[space.get_action_idx(ActionType.INTERACT)]
 

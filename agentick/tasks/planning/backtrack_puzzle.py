@@ -304,8 +304,25 @@ class BacktrackPuzzleTask(TaskSpec):
         self._switch_milestone_given = False
         self._config = config
 
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """Allow walking through activated switches (metadata >= 100).
+
+        Switches are solid by default, but once activated they become passable
+        so the agent can continue through corridors to reach other switches.
+        """
+        x, y = pos
+        if grid.is_object_blocking(pos):
+            # Activated switches are passable
+            if (
+                grid.objects[y, x] == ObjectType.SWITCH
+                and int(grid.metadata[y, x]) >= 100
+            ):
+                return True
+            return False
+        return True
+
     def on_agent_interact(self, pos, agent, grid):
-        """INTERACT while standing on a SWITCH activates it."""
+        """INTERACT while facing a SWITCH activates it."""
         config = getattr(self, "_config", {})
         ax, ay = pos
         switches = config.get("switch_positions", [])

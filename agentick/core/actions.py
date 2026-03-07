@@ -152,7 +152,7 @@ def compute_action_mask(
                 mask[i] = True
 
         elif action_type == ActionType.INTERACT:
-            mask[i] = can_interact
+            mask[i] = True  # always valid; no-op if nothing interactable
 
         elif action_type in (ActionType.ROTATE_LEFT, ActionType.ROTATE_RIGHT):
             mask[i] = True

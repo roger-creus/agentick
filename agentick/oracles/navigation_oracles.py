@@ -6,7 +6,27 @@ from collections import deque
 
 from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
+from agentick.oracles.helpers import interact_adjacent
 from agentick.oracles.registry import register_oracle
+
+
+def _door_interact_action(api, door_pos):
+    """Return a single action to progress toward unlocking a solid door.
+
+    Delegates to the shared ``interact_adjacent`` helper which handles:
+    - Adjacent + facing → INTERACT
+    - Adjacent + not facing → move toward door (sets orientation, blocked by door)
+    - Not adjacent → BFS to nearest walkable cell adjacent to the door
+
+    Returns a list with one action, or an empty list if unreachable.
+    """
+    return interact_adjacent(
+        api.agent_position,
+        api.agent.orientation,
+        door_pos,
+        api.grid,
+        api,
+    )
 
 
 def _get_hazard_cells(api):
@@ -145,101 +165,115 @@ class GoToGoalOracle(OracleAgent):
 
 @register_oracle("MazeNavigation-v0")
 class MazeNavigationOracle(OracleAgent):
-    """BFS to the goal through the maze, avoiding guards. Handles key/door mechanics."""
+    """BFS to the goal through the maze, handling key/door mechanics.
+
+    Strategy (re-planned every step):
+    1. Try BFS to the goal.  If reachable -> go.
+    2. Otherwise there must be a closed door in the way.
+       a. Find a REACHABLE closed door we hold a key for -> approach, face, INTERACT.
+       b. If no such door, find and collect a reachable key for any locked door.
+       c. If the needed key is behind another door, open that door first.
+    """
+
+    def _is_door_reachable(self, agent_pos, door_pos):
+        """Check if at least one adjacent walkable cell of *door_pos* is reachable."""
+        grid = self.api.grid
+        for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+            nx, ny = door_pos[0] + ddx, door_pos[1] + ddy
+            pos = (nx, ny)
+            if (
+                grid.in_bounds(pos)
+                and grid.is_walkable(pos)
+                and not grid.is_object_blocking(pos)
+            ):
+                path = self.api.bfs_path_positions(agent_pos, pos)
+                if path:
+                    return True
+        return False
 
     def plan(self):
         ax, ay = self.api.agent_position
         grid = self.api.grid
         agent = self.api.agent
+        avoid_wide = _get_npc_cells(self.api)
+        avoid_exact = _get_npc_exact(self.api)
 
-        # Check for locked doors blocking the path
+        goal = self.api.get_nearest("goal")
+        if not goal:
+            return
+
+        # --- 1. Try direct path to goal (BFS respects blocking objects) ---
+        direct_path = self.api.bfs_path_positions((ax, ay), goal.position)
+        if direct_path:
+            self.action_queue = _navigate_with_fallback(
+                self.api, ax, ay, goal.position, avoid_wide, avoid_exact,
+            )
+            return
+
+        # --- 2. Goal unreachable — handle doors ---
+        # Identify all closed doors and their colors
         doors = self.api.get_entities_of_type("door")
-        locked_doors = set()
+        locked_colors: dict[int, tuple[int, int]] = {}
         for d in doors:
             dx, dy = d.position
             meta = int(grid.metadata[dy, dx])
-            if meta < 10:  # closed door
-                locked_doors.add(d.position)
+            if meta < 10:
+                locked_colors[meta] = d.position
 
-        # Check if agent has keys
+        if not locked_colors:
+            # No doors but goal unreachable — fallback
+            self.action_queue = self.api.move_toward(*goal.position) or [0]
+            return
+
+        # Which key colors do we hold?
         held_colors = {
             e.properties.get("color") for e in agent.inventory if e.entity_type == "key"
         }
 
-        # Find keys on the grid
-        keys = self.api.get_entities_of_type("key")
-
-        # If there are locked doors, try to find matching keys first
-        if locked_doors:
-            # Which door colors are locked?
-            locked_colors = {}
-            for d in doors:
-                dx, dy = d.position
-                meta = int(grid.metadata[dy, dx])
-                if meta < 10:
-                    locked_colors[meta] = d.position
-
-            # Find keys we don't have yet
-            needed_key = None
-            for color, door_pos in locked_colors.items():
-                if color not in held_colors:
-                    # Find key with this color
-                    for k in keys:
-                        kx, ky = k.position
-                        if int(grid.metadata[ky, kx]) == color:
-                            needed_key = k
-                            break
-                    if needed_key:
-                        break
-
-            if needed_key:
-                # Navigate to needed key (avoid locked doors we can't open)
-                avoid_wide = _get_npc_cells(self.api)
-                avoid_exact = _get_npc_exact(self.api)
-                unopenable = {
-                    pos
-                    for color, pos in locked_colors.items()
-                    if color not in held_colors
-                }
-                self.action_queue = _navigate_with_fallback(
-                    self.api,
-                    ax,
-                    ay,
-                    needed_key.position,
-                    avoid_wide | unopenable,
-                    avoid_exact | unopenable,
-                )
-                return
-
-            # Have a matching key — go to the door
-            for color in held_colors:
-                if color in locked_colors:
-                    avoid_wide = _get_npc_cells(self.api)
-                    avoid_exact = _get_npc_exact(self.api)
-                    self.action_queue = _navigate_with_fallback(
-                        self.api,
-                        ax,
-                        ay,
-                        locked_colors[color],
-                        avoid_wide,
-                        avoid_exact,
-                    )
+        # 2a. Try to open a REACHABLE closed door that we have a key for
+        for color in held_colors:
+            if color in locked_colors:
+                door_pos = locked_colors[color]
+                if self._is_door_reachable((ax, ay), door_pos):
+                    self.action_queue = _door_interact_action(self.api, door_pos)
                     return
 
-        # No locked doors (or all open) — standard goal navigation
-        goal = self.api.get_nearest("goal")
-        if not goal:
-            return
-        avoid_wide = _get_npc_cells(self.api)
-        avoid_exact = _get_npc_exact(self.api)
-        self.action_queue = _navigate_with_fallback(
-            self.api,
-            ax,
-            ay,
-            goal.position,
-            avoid_wide,
-            avoid_exact,
-        )
+        # 2b. Collect a reachable key for any locked door
+        keys_on_grid = self.api.get_entities_of_type("key")
+        closed_door_cells = set(locked_colors.values())
+
+        # Sort by distance so we try the nearest key first
+        needed = []
+        for color, door_pos in locked_colors.items():
+            if color in held_colors:
+                continue
+            for k in keys_on_grid:
+                kx, ky = k.position
+                if int(grid.metadata[ky, kx]) == color:
+                    needed.append((k.distance, color, k))
+
+        needed.sort(key=lambda t: t[0])
+
+        for _, color, k in needed:
+            # Try BFS to this key, avoiding closed doors
+            path = self.api.bfs_path_positions(
+                (ax, ay), k.position, avoid=closed_door_cells,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+            # Try without avoiding doors (key reachable directly)
+            path = self.api.bfs_path_positions((ax, ay), k.position)
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+
+        # Fallback: move toward goal heuristically
+        self.action_queue = self.api.move_toward(*goal.position) or [0]
 
 
 @register_oracle("ShortestPath-v0")
@@ -448,13 +482,9 @@ class RecursiveRoomsOracle(OracleAgent):
             doors = self.api.get_entities_of_type("door")
             if doors:
                 nearest = min(doors, key=lambda d: d.distance)
-                path = self.api.bfs_path_positions(
-                    self.api.agent_position,
-                    nearest.position,
-                    extra_passable={nearest.position},
-                )
-                if path:
-                    self.action_queue = self.api.positions_to_actions(path)
+                # Doors are solid — approach, face, and INTERACT to unlock
+                self.action_queue = _door_interact_action(self.api, nearest.position)
+                if self.action_queue:
                     return
 
         keys = self.api.get_entities_of_type("key")
@@ -648,12 +678,12 @@ class InstructionFollowingOracle(OracleAgent):
 
         # Check which doors are still closed
         for i, dp in enumerate(door_positions):
-            dx, dy = dp
-            door_meta = int(grid.metadata[dy, dx])
+            dpx, dpy = dp
+            door_meta = int(grid.metadata[dpy, dpx])
             if door_meta < 10:
                 # Door i is still closed -- need key i
                 if not has_key:
-                    # Navigate to the matching key (if it still exists on grid)
+                    # Navigate to the matching key (keys are walkable, auto-pickup)
                     if i < len(key_positions):
                         kp = tuple(key_positions[i])
                         # Check key is still on grid
@@ -672,30 +702,11 @@ class InstructionFollowingOracle(OracleAgent):
                                     self.action_queue = [actions[0]]
                                     return
 
-                # Navigate to the door (will auto-open via can_agent_enter)
+                # Have key (or already holding) — approach door, face, INTERACT
                 door_pos = tuple(dp)
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    door_pos,
-                    avoid=avoid,
-                    extra_passable={door_pos},
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                # Fallback without avoidance
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    door_pos,
-                    extra_passable={door_pos},
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
+                self.action_queue = _door_interact_action(self.api, door_pos)
+                if self.action_queue:
+                    return
                 break  # Must deal with this door before proceeding
 
         # Step 2: Navigate to target

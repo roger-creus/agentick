@@ -352,10 +352,12 @@ class RuleInductionTask(TaskSpec):
         config["_door_opened"] = False
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
-        """Block passage through locked door; allow when open."""
+        """Block passage through locked door and non-walkable objects."""
         x, y = pos
         if grid.objects[y, x] == ObjectType.DOOR:
             return int(grid.metadata[y, x]) >= 10
+        if grid.is_object_blocking(pos):
+            return False
         return True
 
     def on_agent_moved(self, pos, agent, grid):

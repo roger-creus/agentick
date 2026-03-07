@@ -51,14 +51,26 @@ def _bfs_reachable(terrain, start, height, width):
     return visited
 
 
-def _room_connected(terrain, room_bounds):
-    """Check if all EMPTY cells in a room are connected via BFS."""
+def _room_connected(terrain, room_bounds, objects=None):
+    """Check if all walkable cells in a room are connected via BFS.
+
+    When *objects* is provided, cells with non-walkable objects (SWITCH, LEVER,
+    DOOR) are excluded from the free set but must still be reachable from an
+    adjacent cell for the room to count as connected.
+    """
+    from agentick.core.types import NON_WALKABLE_OBJECTS
+
     x_s, x_e, y_s, y_e = room_bounds
     free = []
     for y in range(y_s, y_e + 1):
         for x in range(x_s, x_e + 1):
-            if int(terrain[y, x]) == int(CellType.EMPTY):
-                free.append((x, y))
+            if int(terrain[y, x]) != int(CellType.EMPTY):
+                continue
+            if objects is not None:
+                obj = ObjectType(int(objects[y, x]))
+                if obj in NON_WALKABLE_OBJECTS:
+                    continue
+            free.append((x, y))
     if len(free) <= 1:
         return True
     visited = {free[0]}
@@ -72,6 +84,10 @@ def _room_connected(terrain, room_bounds):
                 and (nx, ny) not in visited
                 and int(terrain[ny, nx]) == int(CellType.EMPTY)
             ):
+                if objects is not None:
+                    obj = ObjectType(int(objects[ny, nx]))
+                    if obj in NON_WALKABLE_OBJECTS:
+                        continue
                 visited.add((nx, ny))
                 q.append((nx, ny))
     return len(visited) == len(free)
@@ -354,6 +370,11 @@ class SwitchCircuitTask(TaskSpec):
                     nx, ny = dx + ddx, dy + ddy
                     protected.add((nx, ny))
 
+        # Protect cells adjacent to switches/agent/goal (solid objects)
+        for px, py in used_positions:
+            for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+                protected.add((px + ddx, py + ddy))
+
         all_rooms = list(chain_rooms) + [goal_room]
         for room in all_rooms:
             x_s, x_e, y_s, y_e = room
@@ -367,7 +388,7 @@ class SwitchCircuitTask(TaskSpec):
                 if int(grid.terrain[wy, wx]) != int(CellType.EMPTY):
                     continue
                 grid.terrain[wy, wx] = CellType.WALL
-                if not _room_connected(grid.terrain, room):
+                if not _room_connected(grid.terrain, room, grid.objects):
                     grid.terrain[wy, wx] = CellType.EMPTY
 
     # ------------------------------------------------------------------

@@ -196,15 +196,20 @@ class TagHuntTask(TaskSpec):
                 (nx, ny) for nx, ny in config.get("_live_npcs", []) if (nx, ny) != (ax, ay)
             ]
 
-        # Activate freeze switch: agent steps onto a SWITCH
-        if grid.objects[ay, ax] == ObjectType.SWITCH:
-            grid.objects[ay, ax] = ObjectType.NONE
-            grid.metadata[ay, ax] = 0
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT on a freeze SWITCH consumes it and freezes all NPCs."""
+        if not grid.in_bounds(pos):
+            return
+        x, y = pos
+        config = getattr(self, "_config", {})
+        if grid.objects[y, x] == ObjectType.SWITCH:
+            grid.objects[y, x] = ObjectType.NONE
+            grid.metadata[y, x] = 0
             config["_freeze_remaining"] = _FREEZE_DURATION
             config["_active_switches"] = [
                 (sx, sy)
                 for sx, sy in config.get("_active_switches", [])
-                if (sx, sy) != (ax, ay)
+                if (sx, sy) != (x, y)
             ]
 
     def _is_npc_walkable(self, x, y, grid):

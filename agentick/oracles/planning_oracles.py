@@ -6,6 +6,7 @@ from collections import deque
 
 from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
+from agentick.oracles.helpers import interact_adjacent as _interact_adjacent
 from agentick.oracles.registry import register_oracle
 
 
@@ -327,10 +328,13 @@ class KeyDoorPuzzleOracle(OracleAgent):
 
     Strategy with 1-key inventory limit:
     1. Determine the next closed door in sequence.
-    2. If holding the correct key, go open that door.
+    2. If holding the correct key, navigate adjacent to that door, face it,
+       then INTERACT to open it.
     3. If holding the wrong key or no key, go pick up the correct key
-       (agent can only carry 1 key; stepping on a new key swaps it).
+       (keys are walkable -- auto-pickup on walk-over).
     4. After all doors are open, head to goal.
+
+    Doors are solid (non-walkable). Keys are walkable.
     """
 
     def _get_closed_doors(self):
@@ -355,15 +359,13 @@ class KeyDoorPuzzleOracle(OracleAgent):
                     keys[(x, y)] = int(grid.metadata[y, x])
         return keys
 
-    def _navigate_to(self, target, extra_passable=None, avoid=None):
-        """BFS to target with optional avoidance. Returns True on success."""
+    def _navigate_to_walkable(self, target, avoid=None):
+        """BFS to a walkable target (like a key or goal). Returns True on success."""
         ax, ay = self.api.agent_position
-        ep = extra_passable or set()
         av = avoid or set()
         path = self.api.bfs_path_positions(
             (ax, ay),
             target,
-            extra_passable=ep | {target},
             avoid=av - {target},
         )
         if path:
@@ -372,9 +374,7 @@ class KeyDoorPuzzleOracle(OracleAgent):
                 self.action_queue = [actions[0]]
                 return True
         # Fallback without avoidance
-        path = self.api.bfs_path_positions(
-            (ax, ay), target, extra_passable=ep | {target},
-        )
+        path = self.api.bfs_path_positions((ax, ay), target)
         if path:
             actions = self.api.positions_to_actions(path)
             if actions:
@@ -385,6 +385,7 @@ class KeyDoorPuzzleOracle(OracleAgent):
 
     def plan(self):
         ax, ay = self.api.agent_position
+        grid = self.api.grid
 
         inv_keys = [e for e in self.api.agent.inventory if e.entity_type == "key"]
         held_color = inv_keys[0].properties.get("color", 0) if inv_keys else None
@@ -397,12 +398,13 @@ class KeyDoorPuzzleOracle(OracleAgent):
             next_door_color = closed_doors[next_door_pos]
 
             if held_color == next_door_color:
-                # Go open door — avoid all keys to prevent unwanted swaps
-                self._navigate_to(
-                    next_door_pos,
-                    extra_passable={next_door_pos},
-                    avoid=all_key_pos,
+                # Go open door -- door is solid, use face-and-interact
+                agent_ori = self.api.agent.orientation
+                actions = _interact_adjacent(
+                    (ax, ay), agent_ori, next_door_pos, grid, self.api,
                 )
+                if actions:
+                    self.action_queue = actions
                 return
 
             # Find the correct key on the grid
@@ -413,18 +415,16 @@ class KeyDoorPuzzleOracle(OracleAgent):
                     break
 
             if target_key_pos is not None:
-                # Key at our feet — step off first
+                # Key at our feet -- step off first
                 if target_key_pos == (ax, ay):
-                    grid = self.api.grid
                     for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
                         nx, ny = ax + dx, ay + dy
                         if (
                             0 <= nx < grid.width
                             and 0 <= ny < grid.height
                             and int(grid.terrain[ny, nx]) == int(CellType.EMPTY)
-                            and int(grid.objects[ny, nx]) not in (
-                                int(ObjectType.DOOR), int(ObjectType.KEY),
-                            )
+                            and not grid.is_object_blocking((nx, ny))
+                            and int(grid.objects[ny, nx]) != int(ObjectType.KEY)
                         ):
                             self.action_queue = self.api.positions_to_actions(
                                 [(nx, ny)]
@@ -436,6 +436,7 @@ class KeyDoorPuzzleOracle(OracleAgent):
                             0 <= nx < grid.width
                             and 0 <= ny < grid.height
                             and int(grid.terrain[ny, nx]) == int(CellType.EMPTY)
+                            and not grid.is_object_blocking((nx, ny))
                         ):
                             self.action_queue = self.api.positions_to_actions(
                                 [(nx, ny)]
@@ -443,33 +444,80 @@ class KeyDoorPuzzleOracle(OracleAgent):
                             return
                     return
 
-                # Navigate to key — avoid other keys and closed doors
+                # Navigate to key -- keys are walkable, avoid other keys and
+                # closed doors (doors are solid so BFS won't cross them anyway,
+                # but adding to avoid set ensures no path through them)
                 other_keys = all_key_pos - {target_key_pos}
                 door_avoid = set(closed_doors.keys())
-                self._navigate_to(
+                self._navigate_to_walkable(
                     target_key_pos,
                     avoid=other_keys | door_avoid,
                 )
                 return
 
-            # No matching key — try nearest available
+            # No matching key -- try nearest available
             if keys_on_grid:
                 nearest = min(
                     keys_on_grid,
                     key=lambda p: abs(p[0] - ax) + abs(p[1] - ay),
                 )
-                self._navigate_to(nearest)
+                self._navigate_to_walkable(nearest)
                 return
 
-        # All doors open — head to goal
+        # All doors open -- head to goal
         goal = self.api.get_nearest("goal")
         if goal:
-            self._navigate_to(goal.position)
+            self._navigate_to_walkable(goal.position)
 
 
 @register_oracle("BacktrackPuzzle-v0")
 class BacktrackPuzzleOracle(OracleAgent):
-    """Activate all switches, then go to goal."""
+    """Activate all switches, then go to goal.
+
+    Switches are solid (non-walkable). The agent must stand adjacent,
+    face the switch, then INTERACT. Activated switches become passable
+    so the agent can walk through them to reach the next switch.
+    """
+
+    def _activated_switch_positions(self, grid, config):
+        """Return set of switch positions that have been activated (passable)."""
+        activated = set()
+        for sw in config.get("switch_positions", []):
+            sx, sy = sw
+            if int(grid.metadata[sy, sx]) >= 100:
+                activated.add((sx, sy))
+        return activated
+
+    def _find_reachable_switch(self, unactivated, passable, agent_pos, grid):
+        """Find the nearest unactivated switch reachable via BFS.
+
+        Checks each unactivated switch's adjacent walkable cells and picks
+        the one with the shortest BFS path from the agent. Uses *passable*
+        (activated switch positions) as extra_passable for BFS.
+        """
+        best_switch = None
+        best_dist = float("inf")
+        ep = passable or None
+
+        for sw in unactivated:
+            sx, sy = sw.position
+            # Find walkable cells adjacent to this switch
+            for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+                nx, ny = sx + ddx, sy + ddy
+                adj = (nx, ny)
+                if not grid.in_bounds(adj):
+                    continue
+                if not grid.is_walkable(adj):
+                    continue
+                if grid.is_object_blocking(adj) and (ep is None or adj not in ep):
+                    continue
+                path = self.api.bfs_path_positions(
+                    agent_pos, adj, extra_passable=ep,
+                )
+                if path and len(path) < best_dist:
+                    best_dist = len(path)
+                    best_switch = sw
+        return best_switch
 
     def plan(self):
         config = self.api.task_config
@@ -477,20 +525,53 @@ class BacktrackPuzzleOracle(OracleAgent):
 
         if not all_activated:
             switches = self.api.get_entities_of_type("switch")
-            # Filter out already-activated switches (metadata >= 100)
             grid = self.api.grid
+            # Filter out already-activated switches (metadata >= 100)
             unactivated = [
                 s for s in switches
                 if int(grid.metadata[s.position[1], s.position[0]]) < 100
             ]
             if unactivated:
-                nearest = min(unactivated, key=lambda s: s.distance)
-                self.action_queue = self.api.move_to(*nearest.position)
+                agent_pos = self.api.agent_position
+                agent_ori = self.api.agent.orientation
+                # Activated switches are passable — include them as
+                # extra_passable so BFS can route through them.
+                passable = self._activated_switch_positions(grid, config)
+
+                # Pick the nearest REACHABLE switch (not just Manhattan nearest)
+                target = self._find_reachable_switch(
+                    unactivated, passable, agent_pos, grid,
+                )
+                if target is None:
+                    # Fallback: try Manhattan nearest
+                    target = min(unactivated, key=lambda s: s.distance)
+
+                actions = _interact_adjacent(
+                    agent_pos, agent_ori, target.position, grid, self.api,
+                    extra_passable=passable or None,
+                )
+                if actions:
+                    self.action_queue = actions
                 return
 
+        # All switches activated — navigate to goal.
+        # Activated switches are passable in the task's can_agent_enter,
+        # so we pass them as extra_passable for BFS too.
         goal = self.api.get_nearest("goal")
         if goal:
-            self.action_queue = self.api.move_to(*goal.position)
+            grid = self.api.grid
+            passable = self._activated_switch_positions(grid, config)
+            ax, ay = self.api.agent_position
+            gx, gy = goal.position
+            path = self.api.bfs_path_positions(
+                (ax, ay), (gx, gy), extra_passable=passable or None,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+            self.action_queue = self.api.move_to(gx, gy)
 
 
 def _solve_sliding_puzzle(n, board, blank_pos):

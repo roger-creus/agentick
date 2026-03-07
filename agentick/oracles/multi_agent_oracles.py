@@ -6,6 +6,7 @@ from collections import deque
 
 from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
+from agentick.oracles.helpers import interact_adjacent
 from agentick.oracles.registry import register_oracle
 
 
@@ -14,8 +15,10 @@ class TagHuntOracle(OracleAgent):
     """Tag enemy NPCs by moving onto them.
 
     Strategy: chase nearest enemy via BFS. If a freeze SWITCH is nearby and
-    closer than the nearest enemy, grab it first to freeze all NPCs for 5 steps,
-    then chase enemies while they are frozen.
+    closer than the nearest enemy, activate it first (navigate adjacent, face,
+    INTERACT) to freeze all NPCs for 5 steps, then chase enemies while frozen.
+
+    SWITCHes are solid — the agent must stand adjacent, face, and INTERACT.
     """
 
     def plan(self):
@@ -29,7 +32,7 @@ class TagHuntOracle(OracleAgent):
         nearest = min(enemies, key=lambda e: e.distance)
         dist_to_enemy = nearest.distance
 
-        # Consider grabbing a freeze switch if one is nearby
+        # Consider activating a freeze switch if one is nearby
         active_switches = config.get("_active_switches", [])
         freeze_remaining = config.get("_freeze_remaining", 0)
         if active_switches and freeze_remaining == 0:
@@ -39,14 +42,16 @@ class TagHuntOracle(OracleAgent):
                 d = abs(ax - sx) + abs(ay - sy)
                 if d < best_sw_dist:
                     best_sw_dist, best_sw = d, (sx, sy)
-            # If switch is closer than enemy, grab it first
+            # If switch is closer than enemy, activate it via adjacent INTERACT
             if best_sw is not None and best_sw_dist < dist_to_enemy:
-                path = self.api.bfs_path_positions((ax, ay), best_sw)
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
+                grid = self.api.grid
+                agent_ori = self.api.agent.orientation
+                actions = interact_adjacent(
+                    (ax, ay), agent_ori, best_sw, grid, self.api,
+                )
+                if actions:
+                    self.action_queue = actions
+                    return
 
         # Chase nearest enemy
         path = self.api.bfs_path_positions(

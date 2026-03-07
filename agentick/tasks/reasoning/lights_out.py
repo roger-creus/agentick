@@ -29,15 +29,20 @@ _MIN_SOLUTION_TOGGLES: dict[str, int] = {
 
 @register_task("LightsOut-v0", tags=["combinatorial_logic"])
 class LightsOutTask(TaskSpec):
-    """Toggle all lights off — stepping on a light toggles it and its neighbors."""
+    """Toggle all lights off by walking — classic Lights Out puzzle.
+
+    Unlike other tasks, LightsOut switches are walkable. Every time the agent
+    steps on a cell, all switches within Manhattan distance 1 (including the
+    cell itself) are automatically toggled. No INTERACT needed.
+    """
 
     name = "LightsOut-v0"
     description = "Toggle all lights off"
     capability_tags = ["combinatorial_logic"]
 
     difficulty_configs = {
-        # Easy: simple toggle (step on light = turn it off/on). No cascade.
-        # Medium+: adjacent toggle (the classic Lights Out mechanic).
+        # All levels use adjacent toggle (classic Lights Out mechanic):
+        # stepping on any cell toggles it + its 4 neighbors.
         # n_lights: initially-lit switches to turn off.
         # puzzle_size: side length of the NxN light grid embedded in the room.
         # n_decoys: extra isolated switches that add noise but must also be toggled.
@@ -47,7 +52,7 @@ class LightsOutTask(TaskSpec):
             grid_size=7,
             max_steps=80,
             params={
-                "n_lights": 3, "adjacent": False, "n_decoys": 0,
+                "n_lights": 3, "adjacent": True, "n_decoys": 0,
                 "n_walls": 0, "puzzle_size": 3,
             },
         ),
@@ -289,6 +294,10 @@ class LightsOutTask(TaskSpec):
             "max_steps": self.get_max_steps(),
         }
 
+    def can_agent_enter(self, pos, agent, grid) -> bool:
+        """All cells are walkable in LightsOut (switches are stepped on)."""
+        return True
+
     # ── Toggle mechanic ───────────────────────────────────────────────────────
 
     def on_env_reset(self, agent, grid, config):
@@ -313,12 +322,17 @@ class LightsOutTask(TaskSpec):
         )
         self._lights_remaining_last = self._lights_remaining
 
-    def on_agent_interact(self, pos, agent, grid):
-        """INTERACT while standing on a SWITCH toggles it (and neighbors if adjacent mode)."""
+    def on_agent_moved(self, pos, agent, grid):
+        """Auto-toggle switches when the agent steps on any cell.
+
+        Classic Lights Out: stepping on a cell toggles the cell itself (if a
+        switch) AND all adjacent switches. In easy (non-adjacent) mode, only
+        the cell the agent steps on is toggled.
+        """
         x, y = pos
         self._toggle_cell(x, y, grid)
 
-        # Adjacent toggle mode
+        # Adjacent toggle mode (medium+): also toggle 4 cardinal neighbors
         if self._adjacent_toggle:
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 nx, ny = x + dx, y + dy
@@ -345,7 +359,7 @@ class LightsOutTask(TaskSpec):
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01
-        # Lights toggled in on_agent_moved (before this runs) — use instance counter
+        # Lights toggled in on_agent_moved — use instance counter
         old_rem = self._lights_remaining_last
         new_rem = self._lights_remaining
         if new_rem < old_rem:

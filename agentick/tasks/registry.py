@@ -319,7 +319,8 @@ class TaskEnv(AgentickEnv):
     def _try_move_to(self, new_pos) -> None:
         """Attempt to move agent to new_pos with task-specific checks."""
         if hasattr(self.task, "can_agent_enter"):
-            # Tasks with can_agent_enter handle their own entry logic.
+            # Tasks with can_agent_enter handle their own entry logic
+            # (e.g. Sokoban pushing, tile sliding, walkable switches).
             # Check bounds first; walkability is checked unless the task
             # explicitly overrides terrain (e.g. ToolUse hammer breaks walls).
             if not self.grid.in_bounds(new_pos):
@@ -332,6 +333,9 @@ class TaskEnv(AgentickEnv):
         else:
             # Standard terrain check
             if not self.grid.is_walkable(new_pos):
+                return
+            # Object blocking check (DOOR/LEVER/SWITCH are solid)
+            if self.grid.is_object_blocking(new_pos):
                 return
 
         self.agent.position = new_pos
@@ -377,11 +381,21 @@ class TaskEnv(AgentickEnv):
         self._try_move_to(new_pos)
 
     def _execute_action(self, action_type) -> None:
-        """Execute action with task-specific INTERACT hook."""
+        """Execute action with task-specific INTERACT hook.
+
+        INTERACT targets the cell the agent is facing (orientation + 1 step).
+        Tasks with ``interact_self = True`` (e.g. LightsOut) target the
+        agent's own position instead.
+        """
         from agentick.core.types import ActionType as AT
 
         if action_type == AT.INTERACT and hasattr(self.task, "on_agent_interact"):
-            self.task.on_agent_interact(self.agent.position, self.agent, self.grid)
+            if getattr(self.task, "interact_self", False):
+                target_pos = self.agent.position
+            else:
+                dx, dy = self.agent.orientation.to_delta()
+                target_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
+            self.task.on_agent_interact(target_pos, self.agent, self.grid)
         else:
             super()._execute_action(action_type)
 

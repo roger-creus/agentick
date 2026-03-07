@@ -245,22 +245,32 @@ class MazeNavigationTask(TaskSpec):
                 door_positions.append(door_pos)
                 used_cells.add(door_pos)
 
-                # Find a key position: reachable cell NOT on the agent→door
-                # path segment, preferring dead-end cells
+                # Find a key position: reachable from agent WITHOUT crossing
+                # any door, NOT on the agent→door path segment, preferring
+                # dead-end cells.
+                # Flood-fill from agent, treating ALL door cells as blocked,
+                # to find cells the agent can reach before opening any door.
+                all_door_cells = set(door_positions)
+                reachable_from_agent = self._flood_reachable(
+                    grid, agent_pos, blocked=all_door_cells,
+                )
                 pre_door_path = set(optimal_path[:path_idx])
                 key_cands = [
                     pos
                     for pos in valid_positions
                     if pos not in used_cells
                     and pos not in pre_door_path
+                    and pos in reachable_from_agent
                     and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
                     and grid.objects[pos[1], pos[0]] == ObjectType.NONE
                 ]
                 if not key_cands:
+                    # Relax: allow cells on the pre-door path too
                     key_cands = [
                         pos
                         for pos in valid_positions
                         if pos not in used_cells
+                        and pos in reachable_from_agent
                         and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
                         and grid.objects[pos[1], pos[0]] == ObjectType.NONE
                     ]
@@ -302,6 +312,28 @@ class MazeNavigationTask(TaskSpec):
 
     _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
+    def _flood_reachable(self, grid, start, blocked=None):
+        """BFS flood fill from *start*, treating *blocked* cells as impassable."""
+        from collections import deque
+
+        blocked = blocked or set()
+        visited = {start}
+        q = deque([start])
+        while q:
+            cx, cy = q.popleft()
+            for dx, dy in self._DIRS:
+                nx, ny = cx + dx, cy + dy
+                if (
+                    (nx, ny) not in visited
+                    and 0 <= nx < grid.width
+                    and 0 <= ny < grid.height
+                    and grid.terrain[ny, nx] != CellType.WALL
+                    and (nx, ny) not in blocked
+                ):
+                    visited.add((nx, ny))
+                    q.append((nx, ny))
+        return visited
+
     def on_env_reset(self, agent, grid, config):
         config["_hazard_hit"] = False
         agent.inventory.clear()
@@ -310,25 +342,33 @@ class MazeNavigationTask(TaskSpec):
     def can_agent_enter(self, pos, agent, grid) -> bool:
         x, y = pos
         if grid.objects[y, x] == ObjectType.DOOR:
-            door_meta = int(grid.metadata[y, x])
-            if door_meta >= 10:
-                return True  # already open
-            door_color = door_meta
-            matching = next(
-                (
-                    e
-                    for e in agent.inventory
-                    if e.entity_type == "key"
-                    and e.properties.get("color") == door_color
-                ),
-                None,
-            )
-            if matching:
-                agent.inventory.remove(matching)
-                grid.metadata[y, x] = door_color + 10  # open door
-                return True
-            return False
+            # Closed doors block movement; open doors (meta >= 10) are passable
+            return int(grid.metadata[y, x]) >= 10
         return True
+
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT on a closed door with matching key unlocks it."""
+        if not grid.in_bounds(pos):
+            return
+        x, y = pos
+        if grid.objects[y, x] != ObjectType.DOOR:
+            return
+        door_meta = int(grid.metadata[y, x])
+        if door_meta >= 10:
+            return  # already open
+        door_color = door_meta
+        matching = next(
+            (
+                e
+                for e in agent.inventory
+                if e.entity_type == "key"
+                and e.properties.get("color") == door_color
+            ),
+            None,
+        )
+        if matching:
+            agent.inventory.remove(matching)
+            grid.metadata[y, x] = door_color + 10
 
     def on_agent_moved(self, pos, agent, grid):
         x, y = pos

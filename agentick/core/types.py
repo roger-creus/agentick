@@ -43,6 +43,11 @@ class ObjectType(IntEnum):
     ORB = 19  # magical orb (glowing pink)
 
 
+# Objects that block movement (agent must face + INTERACT instead of walking onto them).
+# DOOR, LEVER, SWITCH are solid; KEY, GEM, COIN, ORB etc. remain walkable auto-pickup.
+NON_WALKABLE_OBJECTS = frozenset({ObjectType.DOOR, ObjectType.LEVER, ObjectType.SWITCH})
+
+
 class AgentType(IntEnum):
     """Types of agents on the grid."""
 

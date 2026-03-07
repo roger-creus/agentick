@@ -129,10 +129,11 @@ _td(
     "GOAL (maze exit), WALL (maze structure), KEY objects (collect to unlock doors, "
     "medium+), DOOR (blocks path, opens with matching key, medium+), HAZARD (dead ends, hard+).",
     "Navigate the maze to reach the GOAL exit. Collect keys and open doors blocking the path.",
-    "Move in 4 directions only (actions 1-4). Walk onto a KEY cell to auto-collect it. "
-    "Walk into a DOOR with the matching-color key to open it. Walk onto the GOAL cell "
-    "(maze exit) to complete the task. No INTERACT action needed "
-    "— all interactions are automatic on step.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a KEY "
+    "cell to auto-collect it. DOORs are solid — move toward a DOOR to face it "
+    "(orientation updates even when blocked), then INTERACT (action 5) to unlock with "
+    "the matching-color key. Walk through the opened doorway. Walk onto the GOAL cell "
+    "(maze exit) to complete the task.",
     [
         ("easy", "7x7 binary-tree maze. No keys or hazards. Simple pathfinding exercise."),
         ("medium", "11x11 recursive-backtracker maze, 1 key-door pair blocking the path."),
@@ -268,11 +269,12 @@ _td(
     "(opens with matching-color key), GOAL (in final room behind ALL doors), Guard NPCs "
     "(hard+), WALL (room separators and corridors).",
     "Reach GOAL after unlocking ALL doors with matching keys. Every door must be opened.",
-    "Move in 4 directions only (actions 1-4). Walk onto a KEY cell to auto-pick it up "
-    "(one key at a time — picking up a new key drops any currently held key). Walk into "
-    "a DOOR with the matching-color key to unlock and open it. Walk onto the GOAL cell "
-    "after all doors are unlocked to win. No INTERACT action "
-    "needed — all interactions are automatic on step.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a KEY "
+    "cell to auto-pick it up (one key at a time — picking up a new key drops any "
+    "currently held key). DOORs are solid — move toward a DOOR to face it (orientation "
+    "updates even when blocked), then INTERACT (action 5) to unlock with the matching-"
+    "color key. Walk through the opened doorway. Walk onto the GOAL cell after all "
+    "doors are unlocked to win.",
     [
         ("easy", "9x9 grid with 1 color-coded key-door pair. No guards. Key in hub, "
          "goal behind the single door."),
@@ -315,9 +317,9 @@ _td(
     "GOAL (initially blocked), SWITCH objects (trigger gate opening), "
     "WALL (gate barrier, opens after switch), dead-end paths.",
     "Activate the correct SWITCH to open the gate, then backtrack to reach GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a SWITCH "
-    "cell, then use INTERACT (action 5) to activate it. Simply walking onto the switch "
-    "does NOT activate it — you MUST use INTERACT. After all switches are activated, "
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Switches are solid "
+    "— move toward a SWITCH to stand adjacent and face it (orientation updates even when "
+    "blocked), then INTERACT (action 5) to activate it. After all switches are activated, "
     "the wall gate opens and the GOAL appears — walk onto the GOAL cell to win. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
@@ -383,9 +385,9 @@ _td(
     "LEVER objects (real: remove wall barriers; decoy: no effect or harmful), "
     "WALL barriers (between zones, removed by correct levers), GOAL (in final zone).",
     "Activate levers in causal order to open all barriers, then reach GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a LEVER "
-    "cell, then use INTERACT (action 5) to activate it. Simply walking onto the lever "
-    "does NOT activate it — you MUST use INTERACT. Real levers remove wall barriers; "
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Levers are solid "
+    "— move toward a LEVER to stand adjacent and face it (orientation updates even when "
+    "blocked), then INTERACT (action 5) to activate it. Real levers remove wall barriers; "
     "decoy levers do nothing. Identify real levers from decoys by observing their causal "
     "effects on barriers. Walk onto the GOAL cell after all barriers are opened. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
@@ -408,10 +410,10 @@ _td(
     "SWITCH objects (color-coded, toggled via INTERACT), WALL barrier segments "
     "(1-3 cells, metadata = barrier index), GOAL (behind final barrier).",
     "Plan switch activation order to open all barriers blocking the path to GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To toggle a switch: "
-    "first walk onto the SWITCH cell, then use INTERACT (action 5) to toggle it ON/OFF. "
-    "WARNING: simply walking onto a switch does NOT activate it — you MUST use INTERACT. "
-    "Mutual exclusion: toggling one switch may deactivate another. "
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Switches are solid "
+    "— move toward a SWITCH to stand adjacent and face it (orientation updates even when "
+    "blocked), then INTERACT (action 5) to toggle it ON/OFF. Mutual exclusion: toggling "
+    "one switch may deactivate another. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 2 switches. Simple dependency: A opens path to B, B opens goal."),
@@ -432,10 +434,10 @@ _td(
     "SWITCH (real: ICE south; decoy: no ICE south), ICE terrain cues, GEM hints (easy), "
     "DOOR (barrier, opens when all real switches active), GOAL (behind barrier), WALL.",
     "Identify real switches via ICE pattern, INTERACT all real ones, pass barrier to GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To toggle a switch: "
-    "first walk onto the SWITCH cell, then use INTERACT (action 5) to toggle it. "
-    "WARNING: simply walking onto a switch does NOT activate it — you MUST use INTERACT. "
-    "Wrong (decoy) switches undo your last correct activation. "
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Switches are solid "
+    "— move toward a SWITCH to stand adjacent and face it (orientation updates even when "
+    "blocked), then INTERACT (action 5) to activate it. Wrong (decoy) switches undo "
+    "your last correct activation. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 2 real + 1 decoy switches, GEM hints + ICE pattern."),
@@ -715,21 +717,20 @@ _td(
 _td(
     "LightsOut-v0",
     "reasoning",
-    "Toggle SWITCH objects (lights) to turn them all OFF. Easy mode: each switch "
-    "toggles only itself. Medium+: toggling a light also toggles its 4 adjacent neighbors.",
+    "Toggle SWITCH objects (lights) to turn them all OFF. Stepping on any cell "
+    "toggles it (if a switch) AND its 4 adjacent neighbor switches — classic Lights Out.",
     "SWITCH objects (lights, ON/OFF state visible via color), decoy switches (medium+, "
     "outside puzzle grid).",
     "Turn all lights OFF by toggling switches.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto a SWITCH "
-    "cell, then use INTERACT (action 5) to toggle it ON/OFF. Simply walking onto the "
-    "switch does NOT toggle it — you MUST use INTERACT. At medium+, toggling a switch "
-    "also flips its 4 adjacent neighbor switches. Goal: turn ALL switches OFF. "
-    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
+    "Move in 4 directions (actions 1-4). Switches toggle AUTOMATICALLY when you step on or "
+    "near them — no INTERACT needed. Stepping on any cell toggles it (if it's a switch) AND "
+    "all adjacent switches. Walking through the switch grid causes cascading "
+    "toggles, so plan your path carefully. Goal: turn ALL switches OFF.",
     [
-        ("easy", "7x7 grid, 3x3 puzzle, self-only toggle. Each switch is independent."),
-        ("medium", "9x9 grid, 4x4 puzzle, adjacent toggle (self + 4 neighbors), 1 decoy."),
+        ("easy", "7x7 grid, 3x3 puzzle, adjacent toggle (self + 4 neighbors)."),
+        ("medium", "9x9 grid, 4x4 puzzle, adjacent toggle, 1 decoy."),
         ("hard", "11x11 grid, 4x4 puzzle, adjacent toggle, 2 decoys."),
-        ("expert", "13x13 grid, 5x5 puzzle, adjacent toggle, 3 decoys, random initial state."),
+        ("expert", "13x13 grid, 5x5 puzzle, adjacent toggle, 3 decoys."),
     ],
     tags=["combinatorial_logic"],
 )
@@ -743,10 +744,10 @@ _td(
     "SWITCH objects (graph nodes, cluster-based placement, color state in metadata), "
     "WALL (obstacles).",
     "Color all nodes so no two adjacent nodes share the same color.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). To color a node: "
-    "first walk onto the SWITCH (node) cell, then use INTERACT (action 5) to cycle its "
-    "color. WARNING: simply walking onto a node does NOT change its color — you MUST "
-    "use INTERACT. Each INTERACT cycles to the next color. "
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Nodes are solid "
+    "SWITCH objects — move toward a node to stand adjacent and face it (orientation "
+    "updates even when blocked), then INTERACT (action 5) to cycle its color. Each "
+    "INTERACT cycles to the next color. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
         ("easy", "9x9 grid, 4 nodes, 2 colors, linear graph. Simple constraint."),
@@ -789,10 +790,11 @@ _td(
     "SWITCH objects freeze all NPCs for 5 steps when activated (one-time use).",
     "ENEMY (fleeing NPCs), SWITCH (freeze power-up, one-time use), WALL (obstacles).",
     "Tag all NPCs by stepping onto them. Use freeze switches strategically.",
-    "Move in 4 directions only (actions 1-4). Walk onto an ENEMY cell to tag and remove it. "
-    "Walk onto a SWITCH cell to freeze all NPCs for 5 steps (one-time use, auto-activates "
-    "on step). Tag all NPCs before time runs out to win. No INTERACT action "
-    "needed — tagging and switch activation are automatic on step.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Walk onto an ENEMY "
+    "cell to tag and remove it. Freeze switches are solid — move toward a SWITCH to stand "
+    "adjacent and face it (orientation updates even when blocked), then INTERACT (action 5) "
+    "to freeze all NPCs for 5 steps (one-time use). Tag all NPCs before time runs out "
+    "to win.",
     [
         ("easy", "7x7 grid, 1 NPC (50% evade), 1 freeze switch, no obstacles."),
         ("medium", "10x10 grid, 2 NPCs (65% evade), 1 freeze switch, 3 obstacles."),
@@ -814,10 +816,12 @@ _td(
     "KEY and DOOR (hard+, color-coded).",
     "Reach the unique target object without touching any distractor. "
     "Hard+ requires collecting a key to unlock the door.",
-    "Move in 4 directions only (actions 1-4). Walk onto the target object cell to complete "
-    "the task. Stepping on a distractor object ends the episode with penalty. "
-    "At hard+: walk onto a KEY cell to auto-collect it, then walk into the DOOR with the "
-    "matching key to open it. No INTERACT action needed — only movement.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5) at hard+. Walk onto "
+    "the target object cell to complete the task. Stepping on a distractor object ends "
+    "the episode with penalty. At hard+: walk onto a KEY cell to auto-collect it. DOORs "
+    "are solid — move toward a DOOR to face it (orientation updates even when blocked), "
+    "then INTERACT (action 5) to unlock with the matching key. Walk through the opened "
+    "doorway to reach the target.",
     [
         ("easy", "7x7 grid, 1 target, 3 distractors, no doors."),
         ("medium", "10x10 grid, 1 target, 6 distractors, no doors."),
@@ -903,11 +907,12 @@ _td(
     "GOAL (1 per phase, 3 total), WALL (DFS maze, toggling walls at hard+), "
     "KEY/DOOR (hard+, color-coded), action remap (expert, UP<->DOWN LEFT<->RIGHT).",
     "Reach all 3 goals across shifting maze phases.",
-    "Move in 4 directions only (actions 1-4). Walk onto the GOAL cell to complete each "
-    "phase. After each goal, the maze regenerates with a new layout. At hard+: walk onto "
-    "a KEY cell to auto-collect it, then walk into a DOOR with the matching key to open it. "
-    "At expert: action controls flip (UP<->DOWN, LEFT<->RIGHT) between phases. "
-    "No INTERACT action needed — only movement.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5) at hard+. Walk onto "
+    "the GOAL cell to complete each phase. After each goal, the maze regenerates with a "
+    "new layout. At hard+: walk onto a KEY cell to auto-collect it. DOORs are solid — "
+    "move toward a DOOR to face it (orientation updates even when blocked), then INTERACT "
+    "(action 5) to unlock with the matching key. At expert: action controls flip "
+    "(UP<->DOWN, LEFT<->RIGHT) between phases.",
     [
         ("easy", "9x9 DFS maze, 3 goals, maze shifts between phases. max_steps=200."),
         ("medium", "11x11 DFS maze, 3 goals, maze shifts. max_steps=350."),
@@ -930,10 +935,12 @@ _td(
     "(hard+, gate the true path).",
     "Resist the coin reward gradient. Navigate the true (reward-free) path to GOAL "
     "without collecting any coins.",
-    "Move in 4 directions only (actions 1-4). COINs are auto-collected when you walk onto "
-    "them — collecting ANY coin permanently closes the true path gate. Stepping on a "
-    "TARGET cell = failure (episode ends). Walk onto the GOAL cell via the reward-free "
-    "path to win. No INTERACT action needed — only movement.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5) at hard+. COINs are "
+    "auto-collected when you walk onto them — collecting ANY coin permanently closes the "
+    "true path gate. Stepping on a TARGET cell = failure (episode ends). At hard+: walk "
+    "onto a KEY cell to auto-collect it. DOORs are solid — move toward a DOOR to face it "
+    "(orientation updates even when blocked), then INTERACT (action 5) to unlock with the "
+    "matching key. Walk onto the GOAL cell via the reward-free path to win.",
     [
         ("easy", "9x9 grid, Y-fork, 1 decoy path, 3 coins. Direct true path, no keys."),
         ("medium", "12x12 grid, 2 decoy paths (right + L-turn), 5 coins each. "

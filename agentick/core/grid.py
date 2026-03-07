@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from agentick.core.types import CellType, Position
+from agentick.core.types import NON_WALKABLE_OBJECTS, CellType, ObjectType, Position
 
 
 class Grid:
@@ -85,6 +85,23 @@ class Grid:
             return False
         x, y = pos
         return self.terrain[y, x] not in (CellType.WALL, CellType.HOLE)
+
+    def is_object_blocking(self, pos: Position) -> bool:
+        """Check if a non-walkable object blocks movement at *pos*.
+
+        DOOR, LEVER, SWITCH are solid. However, open doors (metadata >= 10)
+        are passable.
+        """
+        if not self.in_bounds(pos):
+            return False
+        x, y = pos
+        obj = ObjectType(self.objects[y, x])
+        if obj not in NON_WALKABLE_OBJECTS:
+            return False
+        # Open doors are passable
+        if obj == ObjectType.DOOR and int(self.metadata[y, x]) >= 10:
+            return False
+        return True
 
     def get_neighbors(self, pos: Position, include_diagonal: bool = False) -> list[Position]:
         """

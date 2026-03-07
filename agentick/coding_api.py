@@ -254,12 +254,18 @@ class AgentickAPI:
         return abs(x - ax) + abs(y - ay) == 1
 
     def neighbors(self, x: int, y: int) -> list[tuple[int, int]]:
-        """Return walkable cardinal neighbors of ``(x, y)``."""
+        """Return walkable cardinal neighbors of ``(x, y)``.
+
+        A cell is walkable if its terrain is passable AND no solid object
+        (closed DOOR, LEVER, SWITCH) blocks it.
+        """
         result: list[tuple[int, int]] = []
+        grid = self._env.grid
         for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
             nx, ny = x + dx, y + dy
-            if self._env.grid.in_bounds((nx, ny)) and self._env.grid.is_walkable((nx, ny)):
-                result.append((nx, ny))
+            pos = (nx, ny)
+            if grid.in_bounds(pos) and grid.is_walkable(pos) and not grid.is_object_blocking(pos):
+                result.append(pos)
         return result
 
     # ------------------------------------------------------------------
@@ -283,17 +289,27 @@ class AgentickAPI:
         return _OBJECT_NAMES.get(o, f"object_{o}")
 
     def is_walkable(self, x: int, y: int) -> bool:
-        """Check if the agent can step on ``(x, y)``."""
-        return self._env.grid.is_walkable((x, y))
+        """Check if the agent can step on ``(x, y)``.
+
+        Returns ``False`` if terrain is impassable (WALL/HOLE) OR a solid
+        object (closed DOOR, LEVER, SWITCH) blocks the cell.
+        """
+        grid = self._env.grid
+        pos = (x, y)
+        return grid.is_walkable(pos) and not grid.is_object_blocking(pos)
 
     def get_walkable_cells(self) -> list[tuple[int, int]]:
-        """Return all walkable ``(x, y)`` positions."""
+        """Return all walkable ``(x, y)`` positions.
+
+        Excludes cells blocked by solid objects (closed DOORs, etc.).
+        """
         grid = self._env.grid
         cells: list[tuple[int, int]] = []
         for y in range(grid.height):
             for x in range(grid.width):
-                if grid.is_walkable((x, y)):
-                    cells.append((x, y))
+                pos = (x, y)
+                if grid.is_walkable(pos) and not grid.is_object_blocking(pos):
+                    cells.append(pos)
         return cells
 
     def get_walls(self) -> list[tuple[int, int]]:
@@ -444,9 +460,15 @@ class AgentickAPI:
                 candidates = [("move_up", 0, -1), ("move_left", -1, 0), ("move_right", 1, 0)]
 
         name_map = self.action_name_to_int
+        grid = self._env.grid
         for action_name, ddx, ddy in candidates:
             nx, ny = ax + ddx, ay + ddy
-            if self._env.grid.is_walkable((nx, ny)) and action_name in name_map:
+            pos = (nx, ny)
+            if (
+                grid.is_walkable(pos)
+                and not grid.is_object_blocking(pos)
+                and action_name in name_map
+            ):
                 return [name_map[action_name]]
         return []
 
@@ -513,7 +535,12 @@ class AgentickAPI:
         avoid: set[tuple[int, int]] | None = None,
         terrain_ok: set[int] | None = None,
     ) -> list[tuple[int, int]] | None:
-        """BFS shortest path returning list of positions (including start)."""
+        """BFS shortest path returning list of positions (including start).
+
+        A cell is passable when its terrain is walkable AND no solid object
+        blocks it (closed DOOR, LEVER, SWITCH).  ``extra_passable`` overrides
+        both terrain and object checks for the listed positions.
+        """
         grid = self._env.grid
 
         def _ok(pos: tuple[int, int]) -> bool:
@@ -524,8 +551,11 @@ class AgentickAPI:
             if terrain_ok is not None:
                 if not grid.in_bounds(pos):
                     return False
-                return int(grid.terrain[pos[1], pos[0]]) in terrain_ok
-            return grid.is_walkable(pos)
+                if int(grid.terrain[pos[1], pos[0]]) not in terrain_ok:
+                    return False
+                # Still check blocking objects even with terrain_ok
+                return not grid.is_object_blocking(pos)
+            return grid.is_walkable(pos) and not grid.is_object_blocking(pos)
 
         if not _ok(start):
             return None

@@ -415,29 +415,34 @@ class KeyDoorPuzzleTask(TaskSpec):
     def can_agent_enter(self, pos, agent, grid) -> bool:
         x, y = pos
         if grid.objects[y, x] == ObjectType.DOOR:
-            door_meta = int(grid.metadata[y, x])
-            # Open doors (meta >= 10) are passable
-            if door_meta >= 10:
-                return True
-            door_color = door_meta
-            matching = next(
-                (
-                    e
-                    for e in agent.inventory
-                    if e.entity_type == "key"
-                    and e.properties.get("color") == door_color
-                ),
-                None,
-            )
-            if matching:
-                agent.inventory.remove(matching)
-                # Keep door object, mark as open via meta + 10
-                grid.metadata[y, x] = door_color + 10
-                config = getattr(self, "_config", {})
-                config["_door_open"] = True
-                return True
-            return False
+            return int(grid.metadata[y, x]) >= 10
         return True
+
+    def on_agent_interact(self, pos, agent, grid):
+        """INTERACT on a closed door with matching key unlocks it."""
+        if not grid.in_bounds(pos):
+            return
+        x, y = pos
+        if grid.objects[y, x] != ObjectType.DOOR:
+            return
+        door_meta = int(grid.metadata[y, x])
+        if door_meta >= 10:
+            return
+        door_color = door_meta
+        matching = next(
+            (
+                e
+                for e in agent.inventory
+                if e.entity_type == "key"
+                and e.properties.get("color") == door_color
+            ),
+            None,
+        )
+        if matching:
+            agent.inventory.remove(matching)
+            grid.metadata[y, x] = door_color + 10
+            config = getattr(self, "_config", {})
+            config["_door_open"] = True
 
     def on_agent_moved(self, pos, agent, grid):
         x, y = pos

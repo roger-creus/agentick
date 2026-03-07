@@ -4,14 +4,170 @@ from __future__ import annotations
 
 from collections import deque
 
-from agentick.core.types import CellType, ObjectType
+from agentick.core.types import ActionType, CellType, Direction, ObjectType
 from agentick.oracles.base import OracleAgent
+from agentick.oracles.helpers import interact_adjacent
 from agentick.oracles.registry import register_oracle
+
+# ---------------------------------------------------------------------------
+# Shared helper: adjacent-interact pattern for solid SWITCH / LEVER objects
+# ---------------------------------------------------------------------------
+
+# Map from delta (dx, dy) to the move action that faces that direction.
+# Moving toward a solid object is blocked but still updates orientation.
+_DELTA_TO_MOVE = {
+    (0, -1): int(ActionType.MOVE_UP),     # face NORTH
+    (0, 1): int(ActionType.MOVE_DOWN),    # face SOUTH
+    (1, 0): int(ActionType.MOVE_RIGHT),   # face EAST
+    (-1, 0): int(ActionType.MOVE_LEFT),   # face WEST
+}
+
+_DELTA_TO_DIR = {
+    (0, -1): Direction.NORTH,
+    (0, 1): Direction.SOUTH,
+    (1, 0): Direction.EAST,
+    (-1, 0): Direction.WEST,
+}
+
+_INTERACT = int(ActionType.INTERACT)  # 5
+
+
+def _blocking_positions(grid):
+    """Return the set of all positions with blocking objects (SWITCH, LEVER, DOOR)."""
+    blocked = set()
+    h, w = grid.terrain.shape
+    for y in range(h):
+        for x in range(w):
+            if grid.is_object_blocking((x, y)):
+                blocked.add((x, y))
+    return blocked
+
+
+def _interact_with_target(api, target, extra_passable=None, avoid=None):
+    """Return a list of actions to interact with a solid object at *target*.
+
+    The object (SWITCH, LEVER, etc.) is non-walkable so the agent must:
+    1. Navigate to a walkable cell adjacent to *target*.
+    2. Face *target* (move toward it; the move is blocked but sets orientation).
+    3. Use INTERACT (action 5), which targets the faced cell.
+
+    Returns a list with **one** action (the next step), or an empty list if
+    no adjacent cell is reachable. The caller should call this each turn
+    until INTERACT is emitted.
+
+    Blocking objects (SWITCH, LEVER, closed DOOR) are automatically added to
+    the BFS avoid set so the agent doesn't try to path through them.
+
+    Special case: if the agent is standing ON the target (e.g. placed there
+    during generation), the function moves the agent to an adjacent walkable
+    cell first, so it can then face the target and INTERACT.
+    """
+    ax, ay = api.agent_position
+    tx, ty = target
+
+    dx, dy = tx - ax, ty - ay
+
+    # Case 0: agent is ON the target — move to an adjacent walkable cell first
+    if dx == 0 and dy == 0:
+        grid = api.grid
+        for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+            nx, ny = ax + ddx, ay + ddy
+            if (
+                grid.in_bounds((nx, ny))
+                and grid.is_walkable((nx, ny))
+                and not grid.is_object_blocking((nx, ny))
+            ):
+                return [_DELTA_TO_MOVE[(ddx, ddy)]]
+        return []
+
+    # Case 1: already adjacent and facing → INTERACT
+    if (dx, dy) in _DELTA_TO_DIR:
+        agent_orientation = api._env.agent.orientation
+        if agent_orientation == _DELTA_TO_DIR[(dx, dy)]:
+            return [_INTERACT]
+        # Case 2: adjacent but not facing → move toward target to set orientation
+        return [_DELTA_TO_MOVE[(dx, dy)]]
+
+    # Case 3: not adjacent → BFS to the best adjacent walkable cell
+    grid = api.grid
+
+    # Build avoid set: merge caller's avoid with all blocking object positions.
+    # This prevents the BFS from pathing through solid objects like SWITCHes.
+    blocking = _blocking_positions(grid)
+    full_avoid = set(blocking)
+    if avoid:
+        full_avoid |= avoid
+
+    # If the agent is currently on a blocking cell (placed during generation),
+    # remove it from the avoid set AND add it to extra_passable so BFS can
+    # start from there (avoid is checked before extra_passable in BFS _ok).
+    agent_pos = (ax, ay)
+    ep = set(extra_passable) if extra_passable else set()
+    if grid.is_object_blocking(agent_pos):
+        full_avoid.discard(agent_pos)
+        blocking.discard(agent_pos)
+        ep.add(agent_pos)
+    passable = ep or None
+
+    adj_cells = []
+    for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+        nx, ny = tx + ddx, ty + ddy
+        if grid.in_bounds((nx, ny)) and grid.is_walkable((nx, ny)):
+            if not grid.is_object_blocking((nx, ny)):
+                adj_cells.append((nx, ny))
+
+    if not adj_cells:
+        return []
+
+    # Pick the adjacent cell with shortest BFS path
+    best_path = None
+    for cell in adj_cells:
+        if cell in full_avoid:
+            continue
+        path = api.bfs_path_positions(
+            (ax, ay), cell, extra_passable=passable, avoid=full_avoid,
+        )
+        if path and (best_path is None or len(path) < len(best_path)):
+            best_path = path
+
+    # Retry without caller's avoid if nothing found (but keep blocking avoid)
+    if best_path is None:
+        for cell in adj_cells:
+            if cell in blocking:
+                continue
+            path = api.bfs_path_positions(
+                (ax, ay), cell, extra_passable=passable, avoid=blocking,
+            )
+            if path and (best_path is None or len(path) < len(best_path)):
+                best_path = path
+
+    if best_path is None:
+        return []
+
+    if len(best_path) <= 1:
+        # Already at an adjacent cell — face the target
+        fdx, fdy = tx - best_path[0][0], ty - best_path[0][1]
+        if (fdx, fdy) in _DELTA_TO_MOVE:
+            agent_orientation = api._env.agent.orientation
+            if agent_orientation == _DELTA_TO_DIR[(fdx, fdy)]:
+                return [_INTERACT]
+            return [_DELTA_TO_MOVE[(fdx, fdy)]]
+        return []
+
+    # Return just the first step of the path
+    actions = api.positions_to_actions(best_path)
+    if actions:
+        return [actions[0]]
+    return []
 
 
 @register_oracle("CausalChain-v0")
 class CausalChainOracle(OracleAgent):
-    """Activate levers in causal order, then reach goal."""
+    """Activate levers in causal order, then reach goal.
+
+    Levers are solid (non-walkable). The agent must stand adjacent to a
+    lever, face it, then use INTERACT (action 5).
+    """
 
     def plan(self):
         config = self.api.task_config
@@ -21,9 +177,9 @@ class CausalChainOracle(OracleAgent):
             levers = self.api.get_entities_of_type("lever")
             if levers:
                 for lev in sorted(levers, key=lambda lv: lv.distance):
-                    path = self.api.path_to(*lev.position)
-                    if path:
-                        self.action_queue = path
+                    actions = _interact_with_target(self.api, lev.position)
+                    if actions:
+                        self.action_queue = actions
                         return
             return
 
@@ -269,21 +425,25 @@ class SwitchCircuitOracle(OracleAgent):
                 if switch_states[sw_idx] == target_on:
                     continue
                 sw_pos = (switches[sw_idx][0], switches[sw_idx][1])
-                # Already on the switch? Use INTERACT
-                if (ax, ay) == sw_pos:
-                    self.action_queue = [5]  # INTERACT
-                    return
-                # Avoid stepping on other switches to prevent accidental toggles
+                # Switches are solid — use adjacent-interact pattern
                 avoid = set()
                 for i in range(n):
                     if i != sw_idx:
                         pos = (switches[i][0], switches[i][1])
                         if pos != (ax, ay):
                             avoid.add(pos)
-                if self._navigate_to(sw_pos, extra, avoid):
+                actions = _interact_with_target(
+                    self.api, sw_pos, extra_passable=extra, avoid=avoid,
+                )
+                if actions:
+                    self.action_queue = actions
                     return
                 # Fallback without avoidance
-                if self._navigate_to(sw_pos, extra, set()):
+                actions = _interact_with_target(
+                    self.api, sw_pos, extra_passable=extra,
+                )
+                if actions:
+                    self.action_queue = actions
                     return
                 fallback = self.api.move_toward(*sw_pos)
                 if fallback:
@@ -490,13 +650,12 @@ class RuleInductionOracle(OracleAgent):
 
     Strategy:
     1. Find the next real switch in the activation chain (index 0, 1, 2, ...).
-    2. Navigate to it (avoiding decoy switch positions).
-    3. Use INTERACT (action 5) to activate it.
-    4. After all real switches are activated the barrier door opens.
-    5. Navigate through the door to the GOAL.
-    """
+    2. Navigate to an adjacent cell, face the switch, then INTERACT.
+    3. After all real switches are activated the barrier door opens.
+    4. Navigate through the door to the GOAL.
 
-    _INTERACT = 5  # ActionType.INTERACT
+    Switches are solid (non-walkable); the agent must stand adjacent and face.
+    """
 
     def plan(self):
         config = self.api.task_config
@@ -521,31 +680,18 @@ class RuleInductionOracle(OracleAgent):
             if target is None:
                 return
 
-            sx, sy = target
-
-            if (ax, ay) == (sx, sy):
-                # Already on the switch — INTERACT
-                self.action_queue = [self._INTERACT]
+            # Switches are solid — use adjacent-interact pattern
+            avoid = decoy_set - {target}
+            actions = _interact_with_target(self.api, target, avoid=avoid)
+            if actions:
+                self.action_queue = actions
                 return
-
-            # Navigate while avoiding decoy switches
-            avoid = decoy_set - {(sx, sy)}
-            path = self.api.bfs_path_positions(
-                (ax, ay), (sx, sy), avoid=avoid,
-            )
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
             # Fallback without avoidance
-            path = self.api.bfs_path_positions((ax, ay), (sx, sy))
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
-            self.action_queue = self.api.move_to(sx, sy)
+            actions = _interact_with_target(self.api, target)
+            if actions:
+                self.action_queue = actions
+                return
+            self.action_queue = self.api.move_to(*target)
             return
 
         # Door is open — navigate to GOAL (through the barrier door)
@@ -655,26 +801,29 @@ class GraphColoringOracle(OracleAgent):
             if current_color == target_color:
                 continue  # already correct
 
-            # Navigate to this node
-            if (ax, ay) == (nx, ny):
-                # We're at the node -- INTERACT to cycle color
-                interact_action = 5
-                # Cycles: current -> (current+1)%(n_colors+1) -> ...
-                cycles_needed = (target_color - current_color) % (n_colors + 1)
-                if cycles_needed == 0:
-                    cycles_needed = n_colors + 1  # full cycle
-                self.action_queue = [interact_action] * cycles_needed
+            # Nodes are solid SWITCH objects — use adjacent-interact pattern.
+            # Check if we're already adjacent and facing the node.
+            fdx, fdy = nx - ax, ny - ay
+            if (fdx, fdy) in _DELTA_TO_DIR:
+                agent_orientation = self.api._env.agent.orientation
+                if agent_orientation == _DELTA_TO_DIR[(fdx, fdy)]:
+                    # Adjacent and facing — queue all needed INTERACTs
+                    cycles_needed = (target_color - current_color) % (n_colors + 1)
+                    if cycles_needed == 0:
+                        cycles_needed = n_colors + 1  # full cycle
+                    self.action_queue = [_INTERACT] * cycles_needed
+                    return
+                # Adjacent but not facing — face the node
+                self.action_queue = [_DELTA_TO_MOVE[(fdx, fdy)]]
                 return
-            else:
-                # Navigate to node
-                path = self.api.bfs_path_positions((ax, ay), (nx, ny))
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-                self.action_queue = self.api.move_toward(nx, ny)
+
+            # Not adjacent — navigate toward the node
+            actions = _interact_with_target(self.api, (nx, ny))
+            if actions:
+                self.action_queue = actions
                 return
+            self.action_queue = self.api.move_toward(nx, ny)
+            return
 
         # All nodes correctly colored
         self.action_queue = [0]
@@ -682,16 +831,14 @@ class GraphColoringOracle(OracleAgent):
 
 @register_oracle("LightsOut-v0")
 class LightsOutOracle(OracleAgent):
-    """Toggle switches to turn all lights off.
+    """Toggle switches to turn all lights off by walking.
 
-    For easy (no adjacent toggle): visit each lit switch to toggle it off.
-    For medium+ (adjacent toggle): use simulation-based greedy planning
-    that queues a full multi-leg route at once.
+    Classic Lights Out: stepping on any cell auto-toggles it (if switch) +
+    adjacent switches. No INTERACT needed — just walk to the right cells.
 
-    Key mechanic: ``on_agent_moved`` fires on EVERY step.  In adjacent-toggle
-    mode, stepping on *any* cell toggles the cell itself AND its 4 neighbours
-    (if they are light-grid positions).  The oracle must account for **all**
-    incidental toggles along the entire walk, not just at the destination.
+    For easy (no adjacent toggle): walk onto each lit switch to toggle it.
+    For medium+ (adjacent toggle): walk-simulation planning accounts for
+    cascading toggles from walking through the switch grid.
     """
 
     def __init__(self, env):
@@ -705,15 +852,11 @@ class LightsOutOracle(OracleAgent):
         self._adjacent_toggle = config.get("adjacent_toggle", False)
         self._light_positions = set()
         self._all_light_positions = set()
-        # Initially lit positions
         for p in config.get("light_positions", []):
             self._light_positions.add(tuple(p))
             self._all_light_positions.add(tuple(p))
-        # Decoy positions (also part of toggle grid)
         for p in config.get("decoy_positions", []):
             self._all_light_positions.add(tuple(p))
-        # ALL puzzle cells (structured grid) — in adjacent toggle mode,
-        # every puzzle cell can be toggled by stepping near it
         for p in config.get("puzzle_cells", []):
             self._all_light_positions.add(tuple(p))
         super().reset(obs, info)
@@ -731,25 +874,56 @@ class LightsOutOracle(OracleAgent):
                 lit.add(pos)
         return lit
 
-    def _adjacency_zone(self, positions):
-        """Return ``positions`` plus all 4-neighbours of each position."""
-        zone = set(positions)
-        for px, py in positions:
+    def _bfs(self, start, goal, avoid=None):
+        """BFS wrapper that marks all light-grid positions as passable."""
+        return self.api.bfs_path_positions(
+            start, goal,
+            extra_passable=self._all_light_positions,
+            avoid=avoid,
+        )
+
+    def _simulate_step_at(self, pos, lit):
+        """Simulate stepping on *pos*: toggle self + adjacent switches.
+
+        Returns a new set — *lit* is not mutated.
+        """
+        lit = set(lit)
+        affected = {pos} if pos in self._all_light_positions else set()
+        if self._adjacent_toggle:
+            px, py = pos
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                zone.add((px + dx, py + dy))
-        return zone
+                nb = (px + dx, py + dy)
+                if nb in self._all_light_positions:
+                    affected.add(nb)
+        for a in affected:
+            lit.symmetric_difference_update({a})
+        return lit
+
+    def _simulate_walk(self, path, lit):
+        """Simulate walking along *path*, toggling at each step.
+
+        Returns the resulting lit set after walking the full path.
+        """
+        lit = set(lit)
+        for pos in path:
+            affected = {pos} if pos in self._all_light_positions else set()
+            if self._adjacent_toggle:
+                px, py = pos
+                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    nb = (px + dx, py + dy)
+                    if nb in self._all_light_positions:
+                        affected.add(nb)
+            for a in affected:
+                lit.symmetric_difference_update({a})
+        return lit
 
     def _solve_gf2(self, lit_override=None):
-        """Solve which light-grid positions to toggle to clear all lights.
-
-        If *lit_override* is given it is used instead of reading the grid.
-        """
+        """Solve which cells to step on to clear all lights (GF(2))."""
         all_pos = sorted(self._all_light_positions)
         n = len(all_pos)
         if n == 0:
             return set()
         pos_to_idx = {pos: i for i, pos in enumerate(all_pos)}
-
         lit_set = lit_override if lit_override is not None else self._get_lit_positions()
 
         A = [[0] * n for _ in range(n)]
@@ -790,162 +964,27 @@ class LightsOutOracle(OracleAgent):
 
         return {all_pos[i] for i in range(n) if x[i] == 1}
 
-    def _simulate_path_toggles(self, path, lit):
-        """Simulate walking *path* and return the resulting lit set.
-
-        Returns a new ``set`` -- *lit* is not mutated.
-        """
-        lit = set(lit)
-        for pos in path[1:]:
-            affected = {pos} if pos in self._all_light_positions else set()
-            if self._adjacent_toggle:
-                px, py = pos
-                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
-                    nb = (px + dx, py + dy)
-                    if nb in self._all_light_positions:
-                        affected.add(nb)
-            for a in affected:
-                lit.symmetric_difference_update({a})
-        return lit
-
-    def _candidate_paths(self, start, target, solution):
-        """Return candidate BFS paths to *target* using tiered avoidance."""
-        non_sol = self._all_light_positions - solution
-        danger = self._adjacency_zone(non_sol)
-
-        avoid_tiers = [
-            (danger | self._all_light_positions) - {target},
-            danger - {target} - solution,
-            self._all_light_positions - {target},
-            non_sol,
-            None,
-        ]
-        paths = []
-        seen = set()
-        for avoid in avoid_tiers:
-            if avoid is not None and not avoid:
-                avoid = None
-            path = self.api.bfs_path_positions(start, target, avoid=avoid)
-            if path:
-                key = tuple(path)
-                if key not in seen:
-                    seen.add(key)
-                    paths.append(path)
-        return paths
-
-    def _pick_best_leg(self, start, targets, lit):
-        """Pick the target + path that minimises remaining lit lights.
-
-        Always returns *some* path if one exists, even if it temporarily
-        increases the lit count (multi-leg routes may recover later).
-        """
-        best_path = None
-        best_remaining = float("inf")
-        best_lit = lit
-        for target in sorted(targets):
-            for path in self._candidate_paths(start, target, targets):
-                result = self._simulate_path_toggles(path, lit)
-                if len(result) < best_remaining:
-                    best_remaining = len(result)
-                    best_path = path
-                    best_lit = result
-        return best_path, best_lit
-
     def _cells_that_toggle(self, light_pos):
-        """Return all walkable cells whose step toggles *light_pos*.
-
-        A cell toggles a light if the cell IS the light, or in adjacent
-        mode if the cell is a cardinal neighbour of the light.
-        """
+        """Return all walkable cells where stepping would toggle *light_pos*."""
         grid = self.api.grid
         lx, ly = light_pos
         cells = set()
-        if grid.is_walkable(light_pos):
+        if grid.is_walkable(light_pos) or light_pos in self._all_light_positions:
             cells.add(light_pos)
         if self._adjacent_toggle:
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 c = (lx + dx, ly + dy)
-                if grid.in_bounds(c) and grid.is_walkable(c):
+                if grid.in_bounds(c) and (
+                    grid.is_walkable(c) or c in self._all_light_positions
+                ):
                     cells.add(c)
         return cells
 
-    def _find_toggle_path(self, start, lit):
-        """Try to find a single-leg path that reduces *lit*.
-
-        Unlike ``_pick_best_leg`` (which only targets GF(2) solution
-        cells), this considers EVERY walkable cell adjacent to a
-        remaining lit light as a potential destination.
-        """
-        candidate_cells = set()
-        for lp in lit:
-            candidate_cells |= self._cells_that_toggle(lp)
-        candidate_cells.discard(start)
-        if not candidate_cells:
-            return None, lit
-
-        best_path = None
-        best_remaining = len(lit)
-        best_lit = lit
-
-        for cell in sorted(candidate_cells):
-            path = self.api.bfs_path_positions(start, cell)
-            if not path:
-                continue
-            result = self._simulate_path_toggles(path, lit)
-            if len(result) < best_remaining:
-                best_remaining = len(result)
-                best_path = path
-                best_lit = result
-        return best_path, best_lit
-
-    def _bfs_light_states(self, start, lit, max_depth=4):
-        """BFS over (position, lit-set) states to find a multi-leg route
-        that reaches an empty lit set.
-
-        Each "move" is a BFS path to a cell that toggles at least one
-        remaining light.  Returns a list of paths (legs) or ``None``.
-        """
-        initial = (start, frozenset(lit))
-        queue = deque()
-        queue.append((initial, []))
-        visited = {initial}
-
-        while queue:
-            (pos, flit), legs = queue.popleft()
-            if len(legs) >= max_depth:
-                continue
-            cur_lit = set(flit)
-            # Candidate cells: any cell that toggles a remaining light
-            candidate_cells = set()
-            for lp in cur_lit:
-                candidate_cells |= self._cells_that_toggle(lp)
-            candidate_cells.discard(pos)
-
-            for cell in sorted(candidate_cells):
-                path = self.api.bfs_path_positions(pos, cell)
-                if not path:
-                    continue
-                result = self._simulate_path_toggles(path, cur_lit)
-                new_state = (cell, frozenset(result))
-                if new_state in visited:
-                    continue
-                visited.add(new_state)
-                new_legs = legs + [path]
-                if not result:
-                    return new_legs  # solved!
-                queue.append((new_state, new_legs))
-
-        # No solution found within depth limit.
-        return None
-
     def _greedy_full_route(self, start, lit):
-        """Build a full action sequence visiting targets greedily.
+        """Build a full action sequence, walking to targets greedily.
 
-        After each leg, re-solve GF(2) on the *simulated* lit state.
-        All actions are queued at once to avoid single-step oscillation.
-        A visited-states set prevents infinite cycling.
-        When the greedy search gets stuck, falls back to a BFS over
-        light-state space to find a multi-step solution.
+        Walking auto-toggles, so we must simulate toggles along the path.
+        After each leg, re-solve GF(2) on the simulated lit state.
         """
         actions = []
         current = start
@@ -959,37 +998,48 @@ class LightsOutOracle(OracleAgent):
 
             state_key = (current, frozenset(sim_lit))
             if state_key in visited_states:
-                break  # cycle detected
+                break
             visited_states.add(state_key)
 
-            # First try GF(2) solution targets.
             targets = self._solve_gf2(lit_override=sim_lit)
-            path = None
+            best_path = None
+            best_remaining = float("inf")
+            best_lit = sim_lit
+
+            # Try each GF(2) target; simulate the FULL walk including
+            # intermediate toggles
             if targets:
                 targets.discard(current)
-            if targets:
-                path, new_lit = self._pick_best_leg(
-                    current,
-                    targets,
-                    sim_lit,
-                )
+            candidates = targets if targets else set()
 
-            # If GF(2) targets didn't help, try any cell that toggles a
-            # remaining light.
-            if not path:
-                path, new_lit = self._find_toggle_path(current, sim_lit)
+            # Also consider any cell that toggles a remaining light
+            if not candidates:
+                for lp in sim_lit:
+                    candidates |= self._cells_that_toggle(lp)
+                candidates.discard(current)
 
-            if not path:
+            for target in sorted(candidates):
+                path = self._bfs(current, target)
+                if not path:
+                    continue
+                # Skip first element if it equals current position
+                walk = path if path[0] != current else path[1:]
+                result = self._simulate_walk(walk, sim_lit)
+                if len(result) < best_remaining:
+                    best_remaining = len(result)
+                    best_path = path
+                    best_lit = result
+
+            if not best_path:
                 break
 
-            sim_lit = new_lit
-            path_actions = self.api.positions_to_actions(path)
+            sim_lit = best_lit
+            path_actions = self.api.positions_to_actions(best_path)
             if path_actions:
                 actions.extend(path_actions)
-            current = path[-1]
+            current = best_path[-1]
 
-        # If lights remain, try a BFS over light-state space to find a
-        # multi-leg solution that the greedy approach missed.
+        # If still lit, try BFS over light-state space
         if sim_lit:
             bfs_legs = self._bfs_light_states(current, sim_lit)
             if bfs_legs:
@@ -1000,6 +1050,40 @@ class LightsOutOracle(OracleAgent):
 
         return actions
 
+    def _bfs_light_states(self, start, lit, max_depth=4):
+        """BFS over (position, lit-set) states to find a multi-leg route."""
+        initial = (start, frozenset(lit))
+        queue = deque()
+        queue.append((initial, []))
+        visited = {initial}
+
+        while queue:
+            (pos, flit), legs = queue.popleft()
+            if len(legs) >= max_depth:
+                continue
+            cur_lit = set(flit)
+            candidate_cells = set()
+            for lp in cur_lit:
+                candidate_cells |= self._cells_that_toggle(lp)
+            candidate_cells.discard(pos)
+
+            for cell in sorted(candidate_cells):
+                path = self._bfs(pos, cell)
+                if not path:
+                    continue
+                walk = path if path[0] != pos else path[1:]
+                result = self._simulate_walk(walk, cur_lit)
+                new_state = (cell, frozenset(result))
+                if new_state in visited:
+                    continue
+                visited.add(new_state)
+                new_legs = legs + [path]
+                if not result:
+                    return new_legs
+                queue.append((new_state, new_legs))
+
+        return None
+
     def plan(self):  # noqa: C901
         lit = self._get_lit_positions()
         if not lit:
@@ -1008,51 +1092,20 @@ class LightsOutOracle(OracleAgent):
 
         ax, ay = self.api.agent_position
 
-        if not self._adjacent_toggle:
-            # Simple mode: visit nearest lit switch
-            nearest = min(lit, key=lambda p: abs(p[0] - ax) + abs(p[1] - ay))
-            if abs(nearest[0] - ax) + abs(nearest[1] - ay) == 0:
-                others = [p for p in lit if p != (ax, ay)]
-                if others:
-                    nearest = min(
-                        others,
-                        key=lambda p: abs(p[0] - ax) + abs(p[1] - ay),
-                    )
-                else:
-                    self.action_queue = [0]
-                    return
+        # Both modes use greedy full-route planning because walking through
+        # switch cells auto-toggles them, requiring simulation of all
+        # intermediate toggles.
+        full_actions = self._greedy_full_route((ax, ay), lit)
+        if full_actions:
+            self.action_queue = full_actions
+            return
 
-            unlit_lights = self._all_light_positions - lit
-            path = self.api.bfs_path_positions(
-                (ax, ay),
-                nearest,
-                avoid=unlit_lights - {nearest},
-            )
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
-            path = self.api.bfs_path_positions((ax, ay), nearest)
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = [actions[0]]
-                    return
-            self.action_queue = self.api.move_toward(*nearest)
-        else:
-            # ----- Adjacent toggle mode -----
-            full_actions = self._greedy_full_route((ax, ay), lit)
-            if full_actions:
-                self.action_queue = full_actions
-                return
-
-            # Fallback: move toward nearest lit cell
-            nearest = min(
-                lit,
-                key=lambda p: abs(p[0] - ax) + abs(p[1] - ay),
-            )
-            self.action_queue = self.api.move_toward(*nearest)
+        # Fallback: move toward nearest lit cell
+        nearest = min(
+            lit,
+            key=lambda p: abs(p[0] - ax) + abs(p[1] - ay),
+        )
+        self.action_queue = self.api.move_toward(*nearest)
 
 
 @register_oracle("ProgramSynthesis-v0")
@@ -1916,86 +1969,113 @@ class TaskInterferenceOracle(OracleAgent):
         self._nav_to(best_pos)
 
 
+def _interact_with_door(api, door_pos, avoid=None):
+    """Return a single action to progress toward opening a solid door.
+
+    Uses interact_adjacent from helpers.py which handles the full
+    adjacent+face+INTERACT pattern.  If the door is not yet adjacent,
+    BFS routes around coins (via *avoid*).
+    """
+    return interact_adjacent(
+        api.agent_position,
+        api.agent.orientation,
+        door_pos,
+        api.grid,
+        api,
+    )
+
+
 @register_oracle("DeceptiveReward-v0")
 class DeceptiveRewardOracle(OracleAgent):
     """Ignore all coins and decoy targets; BFS straight to true GOAL.
 
     For hard+ difficulties the true path is behind key+door pairs.
-    The oracle auto-picks up keys (via on_agent_moved) just by walking
-    over them, then doors open automatically via can_agent_enter.
+    Keys are walkable (auto-pickup on step). Doors are SOLID and must
+    be opened by standing adjacent, facing the door, then INTERACTing
+    with the matching key in inventory.
 
-    Strategy: collect keys first (if any), then go to goal.
-    Avoids all COIN cells so the true-path gate stays open.
+    Strategy (re-planned every step):
+    1. Try BFS to goal (avoiding coins/targets). If reachable → go.
+    2. If blocked by closed door and we hold a matching key → approach
+       door, face it, INTERACT to open.
+    3. If we need a key → BFS to the nearest key (avoiding coins).
     """
 
     def plan(self):
         grid = self.api.grid
         ax, ay = self.api.agent_position
-        config = self.api.task_config
-        n_keys = config.get("_n_keys", 0)
+        agent = self.api.agent
 
-        # Build set of coin positions to avoid
+        # Build set of coin + target positions to avoid (stepping on coins
+        # closes the gate to the true path).
         coin_cells = set()
         for y in range(grid.height):
             for x in range(grid.width):
                 if int(grid.objects[y, x]) == int(ObjectType.COIN):
                     coin_cells.add((x, y))
-                # Also avoid TARGET cells
                 if int(grid.objects[y, x]) == int(ObjectType.TARGET):
                     coin_cells.add((x, y))
+        avoid = coin_cells - {(ax, ay)} or None
 
-        # If we need keys, collect them first (walk to nearest key)
-        if n_keys > 0 and not self.api.has_in_inventory("key"):
-            keys = self.api.get_entities_of_type("key")
-            if keys:
-                nearest_key = min(keys, key=lambda k: k.distance)
-                # BFS to key, avoiding coins
-                path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    nearest_key.position,
-                    avoid=coin_cells - {(ax, ay)} or None,
-                )
-                if path:
-                    actions = self.api.positions_to_actions(path)
-                    if actions:
-                        self.action_queue = [actions[0]]
-                        return
-
-        # Head to goal, avoiding coins and targets
+        # --- 1. Try direct BFS to goal (respects blocking objects) ---
         goal = self.api.get_nearest("goal")
         if not goal:
             self.action_queue = [0]
             return
 
-        # Mark door cells as extra_passable if we have matching keys
-        extra = set()
+        path = self.api.bfs_path_positions((ax, ay), goal.position, avoid=avoid)
+        if path:
+            actions = self.api.positions_to_actions(path)
+            if actions:
+                self.action_queue = [actions[0]]
+                return
+
+        # --- 2. Goal unreachable — handle closed doors ---
+        # Identify all closed doors and their colors
+        closed_doors: dict[int, tuple[int, int]] = {}
+        open_door_cells: set[tuple[int, int]] = set()
         for y in range(grid.height):
             for x in range(grid.width):
                 if int(grid.objects[y, x]) == int(ObjectType.DOOR):
-                    extra.add((x, y))
+                    meta = int(grid.metadata[y, x])
+                    if meta < 10:
+                        closed_doors[meta] = (x, y)
+                    else:
+                        open_door_cells.add((x, y))
 
-        path = self.api.bfs_path_positions(
-            (ax, ay),
-            goal.position,
-            avoid=coin_cells - {(ax, ay)} or None,
-            extra_passable=extra or None,
-        )
-        if path:
-            actions = self.api.positions_to_actions(path)
-            if actions:
-                self.action_queue = [actions[0]]
+        # Which key colors do we hold?
+        held_colors = {
+            e.properties.get("color") for e in agent.inventory if e.entity_type == "key"
+        }
+
+        # 2a. Have a matching key for a closed door → approach and INTERACT
+        for color in held_colors:
+            if color in closed_doors:
+                door_pos = closed_doors[color]
+                self.action_queue = _interact_with_door(
+                    self.api, door_pos, avoid=avoid,
+                )
                 return
 
-        # Fallback: try without avoidance
-        path = self.api.bfs_path_positions(
-            (ax, ay),
-            goal.position,
-            extra_passable=extra or None,
-        )
-        if path:
-            actions = self.api.positions_to_actions(path)
-            if actions:
-                self.action_queue = [actions[0]]
-                return
+        # 2b. Need a key → navigate to nearest key (avoiding coins)
+        keys = self.api.get_entities_of_type("key")
+        if keys:
+            nearest_key = min(keys, key=lambda k: k.distance)
+            path = self.api.bfs_path_positions(
+                (ax, ay), nearest_key.position, avoid=avoid,
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+            # Try without coin avoidance as fallback
+            path = self.api.bfs_path_positions((ax, ay), nearest_key.position)
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
 
-        self.action_queue = [0]
+        # Fallback
+        self.action_queue = self.api.move_toward(*goal.position) or [0]

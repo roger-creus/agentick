@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agentick.core.types import ObjectType
 from agentick.oracles.base import OracleAgent
+from agentick.oracles.helpers import interact_adjacent
 from agentick.oracles.registry import register_oracle
 
 
@@ -54,8 +55,8 @@ class FewShotAdaptationOracle(OracleAgent):
 class DistributionShiftOracle(OracleAgent):
     """Multi-phase maze oracle: BFS to each GOAL across 3 shifting phases.
 
-    Re-plans every step. For hard/expert, collects keys before navigating
-    to the goal (doors block the path without matching keys).
+    Re-plans every step. For hard/expert, collects keys (walkable auto-pickup)
+    then stands adjacent to a closed door, faces it, and INTERACTs to open it.
 
     When an action remap is active (expert after first goal), the oracle
     pre-applies the same remap so the env's remap cancels it out.
@@ -67,6 +68,7 @@ class DistributionShiftOracle(OracleAgent):
         The env applies _action_remap at step time. Since the remap is
         self-inverse (UP<->DOWN, LEFT<->RIGHT), applying it once before
         the env applies it once yields the original intended action.
+        INTERACT is not in the remap dict and passes through unchanged.
         """
         config = self.api.task_config
         remap = config.get("_action_remap", {})
@@ -81,13 +83,14 @@ class DistributionShiftOracle(OracleAgent):
 
         # Identify closed door cells (meta < 10) and open door cells.
         closed_doors = set()
-        all_doors = set()
+        open_doors = set()
         for y in range(grid.height):
             for x in range(grid.width):
                 if int(grid.objects[y, x]) == int(ObjectType.DOOR):
-                    all_doors.add((x, y))
                     if int(grid.metadata[y, x]) < 10:
                         closed_doors.add((x, y))
+                    else:
+                        open_doors.add((x, y))
 
         # Head to goal.
         goal = self.api.get_nearest("goal")
@@ -95,13 +98,13 @@ class DistributionShiftOracle(OracleAgent):
             self.action_queue = [0]
             return
 
-        # First, try to reach the goal WITHOUT passing through any closed
-        # doors.  If a path exists, doors are irrelevant — skip keys.
+        # Try to reach the goal avoiding closed doors (they are solid).
+        # Open doors are passable (extra_passable).
         path_no_doors = self.api.bfs_path_positions(
             (ax, ay),
             goal.position,
             avoid=closed_doors or None,
-            extra_passable=(all_doors - closed_doors) or None,
+            extra_passable=open_doors or None,
         )
         if path_no_doors:
             actions = self.api.positions_to_actions(path_no_doors)
@@ -109,33 +112,39 @@ class DistributionShiftOracle(OracleAgent):
                 self.action_queue = self._apply_remap([actions[0]])
                 return
 
-        # Goal is blocked by closed doors — collect nearest key first.
-        keys = self.api.get_entities_of_type("key")
-        if keys:
-            nearest_key = min(keys, key=lambda k: k.distance)
-            path = self.api.bfs_path_positions(
-                (ax, ay),
-                nearest_key.position,
-                extra_passable=all_doors or None,
-            )
-            if path:
-                actions = self.api.positions_to_actions(path)
-                if actions:
-                    self.action_queue = self._apply_remap([actions[0]])
-                    return
+        # Goal is blocked by closed doors.
+        has_key = self.api.has_in_inventory("key")
 
-        # Try to reach goal, treating all doors as passable (we will
-        # open them on the way).
-        path = self.api.bfs_path_positions(
-            (ax, ay),
-            goal.position,
-            extra_passable=all_doors or None,
-        )
-        if path:
-            actions = self.api.positions_to_actions(path)
+        if has_key and closed_doors:
+            # Have a key — find the nearest closed door and INTERACT to open it.
+            nearest_door = min(
+                closed_doors,
+                key=lambda d: abs(d[0] - ax) + abs(d[1] - ay),
+            )
+            agent_ori = self.api.agent.orientation
+            actions = interact_adjacent(
+                (ax, ay), agent_ori, nearest_door, grid, self.api,
+            )
             if actions:
-                self.action_queue = self._apply_remap([actions[0]])
+                self.action_queue = self._apply_remap(actions)
                 return
+
+        if not has_key:
+            # No key — collect nearest key (walkable, auto-pickup on step).
+            keys = self.api.get_entities_of_type("key")
+            if keys:
+                nearest_key = min(keys, key=lambda k: k.distance)
+                path = self.api.bfs_path_positions(
+                    (ax, ay),
+                    nearest_key.position,
+                    avoid=closed_doors or None,
+                    extra_passable=open_doors or None,
+                )
+                if path:
+                    actions = self.api.positions_to_actions(path)
+                    if actions:
+                        self.action_queue = self._apply_remap([actions[0]])
+                        return
 
         # Fallback: move toward goal heuristically.
         raw = self.api.move_toward(*goal.position)

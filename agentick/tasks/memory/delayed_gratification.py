@@ -52,9 +52,9 @@ class DelayedGratificationTask(TaskSpec):
         ),
         "expert": DifficultyConfig(
             name="expert",
-            grid_size=15,
-            max_steps=200,
-            params={"n_decoys": 8, "n_walls": 12, "n_hazards": 6},
+            grid_size=17,
+            max_steps=160,
+            params={"n_decoys": 12, "n_walls": 18, "n_hazards": 10},
         ),
     }
 
