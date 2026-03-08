@@ -31,8 +31,8 @@ config:
   agent_class: "agentick.agents.random.RandomAgent"
 
 suites:
-  - "agentick-quick-v1"
-  # - "agentick-full-v1"  # Uncomment for full evaluation
+  - "agentick-full-v2"
+  # - "agentick-full-v2"  # Uncomment for full evaluation
 
 hardware: "CPU"
 estimated_cost: "$0 (deterministic)"
@@ -50,7 +50,7 @@ training_compute: "N/A"
     print("\nNext steps:")
     print("  1. Edit submission.yaml with your agent details")
     print(
-        "  2. Run: uv run agentick evaluate --submission submission.yaml --suite agentick-quick-v1"
+        "  2. Run: uv run agentick evaluate --submission submission.yaml --suite agentick-full-v2"
     )
     print("  3. Or run: python examples/leaderboard/run_evaluation.py")
 

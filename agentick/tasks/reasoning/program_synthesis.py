@@ -75,7 +75,38 @@ class ProgramSynthesisTask(TaskSpec):
         x0, y0 = pts[0]
         return sorted((x - x0, y - y0) for x, y in pts)
 
+    def _has_valid_target(self, gem_positions, shape, grid):
+        """Check if at least one anchor exists where all pattern offsets land on valid cells."""
+        size = grid.width
+        offsets = self._normalize_offsets([(dx, dy) for dx, dy in shape])
+        # Try every interior position as a potential anchor
+        for ax in range(2, size - 2):
+            for ay in range(2, size - 2):
+                valid = True
+                for dx, dy in offsets:
+                    tx, ty = ax + dx, ay + dy
+                    if not (2 <= tx <= size - 3 and 2 <= ty <= size - 3):
+                        valid = False
+                        break
+                    if grid.terrain[ty, tx] == CellType.WALL:
+                        valid = False
+                        break
+                    if grid.objects[ty, tx] == ObjectType.SCROLL:
+                        valid = False
+                        break
+                if valid:
+                    return True
+        return False
+
     def generate(self, seed):
+        for attempt in range(50):
+            result = self._try_generate(seed + attempt * 1000)
+            if result is not None:
+                return result
+        # Last resort: generate without validation
+        return self._try_generate(seed, validate=False)
+
+    def _try_generate(self, seed, validate=True):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         params = self.difficulty_config.params
@@ -92,7 +123,8 @@ class ProgramSynthesisTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
 
         # Place reference SCROLL pattern in left area of grid
         for _attempt in range(60):
@@ -124,15 +156,15 @@ class ProgramSynthesisTask(TaskSpec):
         # Prefer right half for gems
         gem_candidates = [
             (x, y)
-            for x in range(max(size // 2, 3), size - 1)
-            for y in range(1, size - 1)
+            for x in range(max(size // 2, 3), size - 2)
+            for y in range(2, size - 2)
             if (x, y) not in occupied and grid.terrain[y, x] == CellType.EMPTY
         ]
         if len(gem_candidates) < n_gems:
             gem_candidates = [
                 (x, y)
-                for x in range(1, size - 1)
-                for y in range(1, size - 1)
+                for x in range(2, size - 2)
+                for y in range(2, size - 2)
                 if (x, y) not in occupied and grid.terrain[y, x] == CellType.EMPTY
             ]
         rng.shuffle(gem_candidates)
@@ -140,6 +172,12 @@ class ProgramSynthesisTask(TaskSpec):
             grid.objects[gy, gx] = ObjectType.GEM
             gem_positions.append((gx, gy))
             occupied.add((gx, gy))
+
+        # Validate that at least one valid target configuration exists
+        if validate:
+            gem_positions_list = list(gem_positions)
+            if not self._has_valid_target(gem_positions_list, shape, grid):
+                return None
 
         return grid, {
             "agent_start": agent_pos,

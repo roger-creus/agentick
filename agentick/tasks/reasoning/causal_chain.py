@@ -69,7 +69,8 @@ class CausalChainTask(TaskSpec):
             grid.terrain[:, 0] = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
 
-            agent_pos = (1, 1)
+            corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+            agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
 
             # Create N+1 zones separated by wall barriers
             # Each barrier has a gap that starts as WALL (blocked)
@@ -148,7 +149,8 @@ class CausalChainTask(TaskSpec):
             grid.terrain[-1, :] = CellType.WALL
             grid.terrain[:, 0] = CellType.WALL
             grid.terrain[:, -1] = CellType.WALL
-            agent_pos = (1, 1)
+            corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+            agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
             goal_pos = (size - 2, size - 2)
             switch_positions = [(1 + i * 2, size // 2) for i in range(n)]
             barriers = [(size // 2, size // 2)]

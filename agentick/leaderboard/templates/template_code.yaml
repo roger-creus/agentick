@@ -20,7 +20,7 @@ config:
   # Any additional kwargs for the agent constructor can be added here
 
 suites:
-  - "agentick-quick-v1"
+  - "agentick-full-v2"
 
 hardware: "CPU"
 estimated_cost: "Free"

@@ -10,13 +10,17 @@ from agentick.oracles.helpers import interact_adjacent
 from agentick.oracles.registry import register_oracle
 
 
-def _door_interact_action(api, door_pos):
+def _door_interact_action(api, door_pos, avoid=None):
     """Return a single action to progress toward unlocking a solid door.
 
     Delegates to the shared ``interact_adjacent`` helper which handles:
     - Adjacent + facing → INTERACT
     - Adjacent + not facing → move toward door (sets orientation, blocked by door)
     - Not adjacent → BFS to nearest walkable cell adjacent to the door
+
+    Args:
+        avoid: Optional set of positions the BFS should treat as impassable
+            (e.g. distractor cells the agent must not step on).
 
     Returns a list with one action, or an empty list if unreachable.
     """
@@ -26,6 +30,7 @@ def _door_interact_action(api, door_pos):
         door_pos,
         api.grid,
         api,
+        avoid=avoid,
     )
 
 
@@ -58,11 +63,11 @@ def _get_npc_cells(api):
                 avoid.add((e.position[0] + dx, e.position[1] + dy))
 
     # Add predicted next positions for guards
-    _DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+    dir_deltas = [(0, -1), (0, 1), (-1, 0), (1, 0)]
     for i, (gx, gy) in enumerate(guards):
         if i < len(dirs):
             d = dirs[i]
-            ddx, ddy = _DIRS[d]
+            ddx, ddy = dir_deltas[d]
             nx, ny = gx + ddx, gy + ddy
             if (
                 0 < nx < grid.width - 1
@@ -95,12 +100,31 @@ def _navigate_with_fallback(api, ax, ay, goal_pos, avoid_wide, avoid_exact):
     hazards = _get_hazard_cells(api)
     guard_current = _get_npc_exact(api)
 
+    # Also predict where guards will be after this step
+    guard_predicted = set(guard_current)  # start with current positions
+    config = api.task_config
+    guards = config.get("_guard_positions", [])
+    dirs = config.get("_guard_dirs", [])
+    dir_deltas = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+    grid = api.grid
+    for i, (gx, gy) in enumerate(guards):
+        if i < len(dirs):
+            d = dirs[i]
+            ddx, ddy = dir_deltas[d]
+            nx, ny = gx + ddx, gy + ddy
+            if (
+                0 < nx < grid.width - 1
+                and 0 < ny < grid.height - 1
+                and int(grid.terrain[ny, nx]) == int(CellType.EMPTY)
+            ):
+                guard_predicted.add((nx, ny))
+
     def _first_step_safe(path):
-        """Check if the first step of the path avoids current guard positions."""
+        """Check if the first step avoids current and predicted guard positions."""
         if not path or len(path) < 2:
             return True
         next_pos = path[1]
-        return next_pos not in guard_current
+        return next_pos not in guard_predicted
 
     def _try_level(avoid_set):
         """Try BFS with given avoid set. Return first action if safe."""
@@ -704,7 +728,7 @@ class InstructionFollowingOracle(OracleAgent):
 
                 # Have key (or already holding) — approach door, face, INTERACT
                 door_pos = tuple(dp)
-                self.action_queue = _door_interact_action(self.api, door_pos)
+                self.action_queue = _door_interact_action(self.api, door_pos, avoid=avoid)
                 if self.action_queue:
                     return
                 break  # Must deal with this door before proceeding

@@ -60,8 +60,8 @@ class TestCLIListCommands:
         """Test list-suites command."""
         result = run_cli("list-suites")
         assert result.returncode == 0
-        assert "agentick-core-v1" in result.stdout or "core" in result.stdout.lower()
-        assert "14 total" in result.stdout or "suites" in result.stdout.lower()
+        assert "agentick-full-v2" in result.stdout or "full" in result.stdout.lower()
+        assert "7 total" in result.stdout or "suites" in result.stdout.lower()
 
 
 class TestCLISubmitCommands:
@@ -133,7 +133,7 @@ class TestCLISubmitCommands:
                     "model": "gpt-4o",
                     "api_key_env": "OPENAI_API_KEY",
                 },
-                "suites": ["agentick-core-v1"],
+                "suites": ["agentick-full-v2"],
             }
 
             with open(submission_file, "w") as f:
@@ -191,7 +191,7 @@ class TestCLIEvaluateCommands:
             "--submission",
             "/nonexistent/submission.yaml",
             "--suite",
-            "agentick-core-v1",
+            "agentick-full-v2",
         )
         # Should fail
         assert result.returncode != 0

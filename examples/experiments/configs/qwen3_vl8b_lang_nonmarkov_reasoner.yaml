@@ -1,5 +1,6 @@
 name: qwen3_vl8b_lang_nonmarkov_reasoner
-description: Qwen3-VL-8B-Instruct VLM, non-markovian reasoner (CoT+history), pixel+language observations
+description: Qwen3-VL-8B-Instruct VLM, non-markovian reasoner (CoT+history), pixel+language
+  observations
 agent:
   type: vlm
   hyperparameters:
@@ -25,8 +26,8 @@ difficulties:
 - hard
 - expert
 training: null
-n_episodes: 5
-n_seeds: 5
+n_episodes: 1
+n_seeds: 25
 render_modes:
 - rgb_array
 record_trajectories: true
@@ -44,3 +45,4 @@ metrics:
 - mean_length
 - mean_latency
 - total_tokens
+split: eval

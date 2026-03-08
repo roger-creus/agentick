@@ -36,12 +36,22 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
     """
     task_name, config, seeds, output_dir = args
 
+    from agentick.leaderboard.seeds import generate_task_seeds
+
     task_results = {
         "task_name": task_name,
         "per_difficulty": {},
     }
 
     for difficulty in config.difficulties:
+        # Per-task-difficulty seeds (unless explicit seeds provided)
+        if seeds is not None:
+            diff_seeds = seeds
+        else:
+            diff_seeds = list(generate_task_seeds(
+                task_name, difficulty, getattr(config, "split", "eval"), config.n_seeds
+            ))
+
         difficulty_results = {
             "difficulty": difficulty,
             "episodes": [],
@@ -53,7 +63,7 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
         episodes_dir.mkdir(parents=True, exist_ok=True)
 
         # Run episodes
-        for seed_idx, seed in enumerate(seeds):
+        for seed_idx, seed in enumerate(diff_seeds):
             for ep_idx in range(config.n_episodes):
                 # Create environment
                 import agentick
@@ -283,14 +293,12 @@ class ExperimentRunner:
             metadata["agent_type"] = self.config.agent.type
             metadata["observation_modes"] = self.agent.observation_modes
 
-        # Generate seeds if not provided
-        seeds = self.config.seeds
-        if seeds is None:
-            rng = np.random.default_rng(42)
-            seeds = rng.integers(0, 1_000_000, size=self.config.n_seeds).tolist()
-
         # Resolve task list
         task_names = self._resolve_tasks()
+
+        # Seeds are now generated per-task-difficulty via generate_task_seeds()
+        # If explicit seeds are provided, use those (legacy support)
+        seeds = self.config.seeds
 
         # Save initial checkpoint
         checkpoint_data = {
@@ -568,12 +576,10 @@ class ExperimentRunner:
             MULTIAGENT_TASKS,
             NAVIGATION_TASKS,
             PLANNING_TASKS,
-            QUICK_TASKS,
             REASONING_TASKS,
         )
 
         suite_map = {
-            "quick": QUICK_TASKS,
             "navigation": NAVIGATION_TASKS,
             "planning": PLANNING_TASKS,
             "reasoning": REASONING_TASKS,
@@ -591,12 +597,13 @@ class ExperimentRunner:
     def _run_task(
         self,
         task_name: str,
-        seeds: list[int],
+        seeds: list[int] | None,
         output_dir: Path,
         progress: Progress,
         main_task_id: Any,
     ) -> dict[str, Any]:
         """Run all episodes for a single task."""
+        from agentick.leaderboard.seeds import generate_task_seeds
 
         task_results = {
             "task_name": task_name,
@@ -604,6 +611,13 @@ class ExperimentRunner:
         }
 
         for difficulty in self.config.difficulties:
+            # Per-task-difficulty seeds (unless explicit seeds provided)
+            if seeds is not None:
+                diff_seeds = seeds
+            else:
+                diff_seeds = list(generate_task_seeds(
+                    task_name, difficulty, self.config.split, self.config.n_seeds
+                ))
             difficulty_results = {
                 "difficulty": difficulty,
                 "episodes": [],
@@ -644,7 +658,7 @@ class ExperimentRunner:
                 self._run_episodes_batched(
                     task_name,
                     difficulty,
-                    seeds,
+                    diff_seeds,
                     render_mode,
                     episodes_dir,
                     video_dir,
@@ -652,7 +666,7 @@ class ExperimentRunner:
                 )
             else:
                 # Sequential execution
-                for seed_idx, seed in enumerate(seeds):
+                for seed_idx, seed in enumerate(diff_seeds):
                     for ep_idx in range(self.config.n_episodes):
                         # Create environment
                         import agentick

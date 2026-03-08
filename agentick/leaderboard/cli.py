@@ -191,7 +191,7 @@ def cmd_submit_init(args):
             "model": "gpt-4o",
             "api_key_env": "OPENAI_API_KEY",
         },
-        "suites": ["agentick-core-v1"],
+        "suites": ["agentick-full-v2"],
         "hardware": "API (OpenAI)",
         "estimated_cost": "$10-50",
         "training_data": "None (zero-shot)",

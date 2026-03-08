@@ -52,21 +52,17 @@ def _load_suite_tasks() -> None:
         sys.path.insert(0, str(PROJECT_ROOT))
     try:
         from agentick.leaderboard.suites import (
-            CORE_TASKS,
             FULL_TASKS,
             GENERALIZATION_TASKS,
             MEMORY_TASKS,
             MULTIAGENT_TASKS,
             NAVIGATION_TASKS,
             PLANNING_TASKS,
-            QUICK_TASKS,
             REASONING_TASKS,
         )
         from agentick.tasks.registry import list_tasks
 
         SUITE_TASKS["full"] = list_tasks()
-        SUITE_TASKS["quick"] = QUICK_TASKS
-        SUITE_TASKS["core"] = CORE_TASKS
         SUITE_TASKS["navigation"] = NAVIGATION_TASKS
         SUITE_TASKS["planning"] = PLANNING_TASKS
         SUITE_TASKS["reasoning"] = REASONING_TASKS

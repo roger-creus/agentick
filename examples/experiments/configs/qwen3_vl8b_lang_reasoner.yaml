@@ -25,8 +25,8 @@ difficulties:
 - hard
 - expert
 training: null
-n_episodes: 5
-n_seeds: 5
+n_episodes: 1
+n_seeds: 25
 render_modes:
 - rgb_array
 record_trajectories: true
@@ -44,3 +44,4 @@ metrics:
 - mean_length
 - mean_latency
 - total_tokens
+split: eval

@@ -55,6 +55,7 @@ class ExperimentConfig(BaseModel):
         default_factory=lambda: ["mean_return", "success_rate", "mean_length"],
         description="Metrics to compute",
     )
+    split: str = Field(default="eval", description="Seed split: 'train' or 'eval'")
     output_dir: str = Field(default="results", description="Output directory")
     tags: list[str] = Field(default_factory=list, description="Tags for filtering")
     training: TrainingConfig | None = Field(
@@ -72,7 +73,7 @@ class ExperimentConfig(BaseModel):
         if isinstance(v, str):
             # Suite name
             valid_suites = [
-                "quick", "full", "navigation", "planning", "reasoning",
+                "full", "navigation", "planning", "reasoning",
                 "memory", "generalization", "multi_agent",
             ]
             if v not in valid_suites and not v.endswith("-v0"):

@@ -31,12 +31,13 @@ The leaderboard system runs agents on fixed benchmark suites with locked seeds, 
 - **`LeaderboardDatabase`** -- Serverless JSON-file storage. Organizes entries, rankings, and history under a configurable `data_dir`. Methods: `add_entry()`, query, and ranking persistence.
 
 ### `suites.py`
-- **`BenchmarkSuite`** -- Dataclass defining a suite: task list, difficulties, seeds per task, and scoring config.
-- **`OFFICIAL_SUITES`** -- Predefined suites. `CORE_TASKS` covers the original 27 tasks.
+- **`BenchmarkSuite`** -- Dataclass defining a suite: task list, difficulty, per-task seed generation, and scoring config.
+- **`OFFICIAL_SUITES`** -- 7 predefined suites (full + 6 capability suites).
 - **`ScoringConfig`** -- Scoring parameters exported at package level.
 
 ### `seeds.py`
-- **`generate_seeds_from_name()`** -- Deterministic seed generation using SHA-256 hash of the suite name, producing uniformly distributed seeds in `[0, 2^31)`.
+- **`generate_task_seeds()`** -- Deterministic per-(task, difficulty, split) seed generation using SHA-256 hash, producing uniformly distributed seeds in `[0, 2^31)`.
+- **`get_train_seeds()` / `get_eval_seeds()`** -- Convenience functions for standard 2000 train / 25 eval seeds.
 
 ### `integrity.py`
 - **`compute_result_hash()`** -- SHA-256 hash of deterministic result fields (scores, episodes) for tamper detection.

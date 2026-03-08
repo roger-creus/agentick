@@ -27,7 +27,7 @@ config:
   min_p: 0.0
 
 suites:
-  - "agentick-quick-v1"
+  - "agentick-full-v2"
 
 hardware: "1x A100 40GB"
 estimated_cost: "Free (local inference)"

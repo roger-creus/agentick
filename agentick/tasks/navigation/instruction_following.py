@@ -76,11 +76,13 @@ class InstructionFollowingTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        # Randomize agent start from corners
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
         used = {agent_pos}
 
-        # Pick target type — use seed directly for uniform distribution across seeds
-        target_idx = seed % len(_TARGET_TYPES)
+        # Pick target type via RNG
+        target_idx = int(rng.integers(0, len(_TARGET_TYPES)))
         target_type = _TARGET_TYPES[target_idx]
         distractor_types = [t for t in _TARGET_TYPES if t != target_type]
 
@@ -163,7 +165,7 @@ class InstructionFollowingTask(TaskSpec):
         used.add(target_pos)
 
         # ----------------------------------------------------------
-        # Place distractor objects
+        # Place distractor objects (with path-safety retry)
         # ----------------------------------------------------------
         # Build a buffer zone around doors, keys, and agent start so
         # distractors never block critical paths.
@@ -177,18 +179,82 @@ class InstructionFollowingTask(TaskSpec):
             return [(x, y) for x, y in _free_cells() if (x, y) not in no_distractor]
 
         distractor_positions = []
-        for _ in range(n_distractors):
-            free = _distractor_cells()
-            if not free:
-                # Fall back to any free cell if we run out of non-buffer cells
-                free = _free_cells()
-            if not free:
+        for _attempt in range(20):
+            # Clear any previously placed distractors
+            for dp in distractor_positions:
+                grid.objects[dp[1], dp[0]] = ObjectType.NONE
+                used.discard(dp)
+            distractor_positions = []
+
+            # Place distractors
+            for _ in range(n_distractors):
+                free = _distractor_cells()
+                if not free:
+                    # Fall back to any free cell if we run out of non-buffer cells
+                    free = _free_cells()
+                if not free:
+                    break
+                dp = free[int(rng.integers(0, len(free)))]
+                dt = distractor_types[int(rng.integers(0, len(distractor_types)))]
+                grid.objects[dp[1], dp[0]] = int(dt)
+                distractor_positions.append(dp)
+                used.add(dp)
+
+            # Validate that distractor-free paths exist
+            blocked = set(distractor_positions)
+            paths_ok = True
+
+            if n_doors == 0:
+                # Simple case: agent must reach target avoiding distractors
+                if not self._bfs_reachable(grid, agent_pos, target_pos, blocked):
+                    paths_ok = False
+            else:
+                # Key/door case: check sequential reachability
+                # Agent → key[0], then key[0] → door[0] adjacent, ...
+                # then final position → target
+                current = agent_pos
+                for i, kp in enumerate(key_positions):
+                    if not self._bfs_reachable(grid, current, kp, blocked):
+                        paths_ok = False
+                        break
+                    current = kp
+                    # After picking up key, need to reach a cell adjacent to
+                    # door[i] (doors are solid, agent stands next to them)
+                    if i < len(door_positions):
+                        dp = door_positions[i]
+                        # Check that at least one adjacent cell of the door is
+                        # reachable without crossing distractors
+                        door_adj_ok = False
+                        for ddx, ddy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                            adj = (dp[0] + ddx, dp[1] + ddy)
+                            if (
+                                grid.in_bounds(adj)
+                                and grid.terrain[adj[1], adj[0]] == CellType.EMPTY
+                                and adj not in blocked
+                            ):
+                                if self._bfs_reachable(grid, current, adj, blocked):
+                                    current = adj
+                                    door_adj_ok = True
+                                    break
+                        if not door_adj_ok:
+                            paths_ok = False
+                            break
+                if paths_ok:
+                    # After all doors, check target reachability.
+                    # Target is behind the last door, so we need to account
+                    # for the opened door passage. Use a simple BFS that
+                    # treats door cells as passable (they will be opened).
+                    door_cells = set(door_positions)
+                    if not self._bfs_reachable(
+                        grid, current, target_pos, blocked, passable=door_cells,
+                    ):
+                        paths_ok = False
+
+            if paths_ok:
                 break
-            dp = free[int(rng.integers(0, len(free)))]
-            dt = distractor_types[int(rng.integers(0, len(distractor_types)))]
-            grid.objects[dp[1], dp[0]] = int(dt)
-            distractor_positions.append(dp)
-            used.add(dp)
+        else:
+            # All 20 attempts failed — use last placement anyway
+            pass
 
         # ----------------------------------------------------------
         # Validate reachability
@@ -265,6 +331,50 @@ class InstructionFollowingTask(TaskSpec):
         # Finally, check target is reachable
         reachable = _reachable_from(current)
         return target in reachable
+
+    @staticmethod
+    def _bfs_reachable(grid, start, end, blocked, passable=None):
+        """BFS from *start* to *end* treating *blocked* cells as walls.
+
+        Args:
+            grid: The Grid object.
+            start: (x, y) start position.
+            end: (x, y) target position.
+            blocked: Set of (x, y) positions to treat as impassable.
+            passable: Optional set of (x, y) positions to treat as passable
+                even if they contain blocking objects (e.g. door cells that
+                will be opened).
+
+        Returns:
+            True if *end* is reachable from *start* without touching *blocked*.
+        """
+        if start == end:
+            return True
+        passable = passable or set()
+        visited = {start}
+        q = deque([start])
+        while q:
+            cx, cy = q.popleft()
+            for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                nx, ny = cx + dx, cy + dy
+                npos = (nx, ny)
+                if npos in visited or npos in blocked:
+                    continue
+                if not grid.in_bounds(npos):
+                    continue
+                if grid.terrain[ny, nx] == CellType.WALL:
+                    continue
+                # Allow door cells if they are in the passable set
+                if (
+                    grid.objects[ny, nx] == ObjectType.DOOR
+                    and npos not in passable
+                ):
+                    continue
+                visited.add(npos)
+                if npos == end:
+                    return True
+                q.append(npos)
+        return False
 
     # ------------------------------------------------------------------
     # Runtime hooks

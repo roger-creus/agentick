@@ -1,75 +1,76 @@
 # Evaluation Seeds
 
-Agentick provides standardized, locked seed sets for reproducible and comparable evaluation across different agents.
+Agentick uses deterministic, per-task-difficulty seed generation for reproducible benchmarking.
 
-## Why Locked Seeds?
+## Architecture
 
-Reporting results on arbitrary seeds makes comparison unreliable. Official eval seeds are derived deterministically from suite names via SHA-256 — anyone can regenerate them, and no one can optimize for specific layouts.
+Seeds are generated per `(task_name, difficulty, split)` triple using SHA-256 hashing:
+
+```python
+from agentick.leaderboard.seeds import generate_task_seeds, get_train_seeds, get_eval_seeds
+
+# 25 eval seeds for GoToGoal-v0 at medium difficulty
+eval_seeds = get_eval_seeds("GoToGoal-v0", "medium")
+
+# 2000 training seeds
+train_seeds = get_train_seeds("GoToGoal-v0", "medium")
+
+# Custom count
+seeds = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)
+```
+
+Each `(task, difficulty, split)` triple produces a unique, deterministic seed sequence. The same call always returns the same seeds.
 
 ## Train / Eval Split
 
-**Never train on eval seeds.** The convention:
-
-| Split | Seeds | Source |
+| Split | Seeds | Use |
 |---|---|---|
-| **Train** | Any seed not in the eval set | User-defined (e.g., `range(1000)`) |
-| **Eval** | Generated from suite name | `generate_seeds_from_name()` |
+| **train** | 2000 per (task, difficulty) | RL training, behavior cloning, SFT |
+| **eval** | 25 per (task, difficulty) | Benchmark evaluation, leaderboard |
 
-## Using Official Seeds
+**Never train on eval seeds.** Use `split="train"` in training configs and `split="eval"` in evaluation configs.
 
-```python
-from agentick.leaderboard.seeds import generate_seeds_from_name
-
-# Get deterministic eval seeds
-eval_seeds = generate_seeds_from_name("full", n_seeds=10)
-print(eval_seeds)  # Tuple of 10 ints, same every time
-```
-
-Use in an experiment config:
+## YAML Configs
 
 ```yaml
-name: my-eval
-seeds: [...]  # Paste output of generate_seeds_from_name()
-tasks: "full"
+# Training config
+split: train
+n_seeds: 25
+
+# Evaluation config
+split: eval
+n_seeds: 25
+n_episodes: 1
 ```
 
-Or programmatically:
-
-```python
-from agentick.experiments.config import ExperimentConfig, AgentConfig
-from agentick.leaderboard.seeds import generate_seeds_from_name
-
-config = ExperimentConfig(
-    name="eval-run",
-    agent=AgentConfig(type="random"),
-    tasks="full",
-    seeds=list(generate_seeds_from_name("full", n_seeds=10)),
-    n_episodes=10,
-)
-```
-
-## Verifying Seeds
-
-```python
-from agentick.leaderboard.seeds import verify_seeds
-
-ok = verify_seeds("full", eval_seeds)
-assert ok, "Seeds don't match official set"
-```
+Seeds are auto-generated per task/difficulty from the split. No need to list explicit seeds.
 
 ## Benchmark Suites
 
-| Suite | Tasks | Default Seeds | Use Case |
-|---|---|---|---|
-| `quick` | 5 representative | 10 | Sanity checks |
-| `core` | 25 core tasks | 30 | Standard evaluation |
-| `full` | All 38 tasks | 50 | Complete benchmark |
+7 official suites, all using per-task eval seeds (25 per task):
+
+| Suite | Tasks | Description |
+|---|---|---|
+| `agentick-full-v2` | 38 | Complete benchmark |
+| `agentick-navigation-v2` | 8 | Navigation capability |
+| `agentick-planning-v2` | 9 | Planning capability |
+| `agentick-reasoning-v2` | 9 | Reasoning capability |
+| `agentick-memory-v2` | 4 | Memory capability |
+| `agentick-generalization-v2` | 3 | Generalization capability |
+| `agentick-multiagent-v2` | 5 | Multi-agent coordination |
 
 ```python
 from agentick.leaderboard.suites import get_suite, list_suites
 
-suite = get_suite("full")
-print(f"Tasks: {len(suite.tasks)}, Seeds: {len(suite.eval_seeds)}")
+suite = get_suite("agentick-full-v2")
+seeds = suite.get_eval_seeds("GoToGoal-v0")  # Per-task seeds
 ```
 
-Capability-specific suites are also available: `navigation`, `memory`, `reasoning`, `control`, `skill`, `combinatorial`, `adversarial`, `meta`, `multi_agent`, `compositional`.
+## Verification
+
+```python
+from agentick.leaderboard.seeds import verify_seeds
+
+ok = verify_seeds("GoToGoal-v0", "medium", "eval", eval_seeds)
+assert ok, "Seeds don't match official set"
+```

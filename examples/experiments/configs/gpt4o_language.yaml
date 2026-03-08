@@ -1,23 +1,41 @@
 name: gpt4o-language
-description: "GPT-4o via OpenAI API, markovian zero-shot, language observations"
+description: GPT-4o via OpenAI API, markovian zero-shot, language observations
 agent:
   type: llm
   hyperparameters:
     backend: openai
     model: gpt-4o
     harness: markovian_zero_shot
-    observation_modes: [language]
+    observation_modes:
+    - language
     api_key_env: OPENAI_API_KEY
     max_tokens: 100
     temperature: 0.7
-tasks: "full"
-difficulties: [easy, medium, hard, expert]
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
 training: null
-n_episodes: 3
-n_seeds: 3
-render_modes: [language]
+n_episodes: 1
+n_seeds: 25
+render_modes:
+- language
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
-tags: [llm, language, gpt4o, api, benchmark]
-metrics: [mean_return, success_rate, mean_length, mean_latency, total_tokens, total_api_calls]
+tags:
+- llm
+- language
+- gpt4o
+- api
+- benchmark
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- mean_latency
+- total_tokens
+- total_api_calls
+split: eval

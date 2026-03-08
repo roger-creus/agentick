@@ -238,7 +238,7 @@ def compute_baselines_for_suite(
     Compute all baselines for a benchmark suite.
 
     Args:
-        suite_name: Name of the suite (e.g., "agentick-full-v1")
+        suite_name: Name of the suite (e.g., "agentick-full-v2")
         output_dir: Directory to save baseline results
         run_random: Whether to run random baseline
         run_greedy: Whether to run greedy baseline
@@ -263,13 +263,15 @@ def compute_baselines_for_suite(
         print(f"\nTask: {task_name}")
         baselines[task_name] = {}
 
+        task_seeds = list(suite.get_eval_seeds(task_name))
+
         # Random baseline
         if run_random:
             random_result = run_random_baseline(
                 task_name,
                 difficulty=suite.difficulty,
                 n_episodes=n_episodes_random,
-                seeds=list(suite.eval_seeds[:n_episodes_random]),
+                seeds=task_seeds[:n_episodes_random],
             )
             baselines[task_name]["random"] = random_result
             baselines[task_name]["random_baseline"] = random_result["mean_return"]
@@ -280,7 +282,7 @@ def compute_baselines_for_suite(
                 task_name,
                 difficulty=suite.difficulty,
                 n_episodes=n_episodes_random,
-                seeds=list(suite.eval_seeds[:n_episodes_random]),
+                seeds=task_seeds[:n_episodes_random],
             )
             baselines[task_name]["greedy"] = greedy_result
 
@@ -290,7 +292,7 @@ def compute_baselines_for_suite(
                 task_name,
                 difficulty=suite.difficulty,
                 n_episodes=n_episodes_oracle,
-                seeds=list(suite.eval_seeds[:n_episodes_oracle]),
+                seeds=task_seeds[:n_episodes_oracle],
             )
             if oracle_result is not None:
                 baselines[task_name]["oracle"] = oracle_result

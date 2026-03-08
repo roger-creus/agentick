@@ -23,8 +23,7 @@ config:
   temperature: 0.0
 
 suites:
-  - "agentick-quick-v1"  # Start with quick suite for testing
-  # - "agentick-full-v1"  # Uncomment for full evaluation
+  - "agentick-full-v2"
 
 hardware: "API"
 estimated_cost: "$10-50 for full suite"

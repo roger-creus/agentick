@@ -14,7 +14,7 @@ def test_submission_spec_validation():
         agent_type="api",
         observation_mode="language",
         config={"provider": "openai", "model": "gpt-4o"},
-        suites=["agentick-quick-v1"],
+        suites=["agentick-full-v2"],
     )
 
     assert spec.agent_name == "TestAgent"
@@ -44,7 +44,7 @@ def test_submission_yaml_roundtrip(tmp_path):
         agent_type="code",
         observation_mode="language",
         config={"script_path": "test.py"},
-        suites=["agentick-quick-v1"],
+        suites=["agentick-full-v2"],
     )
 
     yaml_path = tmp_path / "test.yaml"

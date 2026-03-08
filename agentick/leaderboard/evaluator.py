@@ -136,13 +136,14 @@ class LeaderboardEvaluator:
             if self.verbose:
                 print(f"\n  Task: {task_name}")
 
-            # Run this task on all seeds
+            # Run this task on all seeds (per-task deterministic seeds)
             task_episodes = []
+            task_eval_seeds = suite.get_eval_seeds(task_name)
 
             seeds_iter = (
-                tqdm(suite.eval_seeds, desc="  Seeds", leave=False)
+                tqdm(task_eval_seeds, desc="  Seeds", leave=False)
                 if self.verbose
-                else suite.eval_seeds
+                else task_eval_seeds
             )
 
             for seed in seeds_iter:

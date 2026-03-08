@@ -2,10 +2,9 @@
 
 import pytest
 
-from agentick.leaderboard.seeds import verify_seeds
+from agentick.leaderboard.seeds import generate_task_seeds, verify_seeds
 from agentick.leaderboard.suites import (
     BenchmarkSuite,
-    generate_deterministic_seeds,
     get_suite,
     list_suites,
     verify_suite_integrity,
@@ -14,118 +13,119 @@ from agentick.leaderboard.suites import (
 
 def test_suite_immutability():
     """Test that suite dataclass is frozen."""
-    suite = get_suite("agentick-quick-v1")
+    suite = get_suite("agentick-full-v2")
 
     with pytest.raises(Exception):  # FrozenInstanceError
         suite.name = "modified"
 
 
 def test_all_official_suites_exist():
-    """Test that all 15+ official suites are defined."""
+    """Test that all 7 official suites are defined."""
     suites = list_suites()
-    assert len(suites) >= 11
+    assert len(suites) == 7
 
     # Check key suites
-    assert "agentick-full-v1" in suites
-    assert "agentick-core-v1" in suites
-    assert "agentick-quick-v1" in suites
-    assert "agentick-navigation-v1" in suites
+    assert "agentick-full-v2" in suites
+    assert "agentick-navigation-v2" in suites
+    assert "agentick-planning-v2" in suites
+    assert "agentick-reasoning-v2" in suites
+    assert "agentick-memory-v2" in suites
+    assert "agentick-generalization-v2" in suites
+    assert "agentick-multiagent-v2" in suites
 
 
 def test_suite_structure():
     """Test that suites have correct structure."""
-    suite = get_suite("agentick-full-v1")
+    suite = get_suite("agentick-full-v2")
 
     assert isinstance(suite, BenchmarkSuite)
-    assert suite.name == "agentick-full-v1"
+    assert suite.name == "agentick-full-v2"
     assert len(suite.tasks) == 38
-    assert len(suite.eval_seeds) == 50
+    assert suite.n_eval_seeds == 25
+    assert suite.n_train_seeds == 2000
     assert suite.episodes_per_seed == 1
-    assert suite.version == "1.0"
+    assert suite.version == "2.0"
 
 
 def test_seed_determinism():
     """Test that seeds are deterministically generated."""
-    seeds1 = generate_deterministic_seeds("test-suite", 10)
-    seeds2 = generate_deterministic_seeds("test-suite", 10)
+    seeds1 = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)
+    seeds2 = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)
 
     assert seeds1 == seeds2
     assert len(seeds1) == 10
 
 
 def test_seed_uniqueness():
-    """Test that different suite names generate different seeds."""
-    seeds1 = generate_deterministic_seeds("suite-a", 10)
-    seeds2 = generate_deterministic_seeds("suite-b", 10)
+    """Test that different task/difficulty combos generate different seeds."""
+    seeds1 = generate_task_seeds("GoToGoal-v0", "easy", "eval", 10)
+    seeds2 = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)
 
     assert seeds1 != seeds2
 
 
+def test_seed_split_uniqueness():
+    """Test that train and eval splits generate different seeds."""
+    train = generate_task_seeds("GoToGoal-v0", "medium", "train", 10)
+    eval_ = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)
+
+    assert train != eval_
+
+
 def test_seed_verification():
     """Test seed verification."""
-    suite = get_suite("agentick-quick-v1")
+    seeds = generate_task_seeds("GoToGoal-v0", "medium", "eval", 25)
 
-    # Verify seeds match deterministic generation
-    assert verify_seeds(suite.name, suite.eval_seeds)
+    assert verify_seeds("GoToGoal-v0", "medium", "eval", seeds)
 
-    # Verify wrong seeds fail
-    wrong_seeds = tuple(range(len(suite.eval_seeds)))
-    assert not verify_seeds(suite.name, wrong_seeds)
+    wrong_seeds = tuple(range(25))
+    assert not verify_seeds("GoToGoal-v0", "medium", "eval", wrong_seeds)
 
 
 def test_suite_hash_computation():
     """Test that suite hash can be computed."""
-    suite = get_suite("agentick-full-v1")
+    suite = get_suite("agentick-full-v2")
 
     hash1 = suite.compute_hash()
     hash2 = suite.compute_hash()
 
-    # Hash should be deterministic
     assert hash1 == hash2
     assert len(hash1) == 64  # SHA256 hex digest
 
 
 def test_suite_integrity():
     """Test suite integrity verification."""
-    suite = get_suite("agentick-quick-v1")
-
+    suite = get_suite("agentick-full-v2")
     assert verify_suite_integrity(suite)
 
 
-def test_quick_suite_is_fast():
-    """Test that quick suite is configured for speed."""
-    suite = get_suite("agentick-quick-v1")
+def test_per_task_seeds():
+    """Test that suite.get_eval_seeds() returns per-task seeds."""
+    suite = get_suite("agentick-full-v2")
 
-    assert suite.difficulty == "easy"
-    assert len(suite.eval_seeds) == 10  # Small number of seeds
-    assert suite.max_steps_override == 100  # Short episodes
+    seeds_a = suite.get_eval_seeds("GoToGoal-v0")
+    seeds_b = suite.get_eval_seeds("MazeNavigation-v0")
+
+    assert len(seeds_a) == 25
+    assert len(seeds_b) == 25
+    assert seeds_a != seeds_b
 
 
 def test_capability_suites():
     """Test that capability-specific suites exist and are correctly configured."""
     capability_suites = [
-        "agentick-navigation-v1",
-        "agentick-planning-v1",
-        "agentick-reasoning-v1",
-        "agentick-memory-v1",
-        "agentick-generalization-v1",
-        "agentick-multiagent-v1",
+        "agentick-navigation-v2",
+        "agentick-planning-v2",
+        "agentick-reasoning-v2",
+        "agentick-memory-v2",
+        "agentick-generalization-v2",
+        "agentick-multiagent-v2",
     ]
 
     for suite_name in capability_suites:
         suite = get_suite(suite_name)
-        assert len(suite.tasks) >= 3  # At least a few tasks
-        assert len(suite.eval_seeds) == 30
-
-
-def test_full_vs_core():
-    """Test that full suite has more tasks than core."""
-    full = get_suite("agentick-full-v1")
-    core = get_suite("agentick-core-v1")
-
-    assert len(full.tasks) > len(core.tasks)
-    assert len(full.tasks) == 38
-    assert len(core.tasks) == 25
+        assert len(suite.tasks) >= 3
+        assert suite.n_eval_seeds == 25
 
 
 def test_get_nonexistent_suite():

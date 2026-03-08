@@ -234,14 +234,16 @@ class DelayedGratificationTask(TaskSpec):
                 "max_steps": self.get_max_steps(),
             }
 
-        # Fallback
+        # Fallback — random corner start
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
-        agent_pos = (1, 1)
-        goal_pos = (size - 2, size - 2)
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        rng.shuffle(corners)
+        agent_pos = corners[0]
+        goal_pos = corners[1]
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
         grid.objects[1, 3] = ObjectType.KEY
         return grid, {

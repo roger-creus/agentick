@@ -92,8 +92,9 @@ class RecipeAssemblyTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Agent starts bottom-left
-        agent_pos = (1, size - 2)
+        # Agent starts at a random corner
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
 
         # Crafting station (chef NPC): center of map
         station_pos = (size // 2, size // 2)

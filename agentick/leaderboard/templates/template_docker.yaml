@@ -21,7 +21,7 @@ config:
   health_check_endpoint: "/health"  # Optional health check endpoint
 
 suites:
-  - "agentick-quick-v1"
+  - "agentick-full-v2"
 
 hardware: "Depends on container"
 estimated_cost: "Depends on container"

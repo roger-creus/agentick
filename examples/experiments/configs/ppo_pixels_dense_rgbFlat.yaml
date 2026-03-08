@@ -1,5 +1,6 @@
 name: ppo-pixels-dense-flat-1M
-description: "PPO CnnPolicy from flat pixels, dense rewards, 1M steps, all tasks x all difficulties"
+description: PPO CnnPolicy from flat pixels, dense rewards, 1M steps, all tasks x
+  all difficulties
 agent:
   type: ppo
   hyperparameters:
@@ -7,15 +8,19 @@ agent:
     n_steps: 128
     batch_size: 256
     n_epochs: 4
-    learning_rate: 2.5e-4
+    learning_rate: 0.00025
     clip_range: 0.2
     ent_coef: 0.01
     vf_coef: 0.5
     max_grad_norm: 0.5
     gamma: 0.99
     gae_lambda: 0.95
-tasks: "full"
-difficulties: [easy, medium, hard, expert]
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
 reward_mode: dense
 training:
   total_timesteps: 500000
@@ -26,10 +31,20 @@ training:
   save_best_model: true
   device: auto
 n_episodes: 10
-n_seeds: 1
-render_modes: [rgb_array_flat]
+n_seeds: 25
+render_modes:
+- rgb_array_flat
 record_videos: true
 record_trajectories: false
 output_dir: results/ppo_benchmarks
-tags: [ppo, dense, pixel, benchmark]
-metrics: [mean_return, success_rate, mean_length, std_return]
+tags:
+- ppo
+- dense
+- pixel
+- benchmark
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- std_return
+split: train

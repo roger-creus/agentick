@@ -101,7 +101,8 @@ class SokobanPushTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
         # Free cells excluding borders (boxes against outer walls = deadlock)
         # Boxes need at least 2 cells clearance from walls in push directions
         interior_free = [

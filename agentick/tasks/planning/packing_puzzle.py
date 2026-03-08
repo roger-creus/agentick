@@ -69,7 +69,13 @@ class PackingPuzzleTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (size - 2, 1)
+        # Randomize agent side and target side
+        if rng.random() < 0.5:
+            agent_pos = (size - 2, int(rng.integers(1, size - 1)))
+            target_col = 1
+        else:
+            agent_pos = (1, int(rng.integers(1, size - 1)))
+            target_col = size - 2
 
         # Choose piece types
         available_types = list(_PIECE_TYPES[:n_types])
@@ -78,9 +84,6 @@ class PackingPuzzleTask(TaskSpec):
         piece_types = []
         for i in range(n):
             piece_types.append(available_types[i % len(available_types)])
-
-        # Target zone at left column (x=1), vertically centred
-        target_col = 1
 
         # Place targets with metadata encoding expected type
         target_positions = []

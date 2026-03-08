@@ -107,7 +107,13 @@ class TaskInterferenceTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (size // 2, size // 2)
+        # Random quadrant start
+        half = size // 2
+        qx = int(rng.integers(1, half) if rng.random() < 0.5
+                 else rng.integers(half, size - 1))
+        qy = int(rng.integers(1, half) if rng.random() < 0.5
+                 else rng.integers(half, size - 1))
+        agent_pos = (qx, qy)
 
         free = [
             (x, y)

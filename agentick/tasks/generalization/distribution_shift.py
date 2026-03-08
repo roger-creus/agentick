@@ -344,9 +344,11 @@ class DistributionShiftTask(TaskSpec):
         goal_positions: list[tuple[int, int]] = []
         key_door_data: list[list[dict]] = []  # per phase: list of {key_pos, door_pos}
 
-        # Agent starts near top-left in maze 0.
+        # Agent starts near a random corner in maze 0.
         first_terrain = _generate_maze_dfs(size, rng)
-        agent_start = _find_empty_near(first_terrain, 1, 1, size)
+        _corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        _corner = _corners[int(rng.integers(0, len(_corners)))]
+        agent_start = _find_empty_near(first_terrain, _corner[0], _corner[1], size)
 
         min_goal_dist = size // 2
 

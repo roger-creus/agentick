@@ -34,7 +34,7 @@ class TimingChallengeTask(TaskSpec):
                 "patrol_len": 3,
                 "n_gaps": 1,
                 "n_blockers": 1,
-                "gap_rand": False,
+                "gap_rand": True,
                 "blocker_speed_var": 0,
                 "n_safe_spots": 0,
             },

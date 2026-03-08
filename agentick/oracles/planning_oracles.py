@@ -244,6 +244,33 @@ class SokobanPushOracle(OracleAgent):
             if self._would_deadlock(lx, ly, grid, target_set):
                 continue
 
+            # One-step look-ahead: can the box continue toward target from landing?
+            if (lx, ly) != (tx, ty):  # Not already at target
+                can_progress = False
+                for ndx, ndy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    next_land = (lx + ndx, ly + ndy)
+                    nlx, nly = next_land
+                    # Check if next push would reduce distance to target
+                    current_dist = abs(lx - tx) + abs(ly - ty)
+                    next_dist = abs(nlx - tx) + abs(nly - ty)
+                    if next_dist >= current_dist:
+                        continue
+                    # Check if next push is physically possible
+                    next_push_from = (lx - ndx, ly - ndy)
+                    npfx, npfy = next_push_from
+                    if not (0 < npfx < grid.width - 1 and 0 < npfy < grid.height - 1):
+                        continue
+                    if self._is_blocked(npfx, npfy, grid):
+                        continue
+                    if not (0 < nlx < grid.width - 1 and 0 < nly < grid.height - 1):
+                        continue
+                    if self._is_blocked(nlx, nly, grid):
+                        continue
+                    can_progress = True
+                    break
+                if not can_progress:
+                    continue  # Skip this push direction, try next
+
             if (ax, ay) == push_from:
                 step = self.api.step_action(pdx, pdy)
                 if step is not None:

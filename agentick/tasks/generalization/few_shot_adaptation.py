@@ -189,7 +189,8 @@ class FewShotAdaptationTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
+        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
+        agent_pos = tuple(corners[int(rng.integers(0, len(corners)))])
 
         # Place interior wall obstacles
         interior = [

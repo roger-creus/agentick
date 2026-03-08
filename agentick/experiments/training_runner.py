@@ -151,11 +151,8 @@ class TrainingBenchmarkRunner:
         if checkpoint:
             all_results = checkpoint.get("results", {})
 
-        seeds = self.config.seeds
-        if seeds is None:
-            rng = np.random.default_rng(42)
-            seeds = rng.integers(0, 1_000_000, size=self.config.n_seeds).tolist()
-        seed = seeds[0]
+        # Seeds are now per-task-difficulty; computed in the loop below
+        explicit_seeds = self.config.seeds
 
         print(f"PPO Training Benchmark: {self.config.name}")
         print(f"  Tasks: {len(task_names)}, Difficulties: {len(difficulties)}")
@@ -190,6 +187,14 @@ class TrainingBenchmarkRunner:
 
                 run_dir = output_dir / "per_task" / task_name / difficulty
                 run_dir.mkdir(parents=True, exist_ok=True)
+
+                # Per-task-difficulty seed from train split
+                if explicit_seeds is not None:
+                    seed = explicit_seeds[0]
+                else:
+                    from agentick.leaderboard.seeds import generate_task_seeds
+
+                    seed = generate_task_seeds(task_name, difficulty, "train", 1)[0]
 
                 try:
                     metrics = self._train_single_task(
@@ -299,10 +304,16 @@ class TrainingBenchmarkRunner:
         # -- Create training environments --
         train_env = self._make_vec_env(task_name, difficulty, seed, tc.n_envs, is_training=True)
 
-        # -- Create eval environment --
+        # -- Create eval environment using official eval seeds --
         eval_dir = run_dir / "eval"
         eval_dir.mkdir(exist_ok=True)
-        eval_env = self._make_vec_env(task_name, difficulty, seed + 1000, 1, is_training=False)
+
+        from agentick.leaderboard.seeds import generate_task_seeds
+
+        eval_seeds = list(generate_task_seeds(task_name, difficulty, "eval", 25))
+        eval_env = self._make_vec_env(
+            task_name, difficulty, eval_seeds, len(eval_seeds), is_training=False,
+        )
 
         # -- Callbacks --
         eval_callback = EvalCallback(
@@ -310,7 +321,7 @@ class TrainingBenchmarkRunner:
             best_model_save_path=str(run_dir / "model"),
             log_path=str(eval_dir),
             eval_freq=max(tc.eval_frequency // tc.n_envs, 1),
-            n_eval_episodes=tc.n_eval_episodes,
+            n_eval_episodes=1,  # 1 episode per env × 25 envs = 25 eval episodes
             deterministic=True,
             verbose=0,
         )
@@ -356,7 +367,7 @@ class TrainingBenchmarkRunner:
         # -- Extract training curve from eval logs --
         training_curve = self._extract_training_curve(eval_dir)
 
-        # -- Run final evaluation with video --
+        # -- Run final evaluation on eval seeds --
         final_metrics = self._run_final_eval(
             model_path=run_dir / "model" / "best_model.zip"
             if tc.save_best_model and (run_dir / "model" / "best_model.zip").exists()
@@ -364,9 +375,8 @@ class TrainingBenchmarkRunner:
             model=model,
             task_name=task_name,
             difficulty=difficulty,
-            seed=seed + 2000,
+            seeds=eval_seeds,
             video_dir=run_dir / "videos" if self.config.record_videos else None,
-            n_episodes=tc.n_eval_episodes,
         )
 
         # Cleanup
@@ -382,17 +392,28 @@ class TrainingBenchmarkRunner:
         self,
         task_name: str,
         difficulty: str,
-        seed: int,
+        seed: int | list[int],
         n_envs: int,
         is_training: bool,
     ):
-        """Create a DummyVecEnv with Atari preprocessing + VecTransposeImage."""
+        """Create a DummyVecEnv with Atari preprocessing + VecTransposeImage.
+
+        Args:
+            seed: A single seed (envs get seed, seed+1, ...) or a list of seeds
+                  (one per env, n_envs must equal len(seed)).
+        """
         from stable_baselines3.common.monitor import Monitor
         from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
         from agentick.wrappers.atari_preprocessing import make_atari_env
 
         render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+
+        # Build per-env seed list
+        if isinstance(seed, list):
+            env_seeds = seed
+        else:
+            env_seeds = [seed + i for i in range(n_envs)]
 
         def make_env(env_seed: int):
             def _init():
@@ -408,7 +429,7 @@ class TrainingBenchmarkRunner:
 
             return _init
 
-        env_fns = [make_env(seed + i) for i in range(n_envs)]
+        env_fns = [make_env(s) for s in env_seeds]
         vec_env = DummyVecEnv(env_fns)
         vec_env = VecTransposeImage(vec_env)
         return vec_env
@@ -419,11 +440,10 @@ class TrainingBenchmarkRunner:
         model: Any,
         task_name: str,
         difficulty: str,
-        seed: int,
+        seeds: list[int],
         video_dir: Path | None,
-        n_episodes: int,
     ) -> dict[str, Any]:
-        """Run final evaluation episodes and optionally record video."""
+        """Run final evaluation on all eval seeds."""
         from stable_baselines3 import PPO
         from stable_baselines3.common.monitor import Monitor
         from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
@@ -436,29 +456,28 @@ class TrainingBenchmarkRunner:
         else:
             eval_model = model
 
-        # Create eval env with same render mode as training so observations match
         render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
 
-        def make_eval_env():
-            env = make_atari_env(
-                task_name,
-                seed=seed,
-                difficulty=difficulty,
-                reward_mode=self.config.reward_mode,
-                render_mode=render_mode,
-            )
-            env = Monitor(env)
-            return env
-
-        vec_env = DummyVecEnv([make_eval_env])
-        vec_env = VecTransposeImage(vec_env)
-
-        # Run evaluation episodes (same observation distribution as training)
         returns = []
         lengths = []
         successes = []
 
-        for ep in range(n_episodes):
+        # Evaluate one episode per eval seed
+        for seed in seeds:
+            def make_eval_env(s=seed):
+                env = make_atari_env(
+                    task_name,
+                    seed=s,
+                    difficulty=difficulty,
+                    reward_mode=self.config.reward_mode,
+                    render_mode=render_mode,
+                )
+                env = Monitor(env)
+                return env
+
+            vec_env = DummyVecEnv([make_eval_env])
+            vec_env = VecTransposeImage(vec_env)
+
             obs = vec_env.reset()
             done = False
             ep_return = 0.0
@@ -477,17 +496,16 @@ class TrainingBenchmarkRunner:
             returns.append(ep_return)
             lengths.append(ep_length)
             successes.append(ep_success)
+            vec_env.close()
 
-        vec_env.close()
-
-        # Record a separate video with render_mode="rgb_array" (SB3 requirement)
+        # Record a video using the first eval seed
         if video_dir:
             from stable_baselines3.common.vec_env import VecVideoRecorder
 
             def make_video_env():
                 env = make_atari_env(
                     task_name,
-                    seed=seed,
+                    seed=seeds[0],
                     difficulty=difficulty,
                     reward_mode=self.config.reward_mode,
                     render_mode="rgb_array",

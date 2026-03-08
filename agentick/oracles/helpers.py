@@ -29,7 +29,7 @@ INTERACT = int(ActionType.INTERACT)
 
 def interact_adjacent(
     agent_pos, agent_orientation, target_pos, grid, api,
-    extra_passable=None,
+    extra_passable=None, avoid=None,
 ):
     """Return action list to interact with a solid object at *target_pos*.
 
@@ -106,7 +106,7 @@ def interact_adjacent(
     # Try each adjacent cell, pick shortest reachable path
     best_path = None
     for cell in adj_cells:
-        path = api.bfs_path_positions(agent_pos, cell, extra_passable=passable)
+        path = api.bfs_path_positions(agent_pos, cell, extra_passable=passable, avoid=avoid)
         if path and (best_path is None or len(path) < len(best_path)):
             best_path = path
 
