@@ -53,10 +53,33 @@ class VLLMLLMBackend(ModelBackend):
         self._llm = None
         self._sampling_params = None
 
+    def _ensure_model_downloaded(self) -> None:
+        """Pre-download model files under a filelock to prevent concurrent corruption.
+
+        When multiple SLURM jobs share the same HuggingFace cache directory,
+        concurrent downloads can corrupt JSON files. This acquires an exclusive
+        lock so only one process downloads at a time.
+        """
+        from huggingface_hub import snapshot_download
+
+        cache_dir = os.environ.get("HF_HOME", os.environ.get("HUGGINGFACE_HUB_CACHE"))
+        lock_dir = cache_dir or os.path.expanduser("~/.cache/huggingface/hub")
+        os.makedirs(lock_dir, exist_ok=True)
+        lock_path = os.path.join(
+            lock_dir, self.model_id.replace("/", "--") + ".lock"
+        )
+
+        import filelock
+
+        with filelock.FileLock(lock_path, timeout=1800):
+            snapshot_download(self.model_id, cache_dir=cache_dir)
+
     def _ensure_loaded(self) -> None:
         """Lazily load the vLLM engine on first use."""
         if self._llm is not None:
             return
+
+        self._ensure_model_downloaded()
 
         try:
             from vllm import LLM, SamplingParams

@@ -693,12 +693,6 @@ class ExperimentRunner:
             else:
                 render_mode = None
 
-            # Video directory (record first episode per seed only to save space)
-            video_dir = None
-            if self.config.record_videos:
-                video_dir = output_dir / "videos" / task_name / difficulty
-                video_dir.mkdir(parents=True, exist_ok=True)
-
             # Use batched execution automatically for vLLM backends
             use_batched = (
                 self.agent is not None
@@ -713,7 +707,7 @@ class ExperimentRunner:
                     diff_seeds,
                     render_mode,
                     episodes_dir,
-                    video_dir,
+                    None,
                     difficulty_results,
                 )
             else:
@@ -729,9 +723,6 @@ class ExperimentRunner:
                             render_mode=render_mode,
                         )
 
-                        # Only record video for first episode per seed
-                        ep_video_dir = video_dir if (video_dir and ep_idx == 0) else None
-
                         # Run episode
                         episode_data = self._run_episode(
                             env,
@@ -739,7 +730,7 @@ class ExperimentRunner:
                             seed_idx,
                             ep_idx,
                             episodes_dir,
-                            ep_video_dir,
+                            None,
                             task_name=task_name,
                             difficulty=difficulty,
                         )
@@ -749,6 +740,13 @@ class ExperimentRunner:
 
             # Compute metrics for this difficulty
             difficulty_results["metrics"] = self._compute_metrics(difficulty_results["episodes"])
+
+            # Record concatenated video (5 random seeds replayed, no extra LLM calls)
+            if self.config.record_videos:
+                video_dir = output_dir / "videos" / task_name / difficulty
+                self._record_concatenated_video(
+                    task_name, difficulty, difficulty_results["episodes"], video_dir,
+                )
 
             task_results["per_difficulty"][difficulty] = difficulty_results
 
@@ -834,6 +832,7 @@ class ExperimentRunner:
                 "length": result.episode_length,
                 "success": result.success,
                 "agent_stats": result.agent_stats,
+                "steps": result.steps,
             }
             difficulty_results["episodes"].append(episode_data)
 
@@ -922,6 +921,86 @@ class ExperimentRunner:
                 _save_mp4(frames, video_dir / f"{name}.mp4", fps=10)
             else:
                 _save_gif(frames, video_dir / f"{name}.gif", fps=10)
+        except Exception as e:
+            print(f"  Warning: Failed to save video {name}: {e}")
+
+    def _record_concatenated_video(
+        self,
+        task_name: str,
+        difficulty: str,
+        episodes: list[dict[str, Any]],
+        video_dir: Path,
+        n_video_seeds: int = 5,
+    ) -> None:
+        """Record a single video concatenating replayed episodes from multiple seeds.
+
+        Replays recorded actions on fresh envs with render_mode='rgb_array',
+        so no extra LLM/API calls are needed.
+        """
+        import random
+
+        import agentick
+        from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
+
+        # Collect episodes that have step data (with actions for replay)
+        seed_to_ep: dict[int, dict[str, Any]] = {}
+        for ep in episodes:
+            seed = ep.get("seed")
+            if seed is not None and seed not in seed_to_ep and ep.get("steps"):
+                seed_to_ep[seed] = ep
+
+        if not seed_to_ep:
+            print(f"  Warning: No replayable episodes for video ({task_name}/{difficulty})")
+            return
+
+        available = list(seed_to_ep.keys())
+        selected = random.sample(available, min(n_video_seeds, len(available)))
+
+        all_frames: list[np.ndarray] = []
+        separator_n = 10  # black frames between episodes
+
+        for seed in selected:
+            ep = seed_to_ep[seed]
+            actions = [step["action"] for step in ep["steps"]]
+
+            env = agentick.make(task_name, difficulty=difficulty, render_mode="rgb_array")
+            obs, info = env.reset(seed=seed)
+
+            frame = env.render()
+            if isinstance(frame, np.ndarray):
+                all_frames.append(frame)
+
+            for action in actions:
+                obs, reward, terminated, truncated, info = env.step(action)
+                frame = env.render()
+                if isinstance(frame, np.ndarray):
+                    all_frames.append(frame)
+                if terminated or truncated:
+                    break
+
+            env.close()
+
+            # Add black separator frames between episodes
+            if all_frames:
+                h, w = all_frames[-1].shape[:2]
+                sep = np.zeros((h, w, 3), dtype=np.uint8)
+                all_frames.extend([sep] * separator_n)
+
+        # Remove trailing separator
+        if len(all_frames) > separator_n:
+            all_frames = all_frames[:-separator_n]
+
+        if not all_frames:
+            return
+
+        video_dir.mkdir(parents=True, exist_ok=True)
+        name = f"{task_name}_{difficulty}"
+        try:
+            if _has_ffmpeg():
+                _save_mp4(all_frames, video_dir / f"{name}.mp4", fps=10)
+            else:
+                _save_gif(all_frames, video_dir / f"{name}.gif", fps=10)
+            print(f"  Saved video: {video_dir / name}.mp4 ({len(selected)} seeds)")
         except Exception as e:
             print(f"  Warning: Failed to save video {name}: {e}")
 

@@ -516,38 +516,64 @@ class TrainingBenchmarkRunner:
             successes.append(ep_success)
             vec_env.close()
 
-        # Record a video using the first eval seed
+        # Record a concatenated video from 5 random eval seeds
         if video_dir:
-            from stable_baselines3.common.vec_env import VecVideoRecorder
+            import random
 
-            def make_video_env():
-                env = make_atari_env(
-                    task_name,
-                    seed=seeds[0],
-                    difficulty=difficulty,
-                    reward_mode=self.config.reward_mode,
-                    render_mode="rgb_array",
-                )
-                env = Monitor(env)
-                return env
+            from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
 
-            vid_env = DummyVecEnv([make_video_env])
-            vid_env = VecTransposeImage(vid_env)
-            video_dir.mkdir(parents=True, exist_ok=True)
-            vid_env = VecVideoRecorder(
-                vid_env,
-                str(video_dir),
-                record_video_trigger=lambda x: x == 0,
-                video_length=500,
-                name_prefix=f"eval_{task_name}_{difficulty}",
-            )
-            obs = vid_env.reset()
-            done = False
-            while not done:
-                action, _ = eval_model.predict(obs, deterministic=True)
-                obs, _, dones, _ = vid_env.step(action)
-                done = dones[0]
-            vid_env.close()
+            n_video_seeds = min(5, len(seeds))
+            video_seeds = random.sample(seeds, n_video_seeds)
+
+            all_frames: list[np.ndarray] = []
+            separator_n = 10  # black frames between episodes
+
+            for vid_seed in video_seeds:
+                def make_video_env(s=vid_seed):
+                    env = make_atari_env(
+                        task_name,
+                        seed=s,
+                        difficulty=difficulty,
+                        reward_mode=self.config.reward_mode,
+                        render_mode="rgb_array",
+                    )
+                    env = Monitor(env)
+                    return env
+
+                vid_env = DummyVecEnv([make_video_env])
+                vid_env = VecTransposeImage(vid_env)
+                obs = vid_env.reset()
+                done = False
+                while not done:
+                    action, _ = eval_model.predict(obs, deterministic=True)
+                    # Capture frame (VecTransposeImage changes channel order, get from inner env)
+                    frame = vid_env.venv.envs[0].render()
+                    if isinstance(frame, np.ndarray):
+                        all_frames.append(frame)
+                    obs, _, dones, _ = vid_env.step(action)
+                    done = dones[0]
+                vid_env.close()
+
+                # Add black separator frames between episodes
+                if all_frames:
+                    h, w = all_frames[-1].shape[:2]
+                    sep = np.zeros((h, w, 3), dtype=np.uint8)
+                    all_frames.extend([sep] * separator_n)
+
+            # Remove trailing separator
+            if len(all_frames) > separator_n:
+                all_frames = all_frames[:-separator_n]
+
+            if all_frames:
+                video_dir.mkdir(parents=True, exist_ok=True)
+                name = f"eval_{task_name}_{difficulty}"
+                try:
+                    if _has_ffmpeg():
+                        _save_mp4(all_frames, video_dir / f"{name}.mp4", fps=10)
+                    else:
+                        _save_gif(all_frames, video_dir / f"{name}.gif", fps=10)
+                except Exception as e:
+                    print(f"  Warning: Failed to save video {name}: {e}")
 
         return {
             "mean_return": float(np.mean(returns)),
