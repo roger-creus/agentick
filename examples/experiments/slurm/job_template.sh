@@ -14,8 +14,9 @@ conda activate {conda_env}
 
 {env_exports}
 
-# Per-job torch inductor cache to avoid corrupted shared caches
+# Per-job compile caches to avoid corruption from concurrent jobs
 export TORCHINDUCTOR_CACHE_DIR="/tmp/torch_cache_${{SLURM_JOB_ID}}"
+export VLLM_COMPILE_CACHE_DIR="/tmp/vllm_compile_cache_${{SLURM_JOB_ID}}"
 
 cd {project_root}
 

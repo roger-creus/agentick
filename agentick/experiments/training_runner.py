@@ -236,8 +236,26 @@ class TrainingBenchmarkRunner:
 
         self.end_time = time.time()
 
-        # Build and save summary
-        summary = self._build_summary(all_results, task_names, difficulties)
+        # Merge results with any existing summary (from other SLURM jobs
+        # writing to the same shared output directory).
+        merged_results = dict(all_results)
+        merged_tasks = list(task_names)
+        ts_path = output_dir / "training_summary.json"
+        if ts_path.exists():
+            try:
+                with open(ts_path) as f:
+                    existing = json.load(f)
+                for key, val in existing.get("results", {}).items():
+                    if key not in merged_results:
+                        merged_results[key] = val
+                for t in existing.get("tasks", []):
+                    if t not in merged_tasks:
+                        merged_tasks.append(t)
+            except (json.JSONDecodeError, OSError):
+                pass  # corrupted file, overwrite
+
+        # Build and save summary using merged results
+        summary = self._build_summary(merged_results, merged_tasks, difficulties)
         summary["total_time_seconds"] = self.end_time - self.start_time
 
         with open(output_dir / "summary.json", "w") as f:
@@ -252,9 +270,9 @@ class TrainingBenchmarkRunner:
             "reward_mode": self.config.reward_mode,
             "render_mode": render_mode,
             "total_timesteps": self.training_config.total_timesteps,
-            "tasks": task_names,
+            "tasks": merged_tasks,
             "difficulties": difficulties,
-            "results": all_results,
+            "results": merged_results,
         }
         with open(output_dir / "training_summary.json", "w") as f:
             json.dump(training_summary, f, indent=2, default=_json_default)

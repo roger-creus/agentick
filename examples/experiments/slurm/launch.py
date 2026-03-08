@@ -287,12 +287,12 @@ def make_per_task_config_yaml(
     """Generate per-task YAML config string derived from base_config.
 
     Overrides the 'tasks' field to a single-element list.
+    The config 'name' is preserved (not modified with task suffix) so that
+    all per-task jobs share the same agent identity in results.
     Returns the YAML content as a string (not written to disk).
     """
     cfg = copy.deepcopy(base_config)
     cfg["tasks"] = [task_name]
-    if "name" in cfg:
-        cfg["name"] = f"{cfg['name']}-{task_name.removesuffix('-v0')}"
     return yaml.dump(cfg, default_flow_style=False, sort_keys=False)
 
 

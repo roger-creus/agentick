@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -77,6 +78,15 @@ class VLLMLLMBackend(ModelBackend):
         }
         if self.quantization is not None:
             engine_kwargs["quantization"] = self.quantization
+
+        # Per-process compile cache to prevent corruption when multiple
+        # SLURM jobs share the same home directory.  VLLM_COMPILE_CACHE_DIR
+        # is set per-job in job_template.sh; fall back to PID-based dir.
+        compile_cache = os.environ.get(
+            "VLLM_COMPILE_CACHE_DIR",
+            f"/tmp/vllm_compile_cache_{os.getpid()}",
+        )
+        engine_kwargs["compilation_config"] = {"cache_dir": compile_cache}
 
         self._llm = LLM(**engine_kwargs)
 

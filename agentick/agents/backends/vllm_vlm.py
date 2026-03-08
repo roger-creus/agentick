@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -75,6 +76,14 @@ class VLLMVLMBackend(ModelBackend):
             # failures on clusters where libcuda.so is not in linker path.
             "attention_backend": "TRITON_ATTN",
         }
+
+        # Per-process compile cache to prevent corruption when multiple
+        # SLURM jobs share the same home directory.
+        compile_cache = os.environ.get(
+            "VLLM_COMPILE_CACHE_DIR",
+            f"/tmp/vllm_compile_cache_{os.getpid()}",
+        )
+        engine_kwargs["compilation_config"] = {"cache_dir": compile_cache}
 
         self._llm = LLM(**engine_kwargs)
 

@@ -178,22 +178,24 @@ class ExperimentResults:
         self.per_task_results = per_task_results
 
     def save(self) -> None:
-        """Save results to disk."""
-        # Save config
-        config_path = self.output_dir / "config.yaml"
-        self.config.to_yaml(config_path)
+        """Save results to disk.
 
-        # Save metadata
+        When multiple SLURM jobs share the same output directory (per-task
+        splitting), each job writes its own per_task/ data and merges its
+        summary into the existing summary.json.
+        """
+        # Save config — only write if not already present, so the first
+        # job's config (with the original name) is preserved.
+        config_path = self.output_dir / "config.yaml"
+        if not config_path.exists():
+            self.config.to_yaml(config_path)
+
+        # Save metadata (overwrite is fine — metadata is per-job)
         metadata_path = self.output_dir / "metadata.json"
         with open(metadata_path, "w") as f:
             json.dump(self.metadata, f, indent=2)
 
-        # Save summary
-        summary_path = self.output_dir / "summary.json"
-        with open(summary_path, "w") as f:
-            json.dump(self.summary, f, indent=2)
-
-        # Save per-task results
+        # Save per-task results (each task writes its own subdir, no collision)
         for task_name, task_results in self.per_task_results.items():
             task_dir = self.output_dir / "per_task" / task_name
             task_dir.mkdir(parents=True, exist_ok=True)
@@ -201,6 +203,56 @@ class ExperimentResults:
             metrics_path = task_dir / "metrics.json"
             with open(metrics_path, "w") as f:
                 json.dump(task_results, f, indent=2)
+
+        # Merge summary with existing (other SLURM jobs may have written theirs)
+        summary_path = self.output_dir / "summary.json"
+        merged_summary = dict(self.summary)
+        if summary_path.exists():
+            try:
+                with open(summary_path) as f:
+                    existing = json.load(f)
+                # Accumulate time
+                existing_time = existing.get("total_time_seconds", 0)
+                our_time = merged_summary.get("total_time_seconds", 0)
+                merged_summary["total_time_seconds"] = existing_time + our_time
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        # Recompute summary from all per_task/ dirs on disk
+        per_task_dir = self.output_dir / "per_task"
+        if per_task_dir.exists():
+            all_returns = []
+            all_successes = []
+            all_lengths = []
+            for task_dir in per_task_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                metrics_path = task_dir / "metrics.json"
+                if not metrics_path.exists():
+                    continue
+                try:
+                    with open(metrics_path) as f:
+                        task_data = json.load(f)
+                    agg = task_data.get("aggregate_metrics", {})
+                    if "mean_return" in agg:
+                        all_returns.append(agg["mean_return"])
+                    if "success_rate" in agg:
+                        all_successes.append(agg["success_rate"])
+                    if "mean_length" in agg:
+                        all_lengths.append(agg["mean_length"])
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+            if all_returns:
+                merged_summary["mean_return"] = float(np.mean(all_returns))
+                merged_summary["std_return"] = float(np.std(all_returns))
+            if all_successes:
+                merged_summary["success_rate"] = float(np.mean(all_successes))
+            if all_lengths:
+                merged_summary["mean_length"] = float(np.mean(all_lengths))
+
+        with open(summary_path, "w") as f:
+            json.dump(merged_summary, f, indent=2)
 
     @classmethod
     def load(cls, output_dir: str | Path) -> ExperimentResults:
