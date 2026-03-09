@@ -144,11 +144,21 @@ class NonMarkovianZeroShot(HarnessPreset):
         diff_mode: If True, history observations are sent as compact diffs
             against the previous step. The first observation in the window
             and the current (latest) observation are always sent in full.
+        context_safety_margin: Fraction of max_context_tokens to actually use
+            (default: 0.80). Reserves headroom for chat-template overhead,
+            token-estimation error, and response generation so that the
+            prompt never exceeds the backend's max_model_len.
     """
 
-    def __init__(self, max_context_tokens: int = 32768, diff_mode: bool = True):
+    def __init__(
+        self,
+        max_context_tokens: int = 32768,
+        diff_mode: bool = True,
+        context_safety_margin: float = 0.80,
+    ):
         self.max_context_tokens = max_context_tokens
         self.diff_mode = diff_mode
+        self.context_safety_margin = context_safety_margin
         # Store raw (obs_content, assistant_reply) per step for recomputing diffs
         self._steps: list[tuple[str | list[dict[str, Any]], str]] = []
 
@@ -163,10 +173,14 @@ class NonMarkovianZeroShot(HarnessPreset):
         current_content = _make_user_content(obs, info, obs_modes)
         current_msg = {"role": "user", "content": current_content}
 
-        # Token budget: total - system - current observation
+        # Token budget: apply safety margin, then subtract system + current obs.
+        # The safety margin accounts for chat-template tokens (BOS/EOS/role
+        # markers), token-estimation error (chars/4 can undercount), and
+        # response tokens that the backend needs to generate.
+        effective_limit = int(self.max_context_tokens * self.context_safety_margin)
         system_tokens = _estimate_tokens_msg(system_msg)
         current_tokens = _estimate_tokens_msg(current_msg)
-        budget = self.max_context_tokens - system_tokens - current_tokens
+        budget = max(effective_limit - system_tokens - current_tokens, 0)
 
         # Build history within budget, trimming oldest steps first
         history = _build_sliding_history(self._steps, budget, self.diff_mode)
@@ -205,17 +219,19 @@ def _compute_diff(old_text: str, new_text: str) -> str:
 
 
 def _estimate_tokens_content(content: str | list[dict[str, Any]]) -> int:
-    """Estimate token count for message content (chars / 4 heuristic).
+    """Estimate token count for message content (chars / 3 heuristic).
 
-    Images are estimated at 1000 tokens each (conservative for typical
-    gridworld screenshots at low resolution).
+    Uses chars / 3 (rather than the common chars / 4 rule-of-thumb) to be
+    conservative — structured text with special characters, newlines, and
+    short tokens tends to tokenize at a higher ratio than plain English.
+    Images are estimated at 1000 tokens each.
     """
     if isinstance(content, str):
-        return len(content) // 4 + 1
+        return len(content) // 3 + 1
     total = 0
     for block in content:
         if block.get("type") == "text":
-            total += len(block.get("text", "")) // 4 + 1
+            total += len(block.get("text", "")) // 3 + 1
         elif block.get("type") == "image":
             total += 1000  # conservative estimate for a small gridworld image
     return max(total, 1)
@@ -381,6 +397,9 @@ class NonMarkovianReasoner(HarnessPreset):
         max_response_chars: Maximum characters to keep per CoT response in
             history (default: 400). Longer responses are truncated, keeping
             the ACTION line.
+        context_safety_margin: Fraction of max_context_tokens to actually use
+            (default: 0.80). Reserves headroom for chat-template overhead,
+            token-estimation error, and response generation.
     """
 
     def __init__(
@@ -388,10 +407,12 @@ class NonMarkovianReasoner(HarnessPreset):
         max_context_tokens: int = 32768,
         diff_mode: bool = True,
         max_response_chars: int = 400,
+        context_safety_margin: float = 0.80,
     ):
         self.max_context_tokens = max_context_tokens
         self.diff_mode = diff_mode
         self.max_response_chars = max_response_chars
+        self.context_safety_margin = context_safety_margin
         self._steps: list[tuple[str | list[dict[str, Any]], str]] = []
 
     def build_messages(
@@ -413,9 +434,10 @@ class NonMarkovianReasoner(HarnessPreset):
         current_content = _make_user_content(obs, info, obs_modes)
         current_msg = {"role": "user", "content": current_content}
 
+        effective_limit = int(self.max_context_tokens * self.context_safety_margin)
         system_tokens = _estimate_tokens_msg(system_msg)
         current_tokens = _estimate_tokens_msg(current_msg)
-        budget = self.max_context_tokens - system_tokens - current_tokens
+        budget = max(effective_limit - system_tokens - current_tokens, 0)
 
         history = _build_sliding_history(self._steps, budget, self.diff_mode)
 
