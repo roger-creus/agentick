@@ -20,10 +20,12 @@ classification:  # first match wins
   - { pattern: "qwen3_vl8b*",        profile: local_vlm_4g }
   - { pattern: "qwen3_vl*",          profile: local_vlm_1g }
   - { pattern: "qwen3_30b*",         profile: local_llm_4g }
-  - { pattern: "qwen3_4b_ascii*",    profile: local_llm_1g }
   - { pattern: "qwen3_4b_ascii_nonmarkov*", profile: local_llm_1g_extended }
-  - { pattern: "qwen3_4b*",          profile: local_llm_1g }
-  - { pattern: "qwen*",              profile: local_llm_1g }
+  - { pattern: "qwen3_4b_ascii*",    profile: local_llm_1g }
+  - { pattern: "qwen35_4b_ascii_nonmarkov*", profile: local_llm_1g_extended }
+  - { pattern: "qwen35_4b_ascii*",   profile: local_llm_1g }
+  - { pattern: "qwen35_4b_img*",     profile: local_vlm_1g }
+  - { pattern: "qwen35_4b_lang*",    profile: local_vlm_1g }
   - { pattern: "claude_sonnet_*",    profile: api_llm }
   - { pattern: "gpt4o_*",            profile: api_llm }
   - { pattern: "anthropic_*",        profile: api_llm }
