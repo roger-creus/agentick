@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""VLM Debugging Tool — Two-phase (describe + act) episodes with HTML viewer.
+
+For each step, the VLM is first asked to *describe* what it sees in the image,
+then asked to *act* normally.  The HTML viewer shows the VLM's description
+alongside the renders and action, making it easy to diagnose perception failures.
+
+Usage:
+    uv run python examples/debug/vlm_debugging.py \
+        --task GoToGoal-v0 \
+        --config examples/experiments/configs/qwen35_4b_ascii_markov.yaml \
+        --difficulty easy --n-episodes 1
+
+    # With extra modalities:
+    uv run python examples/debug/vlm_debugging.py \
+        --task GoToGoal-v0 \
+        --config examples/experiments/configs/qwen35_4b_ascii_markov.yaml \
+        --difficulty easy --n-episodes 1 \
+        --modalities ascii,language,rgb_array
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from typing import Any
+
+import numpy as np
+from _shared import (
+    capture_renders,
+    generate_html,
+    renders_to_html_data,
+    serialise_messages,
+)
+
+# ---------------------------------------------------------------------------
+# Multimodal observation injection (mirrors ExperimentRunner._inject_secondary_obs)
+# ---------------------------------------------------------------------------
+_TEXT_MODES = ("language", "ascii", "language_structured")
+
+
+def _inject_secondary_obs(
+    env: Any, info: dict[str, Any], obs_modes: list[str],
+) -> None:
+    """Inject secondary text renderings into info for multimodal agents."""
+    render_mode = getattr(env, "render_mode", None)
+    for mode in obs_modes:
+        if mode != render_mode and mode in _TEXT_MODES:
+            info[f"obs_{mode}"] = env.render_in_mode(mode)
+
+
+DESCRIBE_PROMPT = (
+    "Describe this gridworld image in detail. "
+    "What objects, entities, walls, terrain, and features do you see? "
+    "Where is the agent and what direction is it facing?"
+)
+
+
+# ---------------------------------------------------------------------------
+# Data collection
+# ---------------------------------------------------------------------------
+def collect_episodes(
+    task_name: str,
+    config_path: str,
+    difficulty: str,
+    n_episodes: int,
+    start_seed: int,
+    modalities: list[str],
+    harness_override: str | None = None,
+) -> list[dict[str, Any]]:
+    """Run episodes with describe-then-act prompting."""
+    import agentick
+    from agentick.agents.factory import create_agent
+    from agentick.experiments.config import load_config
+
+    config = load_config(config_path)
+
+    # Allow CLI harness override (reuse same model with different harness)
+    if harness_override:
+        config.agent.hyperparameters["harness"] = harness_override
+
+    harness_name = config.agent.hyperparameters.get("harness", "unknown")
+    model_name = config.agent.hyperparameters.get("model", "unknown")
+
+    print(f"Creating agent: {model_name} / {harness_name}")
+    agent = create_agent(config.agent)
+    if agent is None:
+        print("ERROR: create_agent returned None (non-VLM agent type?)")
+        sys.exit(1)
+
+    if not getattr(agent.backend, "supports_vision", False):
+        print("WARNING: Backend does not advertise vision support — describe phase may fail")
+
+    # Determine primary render mode (same logic as ExperimentRunner):
+    # prefer rgb_array if the agent uses it, so text modes come via render_in_mode
+    obs_modes = agent.observation_modes
+    if "rgb_array" in obs_modes:
+        primary_render = "rgb_array"
+    else:
+        primary_render = obs_modes[0]
+    print(f"Primary render mode: {primary_render}  (agent obs_modes: {obs_modes})")
+
+    episodes_data: list[dict[str, Any]] = []
+
+    for ep_idx in range(n_episodes):
+        seed = start_seed + ep_idx
+        print(f"\n{'='*60}")
+        print(f"Episode {ep_idx + 1}/{n_episodes}  seed={seed}")
+        print(f"{'='*60}")
+
+        env = agentick.make(
+            task_name, difficulty=difficulty, render_mode=primary_render, seed=seed,
+        )
+        obs, info = env.reset(seed=seed)
+        _inject_secondary_obs(env, info, obs_modes)
+        agent.reset()
+
+        steps_data: list[dict[str, Any]] = []
+        total_reward = 0.0
+        done = False
+        step_idx = 0
+
+        while not done:
+            # Capture modality renders
+            raw_renders = capture_renders(env, obs, modalities)
+            render_data = renders_to_html_data(raw_renders)
+
+            # --- Phase 1: DESCRIBE ---
+            # Build a simple describe message with the current image
+            desc_response = ""
+            desc_tokens = {"input": 0, "output": 0}
+            desc_latency = 0.0
+
+            try:
+                # Get an image to send (prefer rgb_array, fall back to rgb_array_flat)
+                img = raw_renders.get("rgb_array")
+                if img is None:
+                    img = raw_renders.get("rgb_array_flat")
+                if img is None:
+                    # Render one on the fly
+                    img = env.render_in_mode("rgb_array")
+
+                if isinstance(img, np.ndarray):
+                    from agentick.agents.observation import numpy_to_base64
+
+                    img_b64 = numpy_to_base64(img)
+
+                    # Use Anthropic-style format (same as harness) so the
+                    # backend's _convert_messages can translate it properly
+                    describe_messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "image/png",
+                                        "data": img_b64,
+                                    },
+                                },
+                                {"type": "text", "text": DESCRIBE_PROMPT},
+                            ],
+                        }
+                    ]
+
+                    t0 = time.time()
+                    resp = agent.backend.generate(describe_messages)
+                    desc_latency = round(time.time() - t0, 3)
+                    desc_response = resp.text
+                    desc_tokens = {
+                        "input": resp.input_tokens,
+                        "output": resp.output_tokens,
+                    }
+            except Exception as exc:
+                desc_response = f"[describe phase failed: {exc}]"
+
+            # --- Phase 2: ACT ---
+            info_with_modes = {**info, "_obs_modes": obs_modes}
+            messages = agent.harness.build_messages(obs, info_with_modes, obs_modes)
+            messages_display = serialise_messages(messages)
+
+            action = agent.act(obs, info)
+            call = agent.call_log[-1]
+
+            step_data: dict[str, Any] = {
+                "step": step_idx,
+                "messages": messages_display,
+                "renders": render_data,
+                # Describe phase
+                "vlm_description": desc_response,
+                "vlm_desc_input_tokens": desc_tokens["input"],
+                "vlm_desc_output_tokens": desc_tokens["output"],
+                "vlm_desc_latency": desc_latency,
+                # Act phase
+                "response": call["response"],
+                "reasoning": call.get("reasoning"),
+                "parsed_action": call["parsed_action"],
+                "action_name": call["action_name"],
+                "input_tokens": call["input_tokens"],
+                "output_tokens": call["output_tokens"],
+                "latency": round(call["latency"], 3),
+            }
+
+            # Step env
+            obs, reward, terminated, truncated, info = env.step(action)
+            _inject_secondary_obs(env, info, obs_modes)
+
+            step_data["reward"] = float(reward)
+            total_reward += float(reward)
+            step_data["cumulative_reward"] = round(total_reward, 4)
+            step_data["done"] = terminated or truncated
+            step_data["terminated"] = terminated
+            step_data["truncated"] = truncated
+
+            steps_data.append(step_data)
+            step_idx += 1
+            done = terminated or truncated
+
+            action_str = call["action_name"]
+            desc_preview = (
+                desc_response[:60].replace("\n", " ") + "..."
+                if len(desc_response) > 60
+                else desc_response.replace("\n", " ")
+            )
+            print(
+                f"  step {step_idx:3d}  action={action_str:<12s}"
+                f"  r={reward:.2f}  cum={total_reward:.2f}"
+                f"  desc=\"{desc_preview}\"",
+                end="",
+            )
+            if done:
+                print(f"  {'SUCCESS' if info.get('success') else 'FAIL'}")
+            else:
+                print()
+
+        success = bool(info.get("success", False))
+        episodes_data.append({
+            "episode": ep_idx,
+            "seed": seed,
+            "task": task_name,
+            "difficulty": difficulty,
+            "harness": harness_name,
+            "model": model_name,
+            "total_reward": round(total_reward, 4),
+            "n_steps": len(steps_data),
+            "success": success,
+            "steps": steps_data,
+        })
+
+        env.close()
+
+    return episodes_data
+
+
+# ---------------------------------------------------------------------------
+# Extra HTML sections for VLM description
+# ---------------------------------------------------------------------------
+_VLM_EXTRA_JS = """
+  if (st.vlm_description) {
+    let tokInfo = '';
+    if (st.vlm_desc_input_tokens || st.vlm_desc_output_tokens) {
+      const t = st.vlm_desc_input_tokens + '+' +
+        st.vlm_desc_output_tokens + ' tokens, ' +
+        st.vlm_desc_latency + 's';
+      tokInfo = '<div class="vlm-desc-tokens">' + t + '</div>';
+    }
+    return `
+      <div class="vlm-desc-card">
+        <div class="vlm-desc-label">VLM Description</div>
+        <div class="vlm-desc-body">${escHtml(st.vlm_description)}</div>
+        ${tokInfo}
+      </div>`;
+  }
+  return '';
+"""
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(
+        description="VLM Debugging — describe+act episodes with interactive HTML viewer"
+    )
+    parser.add_argument("--task", required=True, help="Task name (e.g. GoToGoal-v0)")
+    parser.add_argument("--config", required=True, help="Path to experiment YAML config")
+    parser.add_argument(
+        "--difficulty", default="easy",
+        choices=["easy", "medium", "hard", "expert"],
+    )
+    parser.add_argument("--n-episodes", type=int, default=5)
+    parser.add_argument(
+        "--start-seed", type=int, default=0,
+        help="Starting seed (increments per episode)",
+    )
+    parser.add_argument(
+        "--modalities", default="ascii,language,rgb_array",
+        help="Comma-separated render modes to capture (ascii,language,rgb_array,rgb_array_flat)",
+    )
+    parser.add_argument(
+        "--harness", default=None,
+        help=(
+            "Override the harness from the YAML config "
+            "(markovian_zero_shot, non_markovian_zero_shot, "
+            "markovian_reasoner, non_markovian_reasoner)"
+        ),
+    )
+    parser.add_argument(
+        "--output", default=None,
+        help="Output HTML filename (auto-generated if omitted)",
+    )
+    args = parser.parse_args()
+
+    modalities = [m.strip() for m in args.modalities.split(",") if m.strip()]
+    output = args.output or f"debug_vlm_{args.task}_{args.difficulty}.html"
+
+    print(f"Task:       {args.task}")
+    print(f"Config:     {args.config}")
+    print(f"Difficulty: {args.difficulty}")
+    if args.harness:
+        print(f"Harness:    {args.harness} (override)")
+    print(f"Episodes:   {args.n_episodes}")
+    print(f"Modalities: {modalities}")
+    print(f"Seeds:      {args.start_seed}..{args.start_seed + args.n_episodes - 1}")
+    print(f"Output:     {output}")
+
+    episodes = collect_episodes(
+        task_name=args.task,
+        config_path=args.config,
+        difficulty=args.difficulty,
+        n_episodes=args.n_episodes,
+        start_seed=args.start_seed,
+        modalities=modalities,
+        harness_override=args.harness,
+    )
+
+    generate_html(
+        episodes,
+        output,
+        title="Agentick VLM Debugger",
+        extra_sections_js=_VLM_EXTRA_JS,
+    )
+
+    # Summary
+    successes = sum(1 for e in episodes if e["success"])
+    print(f"\nSummary: {successes}/{len(episodes)} episodes succeeded")
+    for ep in episodes:
+        status = "SUCCESS" if ep["success"] else "FAIL"
+        print(
+            f"  Ep {ep['episode']+1} (seed {ep['seed']}): {status}"
+            f"  steps={ep['n_steps']}  reward={ep['total_reward']}"
+        )
+
+
+if __name__ == "__main__":
+    main()

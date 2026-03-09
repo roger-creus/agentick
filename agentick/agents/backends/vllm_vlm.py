@@ -14,6 +14,9 @@ class VLLMVLMBackend(ModelBackend):
 
     Supports multimodal inputs (text + images) with PagedAttention,
     prefix caching, and continuous batching.
+
+    Tested with Qwen/Qwen3-VL-4B-Instruct, Qwen/Qwen3.5-4B, and other
+    chat-template-compatible VLMs.
     """
 
     supports_vision = True
@@ -103,13 +106,9 @@ class VLLMVLMBackend(ModelBackend):
     ) -> list[dict[str, Any]]:
         """Convert internal message format to vLLM-compatible multimodal format.
 
-        Converts base64-encoded images to PIL Image objects for vLLM's chat API.
+        Converts Anthropic-style base64 image blocks to OpenAI-style data-URL
+        ``image_url`` blocks that vLLM's chat API expects.
         """
-        import base64
-        from io import BytesIO
-
-        from PIL import Image
-
         converted = []
         for msg in messages:
             content = msg["content"]
@@ -128,10 +127,12 @@ class VLLMVLMBackend(ModelBackend):
                     elif block.get("type") == "image":
                         source = block.get("source", {})
                         if source.get("type") == "base64":
-                            img_bytes = base64.b64decode(source["data"])
-                            img = Image.open(BytesIO(img_bytes))
+                            data_url = (
+                                f"data:{source.get('media_type', 'image/png')};"
+                                f"base64,{source['data']}"
+                            )
                             new_blocks.append(
-                                {"type": "image_url", "image_url": {"url": img}}
+                                {"type": "image_url", "image_url": {"url": data_url}}
                             )
                         else:
                             new_blocks.append({"type": "image_url", "image_url": {}})

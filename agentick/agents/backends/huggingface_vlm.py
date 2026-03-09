@@ -9,7 +9,11 @@ from agentick.agents.backends.base import BackendResponse, ModelBackend
 
 
 class HuggingFaceVLMBackend(ModelBackend):
-    """Backend for local HuggingFace vision-language models (e.g. Qwen3-VL)."""
+    """Backend for local HuggingFace vision-language models.
+
+    Supported models include Qwen/Qwen3-VL-4B-Instruct, Qwen/Qwen3.5-4B,
+    and other AutoModelForImageTextToText-compatible VLMs.
+    """
 
     supports_vision = True
 
