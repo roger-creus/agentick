@@ -17,6 +17,10 @@ from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.types import CellType, Direction, ObjectType
 
+# Color name maps for keys/doors (metadata → color prefix)
+_KEY_COLOR_NAMES = {0: "", 1: "red ", 2: "blue ", 3: "green "}
+_DOOR_COLOR_NAMES = {0: "", 1: "red ", 2: "blue ", 3: "green "}
+
 
 @dataclass
 class LanguageConfig:
@@ -119,6 +123,11 @@ class AdvancedLanguageRenderer:
                     parts.append(
                         f"A scroll pointed {d}, {dist} tiles away."
                     )
+        if "DistributionShift" in task_name:
+            remap = task_config.get("_action_remap")
+            phase = task_config.get("_current_phase", 0)
+            if remap:
+                parts.append(f"Phase {phase}: controls are remapped: {remap}.")
 
         # Spatial surroundings with relative directions
         if self.config.include_spatial_reasoning:
@@ -279,9 +288,13 @@ class AdvancedLanguageRenderer:
     def _describe_surroundings_relative(
         self, grid: Grid, agent: Agent, entities: list[Entity]
     ) -> str:
-        """Describe surroundings using relative directions and distances."""
+        """Describe surroundings using relative directions and distances.
+
+        Objects and hazards are high-priority and always included.  Walls are
+        low-priority: only mentioned when directly ahead at distance 1 (i.e. the
+        agent is blocked).  Water is low-priority within distance 2.
+        """
         ax, ay = agent.position
-        descriptions = []
 
         # Get viewing range based on verbosity
         if self.config.verbosity == "minimal":
@@ -291,7 +304,19 @@ class AdvancedLanguageRenderer:
         else:  # verbose
             max_dist = 5
 
-        # Scan in all directions
+        # Compute the cell directly ahead for wall-blocking check
+        fdx, fdy = agent.orientation.to_delta()
+        faced_pos = (ax + fdx, ay + fdy)
+
+        high: list[str] = []  # objects, hazards, entities
+        low: list[str] = []  # walls (only blocking), water (close)
+
+        _npc_names = {
+            1: "Follower NPC", 3: "Fearful NPC",
+            4: "Mirror NPC", 5: "Contrarian NPC",
+        }
+
+        # Scan grid cells
         for dy in range(-max_dist, max_dist + 1):
             for dx in range(-max_dist, max_dist + 1):
                 if dx == 0 and dy == 0:
@@ -301,49 +326,82 @@ class AdvancedLanguageRenderer:
                 if not grid.in_bounds((nx, ny)):
                     continue
 
-                dist = abs(dx) + abs(dy)  # Manhattan distance
+                # Skip fogged cells
+                meta_val = int(grid.metadata[ny, nx])
+                if meta_val == -1:
+                    continue
 
-                # Relative direction
+                dist = abs(dx) + abs(dy)  # Manhattan distance
                 rel_dir = self._get_relative_direction(agent.orientation, dx, dy)
                 dist_desc = self._get_distance_description(dist)
 
-                # Check terrain
+                # --- Terrain ---
                 terrain_type = CellType(grid.terrain[ny, nx])
                 if terrain_type == CellType.WALL:
-                    descriptions.append(f"a wall {rel_dir} ({dist_desc})")
+                    # Only mention walls directly ahead at distance 1 (blocking)
+                    if (nx, ny) == faced_pos:
+                        low.append("a wall ahead (blocking)")
                 elif terrain_type == CellType.HAZARD:
-                    descriptions.append(f"a hazard {rel_dir} ({dist_desc})")
+                    high.append(f"a hazard {rel_dir} ({dist_desc})")
                 elif terrain_type == CellType.WATER:
-                    descriptions.append(f"water {rel_dir} ({dist_desc})")
+                    if dist <= 2:
+                        low.append(f"water {rel_dir} ({dist_desc})")
 
-                # Check objects
+                # --- Objects (always high priority) ---
                 obj_type = ObjectType(grid.objects[ny, nx])
                 if obj_type == ObjectType.GOAL:
-                    descriptions.append(f"a goal {rel_dir} ({dist_desc})")
+                    high.append(f"a goal {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.KEY:
-                    descriptions.append(f"a key {rel_dir} ({dist_desc})")
+                    color_name = _KEY_COLOR_NAMES.get(meta_val, "")
+                    high.append(f"a {color_name}key {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.DOOR:
-                    descriptions.append(f"a door {rel_dir} ({dist_desc})")
+                    if meta_val >= 10:
+                        color_name = _DOOR_COLOR_NAMES.get(meta_val - 10, "")
+                        high.append(
+                            f"an open {color_name}door {rel_dir} ({dist_desc})"
+                        )
+                    else:
+                        color_name = _DOOR_COLOR_NAMES.get(meta_val, "")
+                        high.append(
+                            f"a closed {color_name}door {rel_dir} ({dist_desc})"
+                        )
                 elif obj_type == ObjectType.BOX:
-                    descriptions.append(f"a box {rel_dir} ({dist_desc})")
+                    high.append(f"a box {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.SWITCH:
-                    descriptions.append(f"a switch {rel_dir} ({dist_desc})")
+                    if meta_val >= 100:
+                        high.append(
+                            f"an activated switch {rel_dir} ({dist_desc})"
+                        )
+                    else:
+                        high.append(f"a switch {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.LEVER:
+                    if meta_val > 0:
+                        high.append(
+                            f"an activated lever {rel_dir} ({dist_desc})"
+                        )
+                    else:
+                        high.append(f"a lever {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.RESOURCE:
+                    if meta_val > 0:
+                        high.append(
+                            f"a resource station (energy: {meta_val}) "
+                            f"{rel_dir} ({dist_desc})"
+                        )
+                    else:
+                        high.append(
+                            f"an empty resource station {rel_dir} ({dist_desc})"
+                        )
                 elif obj_type == ObjectType.NPC:
-                    meta_val = int(grid.metadata[ny, nx])
-                    _npc_names = {
-                        1: "Follower NPC", 3: "Fearful NPC",
-                        4: "Mirror NPC", 5: "Contrarian NPC",
-                    }
                     npc_name = _npc_names.get(meta_val, "NPC")
-                    descriptions.append(f"a {npc_name} {rel_dir} ({dist_desc})")
+                    high.append(f"a {npc_name} {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.ENEMY:
-                    descriptions.append(f"an enemy {rel_dir} ({dist_desc})")
+                    high.append(f"an enemy {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.GEM:
-                    descriptions.append(f"a gem {rel_dir} ({dist_desc})")
+                    high.append(f"a gem {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.ORB:
-                    descriptions.append(f"an orb {rel_dir} ({dist_desc})")
+                    high.append(f"an orb {rel_dir} ({dist_desc})")
 
-        # Check for nearby entities
+        # Nearby entities
         for entity in entities:
             ex, ey = entity.position
             dx = ex - ax
@@ -353,12 +411,13 @@ class AdvancedLanguageRenderer:
             if dist <= max_dist:
                 rel_dir = self._get_relative_direction(agent.orientation, dx, dy)
                 dist_desc = self._get_distance_description(dist)
-                entity_name = entity.entity_type
-                descriptions.append(f"a {entity_name} {rel_dir} ({dist_desc})")
+                high.append(f"a {entity.entity_type} {rel_dir} ({dist_desc})")
+
+        # Combine: high-priority first, then low-priority
+        descriptions = high + low
 
         if descriptions:
             if self.config.verbosity == "minimal":
-                # Only show nearest few
                 descriptions = descriptions[:3]
             return "You see: " + ", ".join(descriptions) + "."
         elif self.config.verbosity != "minimal":

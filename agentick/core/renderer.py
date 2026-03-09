@@ -132,6 +132,15 @@ class ASCIIRenderer:
                 row = clue_parts[row_start:row_start + max_per_line]
                 output.append("Clue: " + "  ".join(row))
 
+        if "DistributionShift" in task_name:
+            remap = task_config.get("_action_remap")
+            phase = task_config.get("_current_phase", 0)
+            if remap:
+                output.append(f"Phase: {phase}  Controls remapped: {remap}")
+
+        if "LightsOut" in task_name:
+            output.append("LightsOut: 1=lit, 2=unlit")
+
         # Build character grid
         char_grid = np.full((grid.height, grid.width), ".", dtype=object)
         color_grid = np.full((grid.height, grid.width), "empty", dtype=object)
@@ -139,13 +148,24 @@ class ASCIIRenderer:
         # Terrain layer
         for y in range(grid.height):
             for x in range(grid.width):
+                # Fog of war: metadata == -1 means fogged/unexplored
+                if int(grid.metadata[y, x]) == -1:
+                    char_grid[y, x] = " "
+                    color_grid[y, x] = "wall"
+                    continue
+
                 terrain_val = int(grid.terrain[y, x])
                 if terrain_val == CellType.EMPTY:
                     char_grid[y, x] = "."
                     color_grid[y, x] = "empty"
                 elif terrain_val == CellType.WALL:
                     char_grid[y, x] = "#"
-                    color_grid[y, x] = "wall"
+                    # Barrier walls: metadata encodes color group
+                    _BARRIER_COLORS = {
+                        1: "hazard", 2: "agent", 3: "goal", 4: "coin", 5: "scroll",
+                    }
+                    wall_meta = int(grid.metadata[y, x])
+                    color_grid[y, x] = _BARRIER_COLORS.get(wall_meta, "wall")
                 elif terrain_val == CellType.HAZARD:
                     char_grid[y, x] = "X"
                     color_grid[y, x] = "hazard"
@@ -162,26 +182,45 @@ class ASCIIRenderer:
         # Objects layer
         for y in range(grid.height):
             for x in range(grid.width):
+                # Skip fogged cells
+                if int(grid.metadata[y, x]) == -1:
+                    continue
                 obj_val = int(grid.objects[y, x])
                 if obj_val == ObjectType.GOAL:
                     char_grid[y, x] = "G"
                     color_grid[y, x] = "goal"
                 elif obj_val == ObjectType.KEY:
                     meta_val = int(grid.metadata[y, x])
-                    _KEY_COLORS = {0: "key", 1: "hazard", 2: "agent"}
+                    _KEY_COLORS = {0: "key", 1: "hazard", 2: "agent", 3: "goal"}
                     char_grid[y, x] = "K"
                     color_grid[y, x] = _KEY_COLORS.get(meta_val, "key")
                 elif obj_val == ObjectType.DOOR:
                     meta_val = int(grid.metadata[y, x])
-                    _DOOR_COLORS = {0: "door", 1: "hazard", 2: "agent"}
-                    char_grid[y, x] = "D"
-                    color_grid[y, x] = _DOOR_COLORS.get(meta_val, "door")
+                    _DOOR_COLORS = {0: "door", 1: "hazard", 2: "agent", 3: "goal"}
+                    if meta_val >= 10:
+                        # Open door: lowercase
+                        char_grid[y, x] = "d"
+                        color_idx = meta_val - 10
+                        color_grid[y, x] = _DOOR_COLORS.get(color_idx, "goal")
+                    else:
+                        # Closed door: uppercase
+                        char_grid[y, x] = "D"
+                        color_grid[y, x] = _DOOR_COLORS.get(meta_val, "door")
                 elif obj_val == ObjectType.SWITCH:
                     meta_val = int(grid.metadata[y, x])
-                    # GraphColoring: show assigned color as digit; 0 = uncolored
                     _GC_COLORS = {0: "key", 1: "hazard", 2: "agent", 3: "goal", 4: "coin"}
-                    color_grid[y, x] = _GC_COLORS.get(meta_val, "key")
-                    char_grid[y, x] = str(meta_val) if meta_val > 0 else "N"
+                    if meta_val >= 100:
+                        # Activated switch (BacktrackPuzzle, SwitchCircuit)
+                        char_grid[y, x] = "s"
+                        color_grid[y, x] = "goal"
+                    elif meta_val > 0:
+                        # GraphColoring color digit
+                        char_grid[y, x] = str(meta_val)
+                        color_grid[y, x] = _GC_COLORS.get(meta_val, "key")
+                    else:
+                        # Off / uncolored
+                        char_grid[y, x] = "S"
+                        color_grid[y, x] = "wall"
                 elif obj_val == ObjectType.BOX:
                     meta_val = int(grid.metadata[y, x])
                     if meta_val >= 100:
@@ -234,14 +273,30 @@ class ASCIIRenderer:
                     char_grid[y, x] = "t"
                     color_grid[y, x] = "key"
                 elif obj_val == ObjectType.RESOURCE:
-                    char_grid[y, x] = "r"
-                    color_grid[y, x] = "key"
+                    energy = int(grid.metadata[y, x])
+                    if energy > 0:
+                        digit = min(9, max(1, energy // 11 + 1))
+                        char_grid[y, x] = str(digit)
+                        if energy > 60:
+                            color_grid[y, x] = "goal"
+                        elif energy > 30:
+                            color_grid[y, x] = "coin"
+                        else:
+                            color_grid[y, x] = "hazard"
+                    else:
+                        char_grid[y, x] = "r"
+                        color_grid[y, x] = "key"
                 elif obj_val == ObjectType.BREADCRUMB:
                     char_grid[y, x] = "*"
                     color_grid[y, x] = "key"
                 elif obj_val == ObjectType.NPC:
-                    char_grid[y, x] = "N"
-                    color_grid[y, x] = "npc"
+                    npc_meta = int(grid.metadata[y, x])
+                    _NPC_TYPE_CHARS = {1: "F", 3: "X", 4: "M", 5: "C"}
+                    _NPC_TYPE_COLORS = {
+                        1: "water", 3: "goal", 4: "scroll", 5: "coin",
+                    }
+                    char_grid[y, x] = _NPC_TYPE_CHARS.get(npc_meta, "N")
+                    color_grid[y, x] = _NPC_TYPE_COLORS.get(npc_meta, "npc")
                 elif obj_val == ObjectType.ENEMY:
                     char_grid[y, x] = "E"
                     color_grid[y, x] = "enemy"
@@ -255,13 +310,24 @@ class ASCIIRenderer:
                     char_grid[y, x] = "d"
                     color_grid[y, x] = "gem"
                 elif obj_val == ObjectType.LEVER:
-                    char_grid[y, x] = "L"
-                    color_grid[y, x] = "lever"
+                    lever_meta = int(grid.metadata[y, x])
+                    if lever_meta > 0:
+                        char_grid[y, x] = "l"
+                        color_grid[y, x] = "goal"
+                    else:
+                        char_grid[y, x] = "L"
+                        color_grid[y, x] = "lever"
                 elif obj_val == ObjectType.POTION:
                     char_grid[y, x] = "P"
                     color_grid[y, x] = "potion"
                 elif obj_val == ObjectType.SCROLL:
-                    char_grid[y, x] = "?"
+                    scroll_meta = int(grid.metadata[y, x])
+                    if scroll_meta > 0:
+                        direction = scroll_meta // 10
+                        _DIR_CHARS = {0: "^", 1: ">", 2: "v", 3: "<"}
+                        char_grid[y, x] = _DIR_CHARS.get(direction, "?")
+                    else:
+                        char_grid[y, x] = "?"
                     color_grid[y, x] = "scroll"
                 elif obj_val == ObjectType.COIN:
                     char_grid[y, x] = "c"
@@ -286,11 +352,14 @@ class ASCIIRenderer:
         obj_val = int(grid.objects[ay, ax])
         if obj_val != ObjectType.NONE:
             # Multi-character representation
-            obj_char = {
-                ObjectType.GOAL: "G",
-                ObjectType.KEY: "K",
-                ObjectType.DOOR: "D",
-            }.get(obj_val, "")
+            if obj_val == ObjectType.DOOR:
+                door_meta = int(grid.metadata[ay, ax])
+                obj_char = "d" if door_meta >= 10 else "D"
+            else:
+                obj_char = {
+                    ObjectType.GOAL: "G",
+                    ObjectType.KEY: "K",
+                }.get(obj_val, "")
             if obj_char:
                 char_grid[ay, ax] = f"{direction_chars[agent.orientation]}{obj_char}"
 
@@ -335,24 +404,33 @@ class ASCIIRenderer:
              "Agent (facing direction)", "agent"),
             ("#", "Wall", "wall"),
             (".", "Empty space", ""),
+            (" ", "Fog (unexplored)", "wall"),
             ("G", "Goal", "goal"),
             ("K", "Key", "key"),
-            ("D", "Door", "door"),
-            ("N", "Switch", "npc"),
+            ("D", "Door (closed)", "door"),
+            ("d", "Door (open) / Gem", "gem"),
+            ("S", "Switch (off)", "wall"),
+            ("s", "Switch (on)", "goal"),
+            ("L", "Lever (off)", "lever"),
+            ("l", "Lever (on)", "goal"),
+            ("N", "NPC", "npc"),
+            ("F", "Follower NPC", "water"),
+            ("X", "Fearful NPC / Hazard", "hazard"),
+            ("M", "Mirror NPC", "scroll"),
+            ("C", "Contrarian NPC", "coin"),
             ("B", "Box", "box"),
             ("T", "Target", "goal"),
-            ("X", "Hazard", "hazard"),
             ("~", "Water", "water"),
             ("E", "Enemy", "enemy"),
             ("o", "Sheep", "goal"),
-            ("d", "Gem", "gem"),
-            ("L", "Lever", "lever"),
             ("P", "Potion", "potion"),
             ("?", "Scroll", "scroll"),
+            ("^ > v <", "Scroll (directional clue)", "scroll"),
             ("c", "Coin", "coin"),
             ("O", "Orb", "orb"),
             ("t", "Tool", "key"),
-            ("r", "Resource", "key"),
+            ("r", "Resource (empty)", "key"),
+            ("1-9", "Resource (energy level) / Switch color", "coin"),
             ("*", "Breadcrumb", "key"),
         ]
 
