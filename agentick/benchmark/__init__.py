@@ -1,6 +1,6 @@
 """Benchmark suite for Agentick."""
 
-from agentick.benchmark.baselines import GreedyAgent, OracleAgent, RandomAgent
+from agentick.benchmark.baselines import RandomAgent
 from agentick.benchmark.leaderboard import Leaderboard
 from agentick.benchmark.metrics import (
     agentick_score,
@@ -24,7 +24,5 @@ __all__ = [
     "capability_profile",
     "agentick_score",
     "RandomAgent",
-    "GreedyAgent",
-    "OracleAgent",
     "Leaderboard",
 ]

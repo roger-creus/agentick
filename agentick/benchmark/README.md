@@ -12,8 +12,6 @@ Evaluation framework for running agents on predefined task suites and computing 
 ### `baselines.py` -- Baseline Agents
 
 - **`RandomAgent`** -- uniform random action selection from valid actions. Seeded via `np.random.default_rng`.
-- **`GreedyAgent`** -- heuristic that parses `state_dict` to locate the goal and moves toward it greedily (Manhattan priority: larger axis first).
-- **`OracleAgent`** -- optimal solver (imported but defined elsewhere).
 
 ### `metrics.py` -- Metric Functions
 

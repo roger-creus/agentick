@@ -1,13 +1,12 @@
 name: qwen35_4b_lang_reasoner
-description: Qwen3.5-4B VLM, markovian reasoner (CoT), pixel+language observations
+description: Qwen3.5-4B LLM, markovian reasoner (CoT), language observations
 agent:
-  type: vlm
+  type: llm
   hyperparameters:
-    backend: vllm_vlm
+    backend: vllm_llm
     model: Qwen/Qwen3.5-4B
     harness: markovian_reasoner
     observation_modes:
-    - rgb_array
     - language
     dtype: float16
     max_new_tokens: 16384
@@ -28,12 +27,12 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- rgb_array
+- language
 record_trajectories: true
 record_videos: true
-output_dir: results/vlm_benchmarks
+output_dir: results/llm_benchmarks
 tags:
-- vlm
+- llm
 - qwen35-4b
 - benchmark
 - lang

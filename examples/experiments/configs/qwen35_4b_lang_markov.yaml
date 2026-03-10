@@ -1,16 +1,15 @@
 name: qwen35_4b_lang_markov
-description: Qwen3.5-4B VLM, markovian zero-shot, pixel+language observations
+description: Qwen3.5-4B LLM, markovian zero-shot, language observations
 agent:
-  type: vlm
+  type: llm
   hyperparameters:
-    backend: vllm_vlm
+    backend: vllm_llm
     model: Qwen/Qwen3.5-4B
     harness: markovian_zero_shot
     observation_modes:
-    - rgb_array
     - language
     dtype: float16
-    max_new_tokens: 16
+    max_new_tokens: 16384
     temperature: 0.7
     top_p: 0.8
     top_k: 20
@@ -28,12 +27,12 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- rgb_array
+- language
 record_trajectories: true
 record_videos: true
-output_dir: results/vlm_benchmarks
+output_dir: results/llm_benchmarks
 tags:
-- vlm
+- llm
 - qwen35-4b
 - benchmark
 - lang

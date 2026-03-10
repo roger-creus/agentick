@@ -77,6 +77,16 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
                 # Run episode
                 obs, info = env.reset(seed=seed)
 
+                # Create oracle if needed
+                _oracle = None
+                if config.agent.type == "oracle":
+                    from agentick.oracles import get_oracle
+                    try:
+                        _oracle = get_oracle(task_name, env)
+                        _oracle.reset(obs, info)
+                    except ValueError:
+                        pass
+
                 trajectory = {
                     "seed": seed,
                     "seed_idx": seed_idx,
@@ -92,8 +102,13 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
                 total_reward = 0.0
 
                 while not (terminated or truncated):
-                    action = env.action_space.sample()
+                    if _oracle is not None:
+                        action = _oracle.act(obs, info)
+                    else:
+                        action = env.action_space.sample()
                     obs, reward, terminated, truncated, info = env.step(action)
+                    if _oracle is not None:
+                        _oracle.update(obs, info)
                     total_reward += reward
                     step_count += 1
 
@@ -291,6 +306,7 @@ class ExperimentRunner:
 
         # Create agent if config specifies LLM/VLM
         self.agent = None
+        self._agent_type = config.agent.type
         if config.agent.type in ("llm", "vlm"):
             from agentick.agents.factory import create_agent
 
@@ -693,6 +709,10 @@ class ExperimentRunner:
             else:
                 render_mode = None
 
+            # For oracle/random, use a simple render mode
+            if render_mode is None and self._agent_type in ("oracle", "random"):
+                render_mode = "ascii"  # lightweight for non-visual agents
+
             # Use batched execution automatically for vLLM backends
             use_batched = (
                 self.agent is not None
@@ -1027,6 +1047,15 @@ class ExperimentRunner:
         """Run a single episode."""
         is_agent = self.agent is not None
 
+        # Create oracle agent if needed (per-episode, needs env)
+        oracle_agent = None
+        if self._agent_type == "oracle":
+            from agentick.oracles import get_oracle
+            try:
+                oracle_agent = get_oracle(task_name, env)
+            except ValueError:
+                print(f"  Warning: No oracle for {task_name}, using random actions")
+
         if is_agent:
             print(
                 f"\n{'=' * 60}\n"
@@ -1037,6 +1066,9 @@ class ExperimentRunner:
 
         obs, info = env.reset(seed=seed)
         self._inject_secondary_obs(env, info)
+
+        if oracle_agent is not None:
+            oracle_agent.reset(obs, info)
 
         # Reset agent state at episode start
         if is_agent:
@@ -1068,11 +1100,15 @@ class ExperimentRunner:
             # Get action from agent or fall back to random
             if is_agent:
                 action = self.agent.act(obs, info)
+            elif oracle_agent is not None:
+                action = oracle_agent.act(obs, info)
             else:
                 action = env.action_space.sample()
 
             # Step environment
             obs, reward, terminated, truncated, info = env.step(action)
+            if oracle_agent is not None:
+                oracle_agent.update(obs, info)
             self._inject_secondary_obs(env, info)
 
             # Collect video frame

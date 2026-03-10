@@ -3,7 +3,7 @@
 import pytest
 
 import agentick
-from agentick.benchmark.baselines import OracleAgent
+from agentick.oracles import get_oracle
 
 
 @pytest.mark.parametrize("task_name", ["GoToGoal-v0", "KeyDoorPuzzle-v0"])
@@ -11,7 +11,7 @@ from agentick.benchmark.baselines import OracleAgent
 def test_instances_solvable(task_name):
     """Test that generated instances are solvable by oracle."""
     env = agentick.make(task_name, difficulty="easy", reward_mode="sparse")
-    oracle = OracleAgent(env)
+    oracle = get_oracle(task_name, env)
 
     try:
         solvable_count = 0
@@ -19,13 +19,11 @@ def test_instances_solvable(task_name):
 
         for seed in range(total_count):
             obs, info = env.reset(seed=seed)
+            oracle.reset(obs, info)
 
-            # Try oracle for first action
-            state_dict = env.get_state_dict()
-            valid_actions = env.get_valid_actions()
-            action = oracle.act(obs, valid_actions, state_dict)
+            # If oracle can produce an action, instance is likely solvable
+            action = oracle.act(obs, info)
 
-            # If oracle can find first action, instance is likely solvable
             if action is not None:
                 solvable_count += 1
 

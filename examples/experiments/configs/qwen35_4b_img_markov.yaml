@@ -9,7 +9,7 @@ agent:
     observation_modes:
     - rgb_array
     dtype: float16
-    max_new_tokens: 16
+    max_new_tokens: 16384
     temperature: 0.7
     top_p: 0.8
     top_k: 20

@@ -1,0 +1,27 @@
+name: random_agent
+description: Uniform random action selection baseline
+agent:
+  type: random
+  hyperparameters: {}
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
+training: null
+n_episodes: 1
+n_seeds: 25
+render_modes:
+- ascii
+record_trajectories: true
+record_videos: false
+output_dir: results/baseline_benchmarks
+tags:
+- baseline
+- random
+metrics:
+- mean_return
+- success_rate
+- mean_length
+split: eval
