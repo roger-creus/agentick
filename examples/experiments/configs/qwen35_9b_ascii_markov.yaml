@@ -1,0 +1,46 @@
+name: qwen35_9b_ascii_markov
+description: Qwen3.5-9B LLM, markovian zero-shot, ASCII-only observations
+agent:
+  type: llm
+  hyperparameters:
+    backend: vllm_llm
+    model: Qwen/Qwen3.5-9B
+    harness: markovian_zero_shot
+    observation_modes:
+    - ascii
+    dtype: float16
+    max_new_tokens: 16384
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    min_p: 0.0
+    gpu_memory_utilization: 0.9
+    enable_prefix_caching: true
+    tensor_parallel_size: 1
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
+training: null
+n_episodes: 1
+n_seeds: 25
+render_modes:
+- ascii
+record_trajectories: true
+record_videos: true
+output_dir: results/llm_benchmarks
+tags:
+- llm
+- qwen35-9b
+- benchmark
+- ascii
+- markov
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- mean_latency
+- total_tokens
+split: eval

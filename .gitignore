@@ -87,3 +87,6 @@ docs/showcase/videos/
 
 # Logs
 logs/
+
+# Local SLURM helper scripts
+examples/experiments/slurm/find_missing.sh

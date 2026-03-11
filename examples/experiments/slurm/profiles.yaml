@@ -24,11 +24,29 @@ classification:
   # Qwen3.5-4B img configs
   - { pattern: "qwen35_4b_img_*",               profile: local_vlm_1g_16h }
 
+  # Qwen3.5-0.8B ascii/lang configs
+  - { pattern: "qwen35_0_8b_ascii_markov*",    profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_0_8b_ascii_reasoner*",  profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_0_8b_lang_markov*",     profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_0_8b_lang_reasoner*",   profile: local_vlm_1g_12h }
+
+  # Qwen3.5-2B ascii/lang configs
+  - { pattern: "qwen35_2b_ascii_markov*",      profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_2b_ascii_reasoner*",    profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_2b_lang_markov*",       profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_2b_lang_reasoner*",     profile: local_vlm_1g_12h }
+
   # Qwen3.5-4B ascii/lang configs
   - { pattern: "qwen35_4b_ascii_markov*",       profile: local_vlm_1g_12h }
   - { pattern: "qwen35_4b_ascii_reasoner*",     profile: local_vlm_1g_12h }
   - { pattern: "qwen35_4b_lang_markov*",              profile: local_vlm_1g_12h }
   - { pattern: "qwen35_4b_lang_reasoner*",              profile: local_vlm_1g_12h }
+
+  # Qwen3.5-9B ascii/lang configs
+  - { pattern: "qwen35_9b_ascii_markov*",      profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_9b_ascii_reasoner*",    profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_9b_lang_markov*",       profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_9b_lang_reasoner*",     profile: local_vlm_1g_12h }
 
   # Qwen3-4B ascii/lang configs
   - { pattern: "qwen3_4b_ascii_markov*",              profile: local_vlm_1g_12h }

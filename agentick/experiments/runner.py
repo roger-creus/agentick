@@ -1218,6 +1218,7 @@ class ExperimentRunner:
             "return": total_reward,
             "length": step_count,
             "success": trajectory["success"],
+            "steps": trajectory["steps"],
         }
 
         # Include agent stats if available
