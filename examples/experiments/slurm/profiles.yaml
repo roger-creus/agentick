@@ -58,7 +58,25 @@ classification:
   - { pattern: "qwen3_vl4b*_nonmarkov*",        profile: local_vlm_1g_16h }
   - { pattern: "qwen3_vl4b*",                   profile: local_vlm_1g_12h }
 
-  # API models
+  # GPT-5-mini ascii/lang configs
+  - { pattern: "gpt5mini_ascii_markov*",         profile: api_llm }
+  - { pattern: "gpt5mini_ascii_reasoner*",       profile: api_llm }
+  - { pattern: "gpt5mini_lang_markov*",          profile: api_llm }
+  - { pattern: "gpt5mini_lang_reasoner*",        profile: api_llm }
+
+  # Claude Haiku ascii/lang configs
+  - { pattern: "claude_haiku_ascii_markov*",     profile: api_llm }
+  - { pattern: "claude_haiku_ascii_reasoner*",   profile: api_llm }
+  - { pattern: "claude_haiku_lang_markov*",      profile: api_llm }
+  - { pattern: "claude_haiku_lang_reasoner*",    profile: api_llm }
+
+  # Gemini Flash ascii/lang configs
+  - { pattern: "gemini_flash_ascii_markov*",     profile: api_llm }
+  - { pattern: "gemini_flash_ascii_reasoner*",   profile: api_llm }
+  - { pattern: "gemini_flash_lang_markov*",      profile: api_llm }
+  - { pattern: "gemini_flash_lang_reasoner*",    profile: api_llm }
+
+  # API models (generic fallback)
   - { pattern: "claude_sonnet_*",               profile: api_llm }
   - { pattern: "gpt4o_*",                       profile: api_llm }
   - { pattern: "anthropic_*",                   profile: api_llm }
