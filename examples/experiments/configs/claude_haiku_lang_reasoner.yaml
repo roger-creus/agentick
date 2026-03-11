@@ -1,16 +1,16 @@
-name: gpt4o-language
-description: GPT-4o via OpenAI API, markovian zero-shot, language observations
+name: claude-haiku-lang-reasoner
+description: Claude Haiku 4.5 via Anthropic API, markovian reasoner, language observations
 agent:
   type: llm
   hyperparameters:
-    backend: openai
-    model: gpt-4o
-    harness: markovian_zero_shot
+    backend: anthropic
+    model: claude-haiku-4-5-20251001
+    harness: markovian_reasoner
     observation_modes:
     - language
-    api_key_env: OPENAI_API_KEY
-    max_tokens: 100
-    temperature: 0.7
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 16384
+    temperature: 1.0
 tasks: full
 difficulties:
 - easy
@@ -28,7 +28,8 @@ output_dir: results/api_benchmarks
 tags:
 - llm
 - language
-- gpt4o
+- claude-haiku
+- reasoner
 - api
 - benchmark
 metrics:
@@ -38,4 +39,5 @@ metrics:
 - mean_latency
 - total_tokens
 - total_api_calls
+- total_cost_usd
 split: eval

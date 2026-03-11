@@ -49,9 +49,9 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
     # Collect backend-specific kwargs
     backend_kwargs: dict[str, Any] = {}
     if "model" in hp:
-        backend_kwargs["model" if backend_name in ("openai", "anthropic") else "model_id"] = hp[
-            "model"
-        ]
+        backend_kwargs[
+            "model" if backend_name in ("openai", "anthropic", "gemini") else "model_id"
+        ] = hp["model"]
     for key in (
         "api_key_env",
         "max_tokens",
@@ -88,6 +88,9 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
     for key in ("max_context_tokens", "diff_mode", "max_response_chars"):
         if key in hp:
             harness_kwargs[key] = hp[key]
+    # Pass max_tokens budget to reasoner harnesses
+    if "reasoner" in harness_name and "max_tokens" in hp:
+        harness_kwargs["max_tokens"] = hp["max_tokens"]
     harness = harness_cls(**harness_kwargs)
 
     # --- Observation modes ---

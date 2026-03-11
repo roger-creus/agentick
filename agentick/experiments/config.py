@@ -222,6 +222,7 @@ class ExperimentConfig(BaseModel):
             "mean_latency",
             "total_tokens",
             "total_api_calls",
+            "total_cost_usd",
         ]
         for metric in self.metrics:
             if metric not in valid_metrics:

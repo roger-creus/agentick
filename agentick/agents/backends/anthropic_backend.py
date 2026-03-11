@@ -84,6 +84,26 @@ class AnthropicBackend(ModelBackend):
             f"Anthropic API call failed after {self.max_retries} attempts: {last_error}"
         )
 
+    def generate_batch(
+        self, messages_list: list[list[dict[str, Any]]]
+    ) -> list[BackendResponse]:
+        """Batch generate responses using concurrent threads."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        n = len(messages_list)
+        if n <= 1:
+            return [self.generate(msgs) for msgs in messages_list]
+
+        results: list[BackendResponse | None] = [None] * n
+        with ThreadPoolExecutor(max_workers=n) as pool:
+            futures = {
+                pool.submit(self.generate, msgs): i
+                for i, msgs in enumerate(messages_list)
+            }
+            for future in as_completed(futures):
+                results[futures[future]] = future.result()
+        return results  # type: ignore[return-value]
+
     def _convert_message(self, msg: dict[str, Any]) -> dict[str, Any]:
         """Convert internal message format to Anthropic API format."""
         content = msg["content"]

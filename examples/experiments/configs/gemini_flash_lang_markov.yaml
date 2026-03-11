@@ -1,16 +1,16 @@
-name: gpt4o-ascii
-description: GPT-4o via OpenAI API, markovian zero-shot, ASCII observations
+name: gemini-flash-lang-markov
+description: Gemini 2.5 Flash via Google API, markovian zero-shot, language observations
 agent:
   type: llm
   hyperparameters:
-    backend: openai
-    model: gpt-4o
+    backend: gemini
+    model: gemini-2.5-flash
     harness: markovian_zero_shot
     observation_modes:
-    - ascii
-    api_key_env: OPENAI_API_KEY
-    max_tokens: 100
-    temperature: 0.7
+    - language
+    api_key_env: GOOGLE_API_KEY
+    max_tokens: 128
+    temperature: 1.0
 tasks: full
 difficulties:
 - easy
@@ -21,14 +21,14 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- ascii
+- language
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
 tags:
 - llm
-- ascii
-- gpt4o
+- language
+- gemini
 - api
 - benchmark
 metrics:
@@ -38,4 +38,5 @@ metrics:
 - mean_latency
 - total_tokens
 - total_api_calls
+- total_cost_usd
 split: eval

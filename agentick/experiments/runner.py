@@ -21,6 +21,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+from agentick.agents.backends.base import ModelBackend
 from agentick.experiments.config import ExperimentConfig
 
 
@@ -296,6 +297,9 @@ class ExperimentResults:
         return cls(config, output_dir, metadata, summary, per_task_results)
 
 
+_API_BACKENDS = frozenset({"openai", "anthropic", "gemini"})
+
+
 class ExperimentRunner:
     """Run experiments with progress tracking and crash safety."""
 
@@ -311,6 +315,21 @@ class ExperimentRunner:
             from agentick.agents.factory import create_agent
 
             self.agent = create_agent(config.agent)
+
+        # Create cost tracker for API-based agents
+        self.cost_tracker = None
+        if self._is_api_agent():
+            from agentick.leaderboard.cost_tracker import CostTracker
+
+            model_name = config.agent.hyperparameters.get("model", "unknown")
+            self.cost_tracker = CostTracker(model_name)
+
+    def _is_api_agent(self) -> bool:
+        """Check if the agent uses an API backend."""
+        if self.config.agent.type not in ("llm", "vlm"):
+            return False
+        backend = self.config.agent.hyperparameters.get("backend", "openai")
+        return backend in _API_BACKENDS
 
     def run(
         self,
@@ -488,6 +507,10 @@ class ExperimentRunner:
             print(f"  Figures saved to: {plotter.figures_dir}")
         except Exception as e:
             print(f"  Warning: Failed to generate plots: {e}")
+
+        # Print cost report for API agents
+        if self.cost_tracker is not None:
+            self.cost_tracker.print_report()
 
         print(f"\n✓ Experiment complete: {output_dir}")
         print(f"  Mean return: {summary.get('mean_return', 0):.3f}")
@@ -713,10 +736,11 @@ class ExperimentRunner:
             if render_mode is None and self._agent_type in ("oracle", "random"):
                 render_mode = "ascii"  # lightweight for non-visual agents
 
-            # Use batched execution automatically for vLLM backends
+            # Use batched execution for any backend with a real generate_batch()
             use_batched = (
                 self.agent is not None
-                and hasattr(self.agent.backend, "_llm")  # vLLM backend
+                and type(self.agent.backend).generate_batch
+                is not ModelBackend.generate_batch
             )
 
             if use_batched:
@@ -799,7 +823,7 @@ class ExperimentRunner:
         harness_name = hp.get("harness", "markovian_zero_shot")
         harness_cls = HARNESS_REGISTRY[harness_name]
         harness_kwargs: dict[str, Any] = {}
-        for key in ("max_history", "diff_mode"):
+        for key in ("max_context_tokens", "diff_mode", "max_response_chars", "max_tokens"):
             if key in hp:
                 harness_kwargs[key] = hp[key]
 
@@ -808,6 +832,7 @@ class ExperimentRunner:
             harness_cls=harness_cls,
             harness_kwargs=harness_kwargs,
             obs_modes=self.agent.observation_modes,
+            cost_tracker=self.cost_tracker,
         )
 
         # Batch ALL seeds x episodes together — vLLM handles them in one pass
@@ -920,6 +945,10 @@ class ExperimentRunner:
                 f"    ep[{i}] {status} | {result.episode_length} steps | "
                 f"reward={result.total_reward:.2f}"
             )
+
+        # Print cumulative cost (already updated per-step in BatchedEpisodeRunner)
+        if self.cost_tracker is not None:
+            print(f"  Cumulative API cost: ${self.cost_tracker.get_total_cost():.4f}")
 
         # Clean up envs
         for env in envs:
@@ -1164,6 +1193,15 @@ class ExperimentRunner:
                 f"{ep_latency:.1f}s | {ep_tokens} tokens"
             )
 
+            # Update cost tracker
+            if self.cost_tracker is not None:
+                for entry in self.agent.call_log:
+                    self.cost_tracker.add_call(
+                        input_tokens=entry.get("input_tokens", 0),
+                        output_tokens=entry.get("output_tokens", 0),
+                    )
+                print(f"  Cumulative API cost: ${self.cost_tracker.get_total_cost():.4f}")
+
         # Save episode data
         if self.config.record_trajectories:
             episode_file = episodes_dir / f"seed_{seed_idx}_ep_{ep_idx}.json"
@@ -1267,6 +1305,15 @@ class ExperimentRunner:
                 metrics["total_tokens"] = sum(s.get("total_tokens", 0) for s in agent_stats_list)
             if "total_api_calls" in self.config.metrics:
                 metrics["total_api_calls"] = sum(s.get("total_calls", 0) for s in agent_stats_list)
+            if "total_cost_usd" in self.config.metrics and self.cost_tracker is not None:
+                total_input = sum(s.get("total_input_tokens", 0) for s in agent_stats_list)
+                total_output = sum(s.get("total_output_tokens", 0) for s in agent_stats_list)
+                pricing = self.cost_tracker.pricing
+                cost = (
+                    (total_input / 1_000_000) * pricing["input"]
+                    + (total_output / 1_000_000) * pricing["output"]
+                )
+                metrics["total_cost_usd"] = cost
 
         return metrics
 
@@ -1296,6 +1343,11 @@ class ExperimentRunner:
 
         if all_lengths:
             summary["mean_length"] = float(np.mean(all_lengths))
+
+        # Aggregate cost across all tasks
+        if self.cost_tracker is not None:
+            summary["total_cost_usd"] = self.cost_tracker.get_total_cost()
+            summary["cost_report"] = self.cost_tracker.get_report()
 
         return summary
 

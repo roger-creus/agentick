@@ -40,11 +40,13 @@ class BatchedEpisodeRunner:
         harness_cls: type[HarnessPreset],
         harness_kwargs: dict[str, Any],
         obs_modes: list[str],
+        cost_tracker: Any | None = None,
     ):
         self.backend = backend
         self.harness_cls = harness_cls
         self.harness_kwargs = harness_kwargs
         self.obs_modes = obs_modes
+        self.cost_tracker = cost_tracker
 
     def run_batch(
         self,
@@ -100,7 +102,10 @@ class BatchedEpisodeRunner:
         total_latency = [0.0] * n
         total_calls = [0] * n
 
+        step_num = 0
+
         while any(active):
+            step_num += 1
             # Collect indices and messages for active envs
             active_indices = [i for i in range(n) if active[i]]
 
@@ -117,6 +122,10 @@ class BatchedEpisodeRunner:
             start = time.time()
             responses = self.backend.generate_batch(all_messages)
             batch_latency = time.time() - start
+
+            # Track tokens for this step
+            step_input_tok = 0
+            step_output_tok = 0
 
             # Process responses and step active envs
             for idx_in_batch, env_idx in enumerate(active_indices):
@@ -154,6 +163,8 @@ class BatchedEpisodeRunner:
                 total_input_tokens[env_idx] += response.input_tokens
                 total_output_tokens[env_idx] += response.output_tokens
                 total_latency[env_idx] += batch_latency / len(active_indices)
+                step_input_tok += response.input_tokens
+                step_output_tok += response.output_tokens
 
                 results[env_idx].call_log.append(
                     {
@@ -203,6 +214,26 @@ class BatchedEpisodeRunner:
                 if term or trunc:
                     active[env_idx] = False
                     results[env_idx].success = bool(info.get("success", False))
+
+            # Update cost tracker with this step's tokens
+            if self.cost_tracker is not None:
+                self.cost_tracker.add_call(
+                    input_tokens=step_input_tok,
+                    output_tokens=step_output_tok,
+                )
+
+            # Print per-step progress
+            n_done = sum(1 for a in active if not a)
+            n_active = sum(active)
+            cost_str = ""
+            if self.cost_tracker is not None:
+                cost_str = f" | cost=${self.cost_tracker.get_total_cost():.4f}"
+            print(
+                f"    step {step_num}: {n_active} active, {n_done}/{n} done | "
+                f"{batch_latency:.1f}s | "
+                f"tok={step_input_tok}+{step_output_tok}{cost_str}",
+                flush=True,
+            )
 
         # Compile agent stats
         for i in range(n):

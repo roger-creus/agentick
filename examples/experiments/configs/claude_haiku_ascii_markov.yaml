@@ -1,16 +1,16 @@
-name: gpt4o-vision
-description: GPT-4o via OpenAI API, markovian zero-shot, pixel observations (VLM)
+name: claude-haiku-ascii-markov
+description: Claude Haiku 4.5 via Anthropic API, markovian zero-shot, ASCII observations
 agent:
-  type: vlm
+  type: llm
   hyperparameters:
-    backend: openai
-    model: gpt-4o
+    backend: anthropic
+    model: claude-haiku-4-5-20251001
     harness: markovian_zero_shot
     observation_modes:
-    - rgb_array
-    api_key_env: OPENAI_API_KEY
-    max_tokens: 100
-    temperature: 0.7
+    - ascii
+    api_key_env: ANTHROPIC_API_KEY
+    max_tokens: 128
+    temperature: 1.0
 tasks: full
 difficulties:
 - easy
@@ -21,14 +21,14 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- rgb_array
+- ascii
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
 tags:
-- vlm
-- pixel
-- gpt4o
+- llm
+- ascii
+- claude-haiku
 - api
 - benchmark
 metrics:
@@ -38,4 +38,5 @@ metrics:
 - mean_latency
 - total_tokens
 - total_api_calls
+- total_cost_usd
 split: eval

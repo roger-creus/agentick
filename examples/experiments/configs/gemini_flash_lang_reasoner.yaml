@@ -1,16 +1,16 @@
-name: claude-sonnet-ascii
-description: Claude Sonnet via Anthropic API, markovian zero-shot, ASCII observations
+name: gemini-flash-lang-reasoner
+description: Gemini 2.5 Flash via Google API, markovian reasoner, language observations
 agent:
   type: llm
   hyperparameters:
-    backend: anthropic
-    model: claude-sonnet-4-20250514
-    harness: markovian_zero_shot
+    backend: gemini
+    model: gemini-2.5-flash
+    harness: markovian_reasoner
     observation_modes:
-    - ascii
-    api_key_env: ANTHROPIC_API_KEY
-    max_tokens: 100
-    temperature: 0.7
+    - language
+    api_key_env: GOOGLE_API_KEY
+    max_tokens: 16384
+    temperature: 1.0
 tasks: full
 difficulties:
 - easy
@@ -21,14 +21,15 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- ascii
+- language
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
 tags:
 - llm
-- ascii
-- claude
+- language
+- gemini
+- reasoner
 - api
 - benchmark
 metrics:
@@ -38,4 +39,5 @@ metrics:
 - mean_latency
 - total_tokens
 - total_api_calls
+- total_cost_usd
 split: eval

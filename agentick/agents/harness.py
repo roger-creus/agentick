@@ -353,6 +353,9 @@ def _compact_cot_response(response: str, max_chars: int = 400) -> str:
 class MarkovianReasoner(HarnessPreset):
     """Memoryless chain-of-thought harness: instructs step-by-step reasoning."""
 
+    def __init__(self, max_tokens: int | None = None):
+        self.max_tokens = max_tokens
+
     def build_messages(
         self,
         obs: Any,
@@ -368,6 +371,8 @@ class MarkovianReasoner(HarnessPreset):
             "",
         )
         system_text = system_text.rstrip() + COT_SYSTEM_SUFFIX
+        if self.max_tokens:
+            system_text += f"\nYou have a budget of {self.max_tokens} tokens for your response."
 
         return [
             {"role": "system", "content": system_text},
@@ -408,11 +413,13 @@ class NonMarkovianReasoner(HarnessPreset):
         diff_mode: bool = True,
         max_response_chars: int = 400,
         context_safety_margin: float = 0.80,
+        max_tokens: int | None = None,
     ):
         self.max_context_tokens = max_context_tokens
         self.diff_mode = diff_mode
         self.max_response_chars = max_response_chars
         self.context_safety_margin = context_safety_margin
+        self.max_tokens = max_tokens
         self._steps: list[tuple[str | list[dict[str, Any]], str]] = []
 
     def build_messages(
@@ -429,6 +436,8 @@ class NonMarkovianReasoner(HarnessPreset):
             "",
         )
         system_text = system_text.rstrip() + COT_SYSTEM_SUFFIX_COMPACT
+        if self.max_tokens:
+            system_text += f"\nYou have a budget of {self.max_tokens} tokens for your response."
         system_msg = {"role": "system", "content": system_text}
 
         current_content = _make_user_content(obs, info, obs_modes)

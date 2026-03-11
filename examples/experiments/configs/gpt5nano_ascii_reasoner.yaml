@@ -1,16 +1,16 @@
-name: claude-sonnet-language
-description: Claude Sonnet via Anthropic API, markovian zero-shot, language observations
+name: gpt5nano-ascii-reasoner
+description: GPT-5 Mini via OpenAI API, markovian reasoner, ASCII observations
 agent:
   type: llm
   hyperparameters:
-    backend: anthropic
-    model: claude-sonnet-4-20250514
-    harness: markovian_zero_shot
+    backend: openai
+    model: gpt-5-nano-2025-08-07
+    harness: markovian_reasoner
     observation_modes:
-    - language
-    api_key_env: ANTHROPIC_API_KEY
-    max_tokens: 100
-    temperature: 0.7
+    - ascii
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 16384
+    temperature: 1.0
 tasks: full
 difficulties:
 - easy
@@ -21,14 +21,15 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- language
+- ascii
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
 tags:
 - llm
-- language
-- claude
+- ascii
+- gpt5nano
+- reasoner
 - api
 - benchmark
 metrics:
@@ -38,4 +39,5 @@ metrics:
 - mean_latency
 - total_tokens
 - total_api_calls
+- total_cost_usd
 split: eval

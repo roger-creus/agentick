@@ -38,22 +38,26 @@ class OpenAIBackend(ModelBackend):
             raise ImportError("openai package not installed. Run: uv sync --extra llm")
 
         self._client = OpenAI(api_key=api_key)
+        # Some models (o1, o3, gpt-5-nano) reject temperature — auto-detected on first call
+        self._supports_temperature = True
 
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:
         """Call the OpenAI API with exponential backoff retry."""
-        # Convert our message format to OpenAI format
         oai_messages = self._convert_messages(messages)
 
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 start = time.time()
-                response = self._client.chat.completions.create(
-                    model=self.model,
-                    messages=oai_messages,
-                    max_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                )
+                kwargs: dict[str, Any] = {
+                    "model": self.model,
+                    "messages": oai_messages,
+                    "max_completion_tokens": self.max_tokens,
+                }
+                if self._supports_temperature:
+                    kwargs["temperature"] = self.temperature
+
+                response = self._client.chat.completions.create(**kwargs)
                 latency = time.time() - start
 
                 text = response.choices[0].message.content or ""
@@ -67,6 +71,11 @@ class OpenAIBackend(ModelBackend):
 
             except Exception as e:
                 last_error = e
+                # Auto-drop temperature for models that don't support it
+                if self._supports_temperature and "temperature" in str(e):
+                    self._supports_temperature = False
+                    print(f"  Note: {self.model} does not support temperature, dropping it")
+                    continue
                 if attempt < self.max_retries - 1:
                     time.sleep(2**attempt)
                     continue
@@ -74,6 +83,26 @@ class OpenAIBackend(ModelBackend):
         raise RuntimeError(
             f"OpenAI API call failed after {self.max_retries} attempts: {last_error}"
         )
+
+    def generate_batch(
+        self, messages_list: list[list[dict[str, Any]]]
+    ) -> list[BackendResponse]:
+        """Batch generate responses using concurrent threads."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        n = len(messages_list)
+        if n <= 1:
+            return [self.generate(msgs) for msgs in messages_list]
+
+        results: list[BackendResponse | None] = [None] * n
+        with ThreadPoolExecutor(max_workers=n) as pool:
+            futures = {
+                pool.submit(self.generate, msgs): i
+                for i, msgs in enumerate(messages_list)
+            }
+            for future in as_completed(futures):
+                results[futures[future]] = future.result()
+        return results  # type: ignore[return-value]
 
     def _convert_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert internal message format to OpenAI API format."""
