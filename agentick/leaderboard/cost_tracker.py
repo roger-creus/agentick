@@ -25,7 +25,7 @@ MODEL_PRICING = {
     "gemini-1.5-pro": {"input": 1.25, "output": 5.00},
     "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
     # OpenAI
-    "gpt-5-nano": {"input": 0.05, "output": 0.40},
+    "gpt-5-mini": {"input": 0.125, "output": 1.00},
 }
 
 

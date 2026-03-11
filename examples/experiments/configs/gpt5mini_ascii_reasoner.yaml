@@ -1,10 +1,10 @@
-name: gpt5nano-ascii-reasoner
+name: gpt5mini-ascii-reasoner
 description: GPT-5 Mini via OpenAI API, markovian reasoner, ASCII observations
 agent:
   type: llm
   hyperparameters:
     backend: openai
-    model: gpt-5-nano-2025-08-07
+    model: gpt-5-mini-2025-08-07
     harness: markovian_reasoner
     observation_modes:
     - ascii
@@ -28,7 +28,7 @@ output_dir: results/api_benchmarks
 tags:
 - llm
 - ascii
-- gpt5nano
+- gpt5mini
 - reasoner
 - api
 - benchmark

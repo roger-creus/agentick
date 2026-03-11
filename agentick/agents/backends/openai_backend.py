@@ -38,7 +38,7 @@ class OpenAIBackend(ModelBackend):
             raise ImportError("openai package not installed. Run: uv sync --extra llm")
 
         self._client = OpenAI(api_key=api_key)
-        # Some models (o1, o3, gpt-5-nano) reject temperature — auto-detected on first call
+        # Some models (o1, o3, gpt-5-mini) reject temperature — auto-detected on first call
         self._supports_temperature = True
 
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:

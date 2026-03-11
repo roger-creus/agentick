@@ -1,13 +1,13 @@
-name: gpt5nano-lang-markov
-description: GPT-5 Mini via OpenAI API, markovian zero-shot, language observations
+name: gpt5mini-ascii-markov
+description: GPT-5 Mini via OpenAI API, markovian zero-shot, ASCII observations
 agent:
   type: llm
   hyperparameters:
     backend: openai
-    model: gpt-5-nano-2025-08-07
+    model: gpt-5-mini-2025-08-07
     harness: markovian_zero_shot
     observation_modes:
-    - language
+    - ascii
     api_key_env: OPENAI_API_KEY
     max_tokens: 128
     temperature: 1.0
@@ -21,14 +21,14 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- language
+- ascii
 record_trajectories: true
 record_videos: true
 output_dir: results/api_benchmarks
 tags:
 - llm
-- language
-- gpt5nano
+- ascii
+- gpt5mini
 - api
 - benchmark
 metrics:
