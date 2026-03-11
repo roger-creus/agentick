@@ -12,7 +12,7 @@ profiles:
   local_vlm_1g_23h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "22:59:00", partition: "long" }
   local_llm_4g:     { cpus: 32, gres: "gpu:4", mem: "128G", time: "23:59:00", partition: "lab-real" }
   local_vlm_4g:     { cpus: 32, gres: "gpu:4", mem: "80G",  time: "23:59:00", partition: "long" }
-  api_llm:          { cpus: 4,  gres: "",      mem: "16G",  time: "05:59:00" }
+  api_llm:          { cpus: 4,  gres: "",      mem: "16G",  time: "15:59:00", partition: "long-cpu" }
   baseline:         { cpus: 4,  gres: "",      mem: "8G",   time: "05:59:00" }
 
 # Classification rules — first match wins.
