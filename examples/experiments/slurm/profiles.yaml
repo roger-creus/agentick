@@ -76,12 +76,6 @@ classification:
   - { pattern: "gemini_flash_lang_markov*",      profile: api_llm }
   - { pattern: "gemini_flash_lang_reasoner*",    profile: api_llm }
 
-  # API models (generic fallback)
-  - { pattern: "claude_sonnet_*",               profile: api_llm }
-  - { pattern: "gpt4o_*",                       profile: api_llm }
-  - { pattern: "anthropic_*",                   profile: api_llm }
-  - { pattern: "openai_*",                      profile: api_llm }
-
   # Baselines
   - { pattern: "random_*",                      profile: baseline }
   - { pattern: "oracle_*",                      profile: baseline }

@@ -1,10 +1,10 @@
-name: gemini-flash-lang-markov
-description: Gemini 2.5 Flash via Google API, markovian zero-shot, language observations
+name: gemini-flash-lite-lang-markov
+description: Gemini 2.5 Flash Lite via Google API, markovian zero-shot, language observations
 agent:
   type: llm
   hyperparameters:
     backend: gemini
-    model: gemini-2.5-flash
+    model: gemini-2.5-flash-lite-preview-06-2025
     harness: markovian_zero_shot
     observation_modes:
     - language
@@ -29,6 +29,7 @@ tags:
 - llm
 - language
 - gemini
+- flash-lite
 - api
 - benchmark
 metrics:

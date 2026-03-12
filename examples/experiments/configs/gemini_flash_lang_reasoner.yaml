@@ -8,7 +8,7 @@ agent:
     harness: markovian_reasoner
     observation_modes:
     - language
-    api_key_env: GOOGLE_API_KEY
+    api_key_env: GEMINI_API_KEY
     max_tokens: 16384
     temperature: 1.0
 tasks: full

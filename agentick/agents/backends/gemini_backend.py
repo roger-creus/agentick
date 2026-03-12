@@ -1,7 +1,8 @@
-"""Google Gemini API backend."""
+"""Google Gemini API backend using the google-genai SDK."""
 
 from __future__ import annotations
 
+import base64
 import os
 import time
 from typing import Any
@@ -17,7 +18,7 @@ class GeminiBackend(ModelBackend):
     def __init__(
         self,
         model: str = "gemini-2.5-flash",
-        api_key_env: str = "GOOGLE_API_KEY",
+        api_key_env: str = "GEMINI_API_KEY",
         max_tokens: int = 100,
         temperature: float = 0.0,
         max_retries: int = 3,
@@ -33,14 +34,14 @@ class GeminiBackend(ModelBackend):
             raise ValueError(f"API key not found. Set the {api_key_env} environment variable.")
 
         try:
-            import google.generativeai as genai
+            from google import genai
         except ImportError:
             raise ImportError(
-                "google-generativeai package not installed. Run: uv sync --extra llm"
+                "google-genai package not installed. Run: uv add google-genai"
             )
 
-        genai.configure(api_key=api_key)
-        self._genai = genai
+        self._client = genai.Client(api_key=api_key)
+        self._types = genai.types
 
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:
         """Call the Gemini API with exponential backoff retry."""
@@ -53,19 +54,15 @@ class GeminiBackend(ModelBackend):
             else:
                 chat_messages.append(msg)
 
-        # Create model with system instruction
-        model_kwargs: dict[str, Any] = {}
+        # Build config
+        config_kwargs: dict[str, Any] = {
+            "max_output_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
         if system_text:
-            model_kwargs["system_instruction"] = system_text
+            config_kwargs["system_instruction"] = system_text
 
-        model = self._genai.GenerativeModel(
-            self.model,
-            generation_config=self._genai.types.GenerationConfig(
-                max_output_tokens=self.max_tokens,
-                temperature=self.temperature,
-            ),
-            **model_kwargs,
-        )
+        config = self._types.GenerateContentConfig(**config_kwargs)
 
         # Convert to Gemini content format
         contents = self._convert_messages(chat_messages)
@@ -74,7 +71,11 @@ class GeminiBackend(ModelBackend):
         for attempt in range(self.max_retries):
             try:
                 start = time.time()
-                response = model.generate_content(contents)
+                response = self._client.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=config,
+                )
                 latency = time.time() - start
 
                 text = response.text if response.text else ""
@@ -135,25 +136,25 @@ class GeminiBackend(ModelBackend):
             content = msg["content"]
 
             if isinstance(content, str):
-                contents.append({"role": role, "parts": [content]})
+                contents.append({"role": role, "parts": [{"text": content}]})
             elif isinstance(content, list):
                 parts = []
                 for block in content:
                     if block.get("type") == "text":
-                        parts.append(block["text"])
+                        parts.append({"text": block["text"]})
                     elif block.get("type") == "image":
                         source = block["source"]
-                        import base64
-
                         image_bytes = base64.b64decode(source["data"])
                         parts.append(
                             {
-                                "mime_type": source.get("media_type", "image/png"),
-                                "data": image_bytes,
+                                "inline_data": {
+                                    "mime_type": source.get("media_type", "image/png"),
+                                    "data": image_bytes,
+                                }
                             }
                         )
                 contents.append({"role": role, "parts": parts})
             else:
-                contents.append({"role": role, "parts": [str(content)]})
+                contents.append({"role": role, "parts": [{"text": str(content)}]})
 
         return contents
