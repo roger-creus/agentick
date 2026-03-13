@@ -65,6 +65,10 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         "quantization",
         "max_new_tokens",
         "enable_thinking",
+        # Rate limiting (Gemini)
+        "rpm_limit",
+        "tpm_limit",
+        "max_concurrent_requests",
         # vLLM-specific kwargs
         "gpu_memory_utilization",
         "enable_prefix_caching",

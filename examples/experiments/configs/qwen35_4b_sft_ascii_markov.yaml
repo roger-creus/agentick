@@ -1,13 +1,13 @@
-name: qwen35_0_8b_lang_markov
-description: Qwen3.5-0.8B LLM, markovian zero-shot, language observations
+name: qwen35_4b_sft_ascii_markov
+description: Qwen3.5-4B SFT (ASCII fine-tuned), markovian zero-shot, ASCII observations
 agent:
   type: llm
   hyperparameters:
     backend: vllm_llm
-    model: Qwen/Qwen3.5-0.8B
+    model: rogercc/agentick-qwen35-4b-sft-ascii
     harness: markovian_zero_shot
     observation_modes:
-    - language
+    - ascii
     dtype: float16
     max_new_tokens: 8192
     temperature: 0.7
@@ -27,15 +27,15 @@ training: null
 n_episodes: 1
 n_seeds: 25
 render_modes:
-- language
+- ascii
 record_trajectories: true
 record_videos: true
 output_dir: results/llm_benchmarks
 tags:
 - llm
-- qwen35-0.8b
+- qwen35-4b-sft
 - benchmark
-- lang
+- ascii
 - markov
 metrics:
 - mean_return

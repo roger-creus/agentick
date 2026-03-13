@@ -40,6 +40,14 @@ REQUIRED_KEYS: dict[str, str] = {
     "huggingface_vlm": "HUGGING_FACE_HUB_TOKEN",
 }
 
+# Known API rate limits per model (free/default tier).
+# {model_name: {rpm, tpm, max_concurrent_jobs}}
+# max_concurrent_jobs: how many SLURM jobs can safely share the quota.
+API_MODEL_LIMITS: dict[str, dict[str, int]] = {
+    "gemini-2.5-flash-lite": {"rpm": 4000, "tpm": 4_000_000, "max_concurrent_jobs": 4},
+    "gemini-2.5-flash": {"rpm": 1000, "tpm": 1_000_000, "max_concurrent_jobs": 2},
+}
+
 # Suite name → task list mapping (kept in sync with agentick.leaderboard.suites)
 SUITE_TASKS: dict[str, list[str]] = {}
 
@@ -144,6 +152,7 @@ def build_runner_command(
     task: str | None = None,
     output_dir: str | None = None,
     render_mode: str | None = None,
+    difficulties: list[str] | None = None,
 ) -> str:
     """Build the runner command string (to be prefixed with 'uv run').
 
@@ -153,12 +162,15 @@ def build_runner_command(
         task: If set, run only this single task
         output_dir: Optional output directory override
         render_mode: Optional render mode override (e.g. 'rgb_array_flat')
+        difficulties: Optional list of difficulties to run (PPO only)
     """
     if runner_type == "ppo":
         # PPO training: use train_and_eval_ppo.py
         cmd = f"python examples/experiments/train_and_eval_ppo.py --config {config_path}"
         if task:
             cmd += f" --tasks {task}"
+        if difficulties:
+            cmd += f" --difficulties {' '.join(difficulties)}"
         if output_dir:
             cmd += f" --output-dir {output_dir}"
         if render_mode:
@@ -169,6 +181,8 @@ def build_runner_command(
         # agentick.experiments.run has no --tasks CLI flag, so config_path
         # should already point to a per-task config if splitting
         cmd = f"python -m agentick.experiments.run --config {config_path}"
+        if difficulties:
+            cmd += f" --difficulties {' '.join(difficulties)}"
         if output_dir:
             cmd += f" --output-dir {output_dir}"
         return cmd
@@ -205,6 +219,30 @@ def get_required_api_key(config: dict) -> str | None:
     if "openai" in name.lower() or "gpt" in name.lower():
         return "OPENAI_API_KEY"
     return None
+
+
+def get_api_model_limits(config: dict) -> tuple[str, dict[str, int]] | None:
+    """Return (model_name, limits) if this config uses a rate-limited API model."""
+    agent = config.get("agent")
+    if not agent or not isinstance(agent, dict):
+        return None
+    hp = agent.get("hyperparameters", {})
+    model = hp.get("model", "")
+    if model in API_MODEL_LIMITS:
+        return model, API_MODEL_LIMITS[model]
+    return None
+
+
+def inject_rate_limits(config: dict, rpm_limit: int, tpm_limit: int) -> dict:
+    """Inject per-job rate limits into the config's agent hyperparameters."""
+    config = copy.deepcopy(config)
+    hp = config.get("agent", {}).get("hyperparameters", {})
+    # Only inject if not already explicitly set by the user
+    if "rpm_limit" not in hp:
+        hp["rpm_limit"] = rpm_limit
+    if "tpm_limit" not in hp:
+        hp["tpm_limit"] = tpm_limit
+    return config
 
 
 def is_vllm_backend(config: dict) -> bool:
@@ -513,6 +551,7 @@ Examples:
   %(prog)s --configs "ppo_*" --time 12:00:00    PPO with more time
   %(prog)s --exclude "ppo_*" "qwen*"            Skip GPU experiments
   %(prog)s --max-concurrent 50                  Limit parallel jobs
+  %(prog)s --tasks SokobanPush-v0 TileSorting-v0  Only run specific tasks
   %(prog)s --no-split --configs random_agent     One job for entire config
 
 Relaunch failed jobs:
@@ -540,6 +579,14 @@ Relaunch failed jobs:
     parser.add_argument("--output-dir", help="Override results output directory")
     parser.add_argument(
         "--render-mode", help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+    )
+    parser.add_argument(
+        "--tasks", nargs="+", metavar="TASK",
+        help="Only launch these specific tasks (e.g. SokobanPush-v0 TileSorting-v0)",
+    )
+    parser.add_argument(
+        "--difficulties", nargs="+", metavar="DIFF",
+        help="Only run these difficulties (PPO only, e.g. easy expert)",
     )
     parser.add_argument(
         "--no-split", action="store_true",
@@ -604,6 +651,51 @@ Relaunch failed jobs:
     conda_env = args.conda_env or cluster["conda_env"]
     modules = " ".join(cluster["modules"])
 
+    # --- Auto-detect API rate limits ---
+    # Pre-scan configs to count total jobs sharing the same rate-limited API,
+    # then auto-set max_concurrent and per-job rate limits.
+    max_concurrent = args.max_concurrent
+    api_per_job_rpm: int = 0
+    api_per_job_tpm: int = 0
+
+    api_total_jobs = 0
+    api_limits: dict[str, int] | None = None
+    api_model_name: str | None = None
+    for cp in configs:
+        cfg = load_config(cp)
+        result = get_api_model_limits(cfg)
+        if result is None:
+            continue
+        model_name, limits = result
+        api_model_name = model_name
+        api_limits = limits
+        # Count how many jobs this config will produce
+        if args.no_split:
+            api_total_jobs += 1
+        else:
+            tl = resolve_task_list(cfg)
+            if args.tasks and tl:
+                tl = [t for t in tl if t in set(args.tasks)]
+            api_total_jobs += max(len(tl), 1)
+
+    if api_limits and api_total_jobs > 0:
+        model_max_concurrent = api_limits["max_concurrent_jobs"]
+        # Auto-set max_concurrent if user didn't specify
+        if max_concurrent == 0:
+            max_concurrent = min(api_total_jobs, model_max_concurrent)
+        if max_concurrent > 0:
+            effective_concurrent = min(max_concurrent, api_total_jobs)
+        else:
+            effective_concurrent = api_total_jobs
+        # Compute per-job limits (90% of total / concurrent, for safety margin)
+        api_per_job_rpm = int(api_limits["rpm"] * 0.9 / max(effective_concurrent, 1))
+        api_per_job_tpm = int(api_limits["tpm"] * 0.9 / max(effective_concurrent, 1))
+        print(
+            f"[Rate limiting] {api_model_name}: {api_total_jobs} API jobs, "
+            f"max {effective_concurrent} concurrent, "
+            f"{api_per_job_rpm} RPM / {api_per_job_tpm} TPM per job"
+        )
+
     # Build the job list
     jobs: list[dict] = []
     warnings: list[str] = []
@@ -651,6 +743,17 @@ Relaunch failed jobs:
                 )
                 task_list = [None]
 
+            # Filter to specific tasks if --tasks is provided
+            if args.tasks and task_list != [None]:
+                requested = set(args.tasks)
+                task_list = [t for t in task_list if t in requested]
+                if not task_list:
+                    warnings.append(
+                        f"WARNING: {config_path.name} has no matching tasks "
+                        f"from --tasks filter, skipping"
+                    )
+                    continue
+
         # Shared output directory for all per-task jobs of this config.
         # All tasks write into the same folder so results are in one place.
         if args.output_dir:
@@ -681,7 +784,7 @@ Relaunch failed jobs:
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
                     runner_type, rel_config, output_dir=shared_output,
-                    render_mode=args.render_mode,
+                    render_mode=args.render_mode, difficulties=args.difficulties,
                 )
                 display_config = config_path.name
             elif runner_type == "ppo":
@@ -689,16 +792,20 @@ Relaunch failed jobs:
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
                     runner_type, rel_config, task=task, output_dir=shared_output,
-                    render_mode=args.render_mode,
+                    render_mode=args.render_mode, difficulties=args.difficulties,
                 )
                 display_config = f"{config_path.name} [{task}]"
             else:
                 # module / single: embed per-task config inline in the script
-                inline_yaml = make_per_task_config_yaml(config, task)
+                # Inject auto-computed rate limits for API backends
+                cfg_for_task = config
+                if api_per_job_rpm > 0:
+                    cfg_for_task = inject_rate_limits(config, api_per_job_rpm, api_per_job_tpm)
+                inline_yaml = make_per_task_config_yaml(cfg_for_task, task)
                 # Runner will use $_AGENTICK_CFG (set by inline heredoc)
                 runner_cmd = build_runner_command(
                     runner_type, "$_AGENTICK_CFG", output_dir=shared_output,
-                    render_mode=args.render_mode,
+                    render_mode=args.render_mode, difficulties=args.difficulties,
                 )
                 display_config = f"{config_path.name} [{task}]"
 
@@ -748,7 +855,8 @@ Relaunch failed jobs:
 
     if args.dry_run:
         # Group by source config for readability
-        print(f"\n=== DRY RUN: {len(jobs)} jobs would be submitted ===\n")
+        concurrent_str = f" (max {max_concurrent} concurrent)" if max_concurrent > 0 else ""
+        print(f"\n=== DRY RUN: {len(jobs)} jobs would be submitted{concurrent_str} ===\n")
         print(
             f"{'#':>4} | {'Config / Task':<45} | {'Profile':<10} | "
             f"{'Time':<9} | {'GPU':<8} | Runner"
@@ -770,9 +878,8 @@ Relaunch failed jobs:
         print(f"Scripts: {scripts_dir}/")
         return
 
-    # Submit jobs
+    # Submit jobs (max_concurrent was set earlier — auto-computed or from CLI)
     print(f"\nSubmitting {len(jobs)} jobs...\n")
-    max_concurrent = args.max_concurrent
     submitted_ids: list[int] = []
 
     for i, job in enumerate(jobs):

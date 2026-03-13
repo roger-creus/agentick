@@ -212,13 +212,42 @@ class ExperimentResults:
             json.dump(self.metadata, f, indent=2)
 
         # Save per-task results (each task writes its own subdir, no collision)
+        # Merge per_difficulty with existing metrics.json so partial reruns
+        # (e.g. only missing difficulties) don't overwrite complete results.
         for task_name, task_results in self.per_task_results.items():
             task_dir = self.output_dir / "per_task" / task_name
             task_dir.mkdir(parents=True, exist_ok=True)
 
             metrics_path = task_dir / "metrics.json"
+            merged = task_results
+            if metrics_path.exists():
+                try:
+                    with open(metrics_path) as f:
+                        existing = json.load(f)
+                    existing_pd = existing.get("per_difficulty", {})
+                    new_pd = task_results.get("per_difficulty", {})
+                    # Keep existing difficulties, overwrite with new ones
+                    existing_pd.update(new_pd)
+                    merged = dict(existing)
+                    merged["per_difficulty"] = existing_pd
+                    # Recompute aggregate metrics from all difficulties
+                    all_episodes = []
+                    for diff_data in existing_pd.values():
+                        all_episodes.extend(diff_data.get("episodes", []))
+                    if all_episodes:
+                        returns = [ep["return"] for ep in all_episodes]
+                        successes = [ep["success"] for ep in all_episodes]
+                        lengths = [ep["length"] for ep in all_episodes]
+                        merged["aggregate_metrics"] = {
+                            "mean_return": float(np.mean(returns)),
+                            "success_rate": float(np.mean(successes)),
+                            "mean_length": float(np.mean(lengths)),
+                        }
+                except (json.JSONDecodeError, OSError, KeyError):
+                    merged = task_results
+
             with open(metrics_path, "w") as f:
-                json.dump(task_results, f, indent=2)
+                json.dump(merged, f, indent=2)
 
         # Merge summary with existing (other SLURM jobs may have written theirs)
         summary_path = self.output_dir / "summary.json"
@@ -822,9 +851,18 @@ class ExperimentRunner:
         hp = self.config.agent.hyperparameters
         harness_name = hp.get("harness", "markovian_zero_shot")
         harness_cls = HARNESS_REGISTRY[harness_name]
+
+        # Only pass kwargs that the harness class's __init__ actually accepts
+        import inspect
+
         harness_kwargs: dict[str, Any] = {}
+        try:
+            sig = inspect.signature(harness_cls.__init__)
+            valid_params = set(sig.parameters.keys()) - {"self"}
+        except (ValueError, TypeError):
+            valid_params = set()
         for key in ("max_context_tokens", "diff_mode", "max_response_chars", "max_tokens"):
-            if key in hp:
+            if key in hp and key in valid_params:
                 harness_kwargs[key] = hp[key]
 
         runner = BatchedEpisodeRunner(

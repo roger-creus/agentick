@@ -41,6 +41,12 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="Override output directory (all results go here).",
     )
+    parser.add_argument(
+        "--difficulties",
+        nargs="+",
+        default=None,
+        help="Override difficulties to run (e.g. easy expert).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -50,6 +56,9 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     config = load_config(config_path)
+
+    if args.difficulties:
+        config.difficulties = args.difficulties
 
     runner = ExperimentRunner(config)
     runner.run(resume_from=args.resume, n_parallel=args.n_parallel, output_dir=args.output_dir)

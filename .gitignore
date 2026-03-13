@@ -87,6 +87,16 @@ docs/showcase/videos/
 
 # Logs
 logs/
+slurm_logs/
 
 # Local SLURM helper scripts
 examples/experiments/slurm/find_missing.sh
+examples/data_and_finetuning/submit_collect_trajectories.sbatch
+examples/data_and_finetuning/submit_sft.sbatch
+# Cost report script (local only)
+cost_report.sh
+# Temp debug scripts
+check_openai_credits.py
+check_results.sh
+generate_relaunches.py
+relaunch_scripts/

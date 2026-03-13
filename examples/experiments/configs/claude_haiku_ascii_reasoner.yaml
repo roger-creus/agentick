@@ -9,7 +9,7 @@ agent:
     observation_modes:
     - ascii
     api_key_env: ANTHROPIC_API_KEY
-    max_tokens: 16384
+    max_tokens: 8192
     temperature: 1.0
 tasks: full
 difficulties:

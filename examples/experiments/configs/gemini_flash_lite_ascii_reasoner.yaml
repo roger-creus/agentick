@@ -4,12 +4,12 @@ agent:
   type: llm
   hyperparameters:
     backend: gemini
-    model: gemini-2.5-flash-lite-preview-06-2025
+    model: gemini-2.5-flash-lite
     harness: markovian_reasoner
     observation_modes:
     - ascii
     api_key_env: GEMINI_API_KEY
-    max_tokens: 16384
+    max_tokens: 8192
     temperature: 1.0
 tasks: full
 difficulties:

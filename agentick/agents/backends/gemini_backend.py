@@ -3,11 +3,75 @@
 from __future__ import annotations
 
 import base64
+import collections
 import os
+import random
+import threading
 import time
 from typing import Any
 
 from agentick.agents.backends.base import BackendResponse, ModelBackend
+
+
+class _RateLimiter:
+    """Thread-safe sliding-window rate limiter for RPM and TPM."""
+
+    def __init__(self, rpm: int = 0, tpm: int = 0):
+        self.rpm = rpm  # 0 = unlimited
+        self.tpm = tpm  # 0 = unlimited
+        self._request_times: collections.deque[float] = collections.deque()
+        self._token_log: collections.deque[tuple[float, int]] = collections.deque()
+        self._lock = threading.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return self.rpm > 0 or self.tpm > 0
+
+    def acquire(self) -> None:
+        """Block until a request is allowed under RPM/TPM limits."""
+        if not self.enabled:
+            return
+
+        while True:
+            with self._lock:
+                now = time.time()
+                cutoff = now - 60.0
+
+                # Prune old entries
+                while self._request_times and self._request_times[0] < cutoff:
+                    self._request_times.popleft()
+                while self._token_log and self._token_log[0][0] < cutoff:
+                    self._token_log.popleft()
+
+                # Check RPM
+                rpm_ok = self.rpm <= 0 or len(self._request_times) < self.rpm
+
+                # Check TPM
+                tpm_ok = True
+                if self.tpm > 0:
+                    current_tpm = sum(n for _, n in self._token_log)
+                    tpm_ok = current_tpm < self.tpm
+
+                if rpm_ok and tpm_ok:
+                    self._request_times.append(now)
+                    return
+
+                # Calculate how long to sleep
+                if not rpm_ok and self._request_times:
+                    sleep_time = self._request_times[0] - cutoff + 0.05
+                elif not tpm_ok and self._token_log:
+                    sleep_time = self._token_log[0][0] - cutoff + 0.05
+                else:
+                    sleep_time = 1.0
+
+            time.sleep(max(sleep_time, 0.05))
+
+    def record_tokens(self, tokens: int) -> None:
+        """Record token usage after a successful request."""
+        if self.tpm <= 0:
+            return
+        with self._lock:
+            self._token_log.append((time.time(), tokens))
 
 
 class GeminiBackend(ModelBackend):
@@ -21,13 +85,20 @@ class GeminiBackend(ModelBackend):
         api_key_env: str = "GEMINI_API_KEY",
         max_tokens: int = 100,
         temperature: float = 0.0,
-        max_retries: int = 3,
+        max_retries: int = 5,
+        rpm_limit: int = 0,
+        tpm_limit: int = 0,
+        max_concurrent_requests: int = 10,
     ):
         self.name = f"gemini/{model}"
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.max_retries = max_retries
+        self.max_concurrent_requests = max_concurrent_requests
+
+        self._rate_limiter = _RateLimiter(rpm=rpm_limit, tpm=tpm_limit)
+        self._semaphore = threading.Semaphore(max_concurrent_requests)
 
         api_key = os.environ.get(api_key_env)
         if not api_key:
@@ -43,8 +114,19 @@ class GeminiBackend(ModelBackend):
         self._client = genai.Client(api_key=api_key)
         self._types = genai.types
 
+        if self._rate_limiter.enabled:
+            limits = []
+            if rpm_limit > 0:
+                limits.append(f"RPM={rpm_limit}")
+            if tpm_limit > 0:
+                limits.append(f"TPM={tpm_limit}")
+            print(
+                f"[GeminiBackend] Rate limiting: {', '.join(limits)}, "
+                f"max_concurrent={max_concurrent_requests}"
+            )
+
     def generate(self, messages: list[dict[str, Any]]) -> BackendResponse:
-        """Call the Gemini API with exponential backoff retry."""
+        """Call the Gemini API with rate limiting and exponential backoff retry."""
         # Extract system instruction and user/assistant messages
         system_text = ""
         chat_messages = []
@@ -69,6 +151,9 @@ class GeminiBackend(ModelBackend):
 
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
+            # Wait for rate limiter before each attempt
+            self._rate_limiter.acquire()
+
             try:
                 start = time.time()
                 response = self._client.models.generate_content(
@@ -91,6 +176,9 @@ class GeminiBackend(ModelBackend):
                         response.usage_metadata, "candidates_token_count", 0
                     ) or 0
 
+                # Record tokens for TPM tracking
+                self._rate_limiter.record_tokens(input_tokens + output_tokens)
+
                 return BackendResponse(
                     text=text.strip(),
                     input_tokens=input_tokens,
@@ -101,7 +189,17 @@ class GeminiBackend(ModelBackend):
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
-                    time.sleep(2**attempt)
+                    # Longer backoff for rate limit errors (429)
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate" in err_str or "quota" in err_str:
+                        backoff = (2 ** (attempt + 1)) + random.uniform(0, 2)
+                        print(
+                            f"[GeminiBackend] Rate limited (attempt {attempt + 1}/"
+                            f"{self.max_retries}), sleeping {backoff:.1f}s"
+                        )
+                    else:
+                        backoff = 2**attempt + random.uniform(0, 1)
+                    time.sleep(backoff)
                     continue
 
         raise RuntimeError(
@@ -111,17 +209,22 @@ class GeminiBackend(ModelBackend):
     def generate_batch(
         self, messages_list: list[list[dict[str, Any]]]
     ) -> list[BackendResponse]:
-        """Batch generate responses using concurrent threads."""
+        """Batch generate responses using concurrent threads with rate limiting."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         n = len(messages_list)
         if n <= 1:
             return [self.generate(msgs) for msgs in messages_list]
 
+        def _rate_limited_generate(msgs: list[dict[str, Any]]) -> BackendResponse:
+            with self._semaphore:
+                return self.generate(msgs)
+
+        workers = min(n, self.max_concurrent_requests)
         results: list[BackendResponse | None] = [None] * n
-        with ThreadPoolExecutor(max_workers=n) as pool:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
-                pool.submit(self.generate, msgs): i
+                pool.submit(_rate_limited_generate, msgs): i
                 for i, msgs in enumerate(messages_list)
             }
             for future in as_completed(futures):

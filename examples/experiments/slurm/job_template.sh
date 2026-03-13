@@ -9,9 +9,6 @@
 #SBATCH -o {log_dir}/slurm-{job_name}-%j.out
 #SBATCH -e {log_dir}/slurm-{job_name}-%j.err
 
-module load {modules}
-conda activate {conda_env}
-
 {env_exports}
 
 # Per-job compile caches to avoid corruption from concurrent jobs
@@ -26,7 +23,7 @@ echo "Config: {config_display} | Profile: {profile_name} | Started: $(date)"
 # Write inline config to a temporary file (self-contained, no external deps)
 {inline_config_block}
 
-uv run {runner_command}
+uv run --env-file .env {runner_command}
 _exit=$?
 
 {cleanup_block}

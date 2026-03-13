@@ -1,13 +1,14 @@
 cluster:
   partition: long  # default partition (overridden by per-profile partition)
-  conda_env: /home/mila/r/roger.creus-castanyer/miniconda3/envs/agentick
-  modules: [anaconda/3]
+  conda_env: ""   # unused, uv manages the venv
+  modules: []
   log_dir: slurm_logs
 
 # Per-profile partition overrides the global cluster.partition when set.
 profiles:
   ppo:              { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "07:59:00" }
   local_vlm_1g_12h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "11:59:00", partition: "long" }
+  local_llm_sft:    { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "99:59:00", partition: "lab-real" }
   local_vlm_1g_16h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "15:59:00", partition: "long" }
   local_vlm_1g_23h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "22:59:00", partition: "long" }
   local_llm_4g:     { cpus: 32, gres: "gpu:4", mem: "128G", time: "23:59:00", partition: "lab-real" }
@@ -26,33 +27,39 @@ classification:
 
   # Qwen3.5-0.8B ascii/lang configs
   - { pattern: "qwen35_0_8b_ascii_markov*",    profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_0_8b_ascii_reasoner*",  profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_0_8b_ascii_reasoner*",  profile: local_vlm_1g_16h }
   - { pattern: "qwen35_0_8b_lang_markov*",     profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_0_8b_lang_reasoner*",   profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_0_8b_lang_reasoner*",   profile: local_vlm_1g_16h }
 
   # Qwen3.5-2B ascii/lang configs
   - { pattern: "qwen35_2b_ascii_markov*",      profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_2b_ascii_reasoner*",    profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_2b_ascii_reasoner*",    profile: local_vlm_1g_16h }
   - { pattern: "qwen35_2b_lang_markov*",       profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_2b_lang_reasoner*",     profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_2b_lang_reasoner*",     profile: local_vlm_1g_16h }
+
+  # Qwen3.5-4B SFT (ASCII fine-tuned) configs
+  - { pattern: "qwen35_4b_sft_ascii_markov*",    profile: local_llm_sft }
+  - { pattern: "qwen35_4b_sft_ascii_reasoner*",  profile: local_llm_sft }
+  - { pattern: "qwen35_4b_sft_lang_markov*",     profile: local_llm_sft }
+  - { pattern: "qwen35_4b_sft_lang_reasoner*",   profile: local_llm_sft }
 
   # Qwen3.5-4B ascii/lang configs
   - { pattern: "qwen35_4b_ascii_markov*",       profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_4b_ascii_reasoner*",     profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_4b_ascii_reasoner*",     profile: local_vlm_1g_16h }
   - { pattern: "qwen35_4b_lang_markov*",              profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_4b_lang_reasoner*",              profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_4b_lang_reasoner*",              profile: local_vlm_1g_16h }
 
   # Qwen3.5-9B ascii/lang configs
   - { pattern: "qwen35_9b_ascii_markov*",      profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_9b_ascii_reasoner*",    profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_9b_ascii_reasoner*",    profile: local_vlm_1g_16h }
   - { pattern: "qwen35_9b_lang_markov*",       profile: local_vlm_1g_12h }
-  - { pattern: "qwen35_9b_lang_reasoner*",     profile: local_vlm_1g_12h }
+  - { pattern: "qwen35_9b_lang_reasoner*",     profile: local_vlm_1g_16h }
 
   # Qwen3-4B ascii/lang configs
   - { pattern: "qwen3_4b_ascii_markov*",              profile: local_vlm_1g_12h }
-  - { pattern: "qwen3_4b_ascii_reasoner*",              profile: local_vlm_1g_12h }
+  - { pattern: "qwen3_4b_ascii_reasoner*",              profile: local_vlm_1g_16h }
   - { pattern: "qwen3_4b_lang_markov*",               profile: local_vlm_1g_12h }
-  - { pattern: "qwen3_4b_lang_reasoner*",               profile: local_vlm_1g_12h }
+  - { pattern: "qwen3_4b_lang_reasoner*",               profile: local_vlm_1g_16h }
 
   # Qwen3-VL-4B
   - { pattern: "qwen3_vl4b*_nonmarkov*",        profile: local_vlm_1g_16h }
@@ -71,10 +78,10 @@ classification:
   - { pattern: "claude_haiku_lang_reasoner*",    profile: api_llm }
 
   # Gemini Flash ascii/lang configs
-  - { pattern: "gemini_flash_ascii_markov*",     profile: api_llm }
-  - { pattern: "gemini_flash_ascii_reasoner*",   profile: api_llm }
-  - { pattern: "gemini_flash_lang_markov*",      profile: api_llm }
-  - { pattern: "gemini_flash_lang_reasoner*",    profile: api_llm }
+  - { pattern: "gemini_flash_lite_ascii_markov*",     profile: api_llm }
+  - { pattern: "gemini_flash_lite_ascii_reasoner*",   profile: api_llm }
+  - { pattern: "gemini_flash_lite_lang_markov*",      profile: api_llm }
+  - { pattern: "gemini_flash_lite_lang_reasoner*",    profile: api_llm }
 
   # Baselines
   - { pattern: "random_*",                      profile: baseline }
