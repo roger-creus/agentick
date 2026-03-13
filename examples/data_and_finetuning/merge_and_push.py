@@ -331,53 +331,42 @@ def _is_vl_model(model_name: str) -> bool:
 
 
 def _repackage_as_vl_checkpoint(base_model_id: str, merged_dir: Path) -> None:
-    """Convert merged CausalLM checkpoint to VL-format for vLLM.
+    """Repackage merged CausalLM checkpoint into VL-format for vLLM.
 
     VL-first models (e.g. Qwen3.5) are only registered in vLLM under their VL
-    architecture (Qwen3_5ForConditionalGeneration). SFT trains the text backbone
-    via AutoModelForCausalLM, producing CausalLM-format weights that vLLM can't
-    load. This repackages the checkpoint to match the base VL model layout:
-
-    1. Remap weight keys: model.* -> model.language_model.model.*
-                          lm_head.* -> model.language_model.lm_head.*
-    2. Add vision encoder weights from the base VL model
-    3. Replace config.json + processor configs with base model's
+    architecture (Qwen3_5ForConditionalGeneration). AutoModelForCausalLM on
+    these models already produces keys in VL format (model.language_model.*),
+    so no key remapping is needed — we just add vision/MTP weights from the
+    base model and replace config files.
     """
     from huggingface_hub import snapshot_download
     from safetensors.torch import load_file, save_file
 
-    # Step 1: Load merged CausalLM weights and remap keys
-    print("  Step 1/3: Remapping CausalLM weight keys to VL format...")
+    # Step 1: Load merged CausalLM weights (keys already in VL format)
+    print("  Step 1/3: Loading merged CausalLM weights...")
     safetensors_files = sorted(merged_dir.glob("*.safetensors"))
-    causal_state = {}
-    for sf in safetensors_files:
-        causal_state.update(load_file(str(sf)))
-
     vl_state = {}
-    for key, tensor in causal_state.items():
-        # model.layers.X -> model.language_model.model.layers.X
-        # lm_head.weight  -> model.language_model.lm_head.weight
-        vl_state["model.language_model." + key] = tensor
+    for sf in safetensors_files:
+        vl_state.update(load_file(str(sf)))
     text_count = len(vl_state)
-    del causal_state
-    print(f"    Remapped {text_count} text weight keys")
+    print(f"    Loaded {text_count} text weight keys")
 
-    # Step 2: Add vision weights from base model
-    print("  Step 2/3: Adding vision weights from base model...")
+    # Step 2: Add vision + MTP weights from base model
+    print("  Step 2/3: Adding vision/MTP weights from base model...")
     base_dir = Path(snapshot_download(
         base_model_id,
         allow_patterns=["*.safetensors", "config.json", "preprocessor_config.json",
                         "video_preprocessor_config.json"],
     ))
-    vision_count = 0
+    extra_count = 0
     for sf in sorted(base_dir.glob("*.safetensors")):
         shard = load_file(str(sf))
         for key, tensor in shard.items():
             if not key.startswith("model.language_model."):
                 vl_state[key] = tensor
-                vision_count += 1
+                extra_count += 1
         del shard
-    print(f"    Added {vision_count} vision weight keys")
+    print(f"    Added {extra_count} vision/MTP weight keys")
     print(f"    Total: {len(vl_state)} keys")
 
     # Step 3: Save combined checkpoint + copy base model configs
