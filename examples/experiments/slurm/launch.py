@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """SLURM launcher for full benchmark experiments.
 
-Splits each experiment config into one SLURM job per task, so all tasks run
-in parallel across the cluster. Use --no-split to revert to one-job-per-config.
+Splits each experiment config into one SLURM job per (task, difficulty) pair,
+so all combinations run in parallel across the cluster. Use --no-split to
+revert to one-job-per-config.
 
 Usage:
     python examples/experiments/slurm/launch.py --dry-run
@@ -319,16 +320,20 @@ def generate_sbatch_script(
 def make_per_task_config_yaml(
     base_config: dict,
     task_name: str,
+    difficulty: str | None = None,
 ) -> str:
     """Generate per-task YAML config string derived from base_config.
 
-    Overrides the 'tasks' field to a single-element list.
+    Overrides the 'tasks' field to a single-element list and optionally
+    restricts difficulties to a single value.
     The config 'name' is preserved (not modified with task suffix) so that
     all per-task jobs share the same agent identity in results.
     Returns the YAML content as a string (not written to disk).
     """
     cfg = copy.deepcopy(base_config)
     cfg["tasks"] = [task_name]
+    if difficulty:
+        cfg["difficulties"] = [difficulty]
     return yaml.dump(cfg, default_flow_style=False, sort_keys=False)
 
 
@@ -583,7 +588,7 @@ Relaunch failed jobs:
     )
     parser.add_argument(
         "--difficulties", nargs="+", metavar="DIFF",
-        help="Only run these difficulties (PPO only, e.g. easy expert)",
+        help="Only run these difficulties (e.g. easy expert). PPO splits by difficulty.",
     )
     parser.add_argument(
         "--no-split", action="store_true",
@@ -751,6 +756,17 @@ Relaunch failed jobs:
                     )
                     continue
 
+        # Determine difficulty list for per-difficulty splitting.
+        # Each (task, difficulty) pair becomes a separate SLURM job.
+        DEFAULT_DIFFICULTIES = ["easy", "medium", "hard", "expert"]
+        if not args.no_split:
+            if args.difficulties:
+                difficulty_list = list(args.difficulties)
+            else:
+                difficulty_list = config.get("difficulties", DEFAULT_DIFFICULTIES)
+        else:
+            difficulty_list = [None]  # None = don't split by difficulty
+
         # Shared output directory for all per-task jobs of this config.
         # All tasks write into the same folder so results are in one place.
         if args.output_dir:
@@ -761,15 +777,23 @@ Relaunch failed jobs:
             shared_output = f"{base_output}/{config_name}_{timestamp}"
 
         for task in task_list:
+          for difficulty in difficulty_list:
             # Build job name
             if task:
                 task_short = task.removesuffix("-v0")
-                job_name = f"ag-{stem}-{task_short}"
+                if difficulty:
+                    job_name = f"ag-{stem}-{task_short}-{difficulty}"
+                else:
+                    job_name = f"ag-{stem}-{task_short}"
                 # Truncate job name if too long for SLURM (max ~128 chars)
                 if len(job_name) > 100:
                     job_name = job_name[:100]
             else:
                 job_name = f"agentick-{stem}"
+
+            # Per-job difficulty list: single difficulty if splitting, else
+            # whatever the user passed (or None for all).
+            job_difficulties = [difficulty] if difficulty else args.difficulties
 
             # Build config path and runner command for this job.
             # Per-task configs are embedded inline in the sbatch script
@@ -781,7 +805,7 @@ Relaunch failed jobs:
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
                     runner_type, rel_config, output_dir=shared_output,
-                    render_mode=args.render_mode, difficulties=args.difficulties,
+                    render_mode=args.render_mode, difficulties=job_difficulties,
                 )
                 display_config = config_path.name
             elif runner_type == "ppo":
@@ -789,22 +813,24 @@ Relaunch failed jobs:
                 rel_config = config_path.relative_to(PROJECT_ROOT)
                 runner_cmd = build_runner_command(
                     runner_type, rel_config, task=task, output_dir=shared_output,
-                    render_mode=args.render_mode, difficulties=args.difficulties,
+                    render_mode=args.render_mode, difficulties=job_difficulties,
                 )
-                display_config = f"{config_path.name} [{task}]"
+                diff_tag = f"/{difficulty}" if difficulty else ""
+                display_config = f"{config_path.name} [{task}{diff_tag}]"
             else:
                 # module / single: embed per-task config inline in the script
                 # Inject auto-computed rate limits for API backends
                 cfg_for_task = config
                 if api_per_job_rpm > 0:
                     cfg_for_task = inject_rate_limits(config, api_per_job_rpm, api_per_job_tpm)
-                inline_yaml = make_per_task_config_yaml(cfg_for_task, task)
+                inline_yaml = make_per_task_config_yaml(cfg_for_task, task, difficulty)
                 # Runner will use $_AGENTICK_CFG (set by inline heredoc)
                 runner_cmd = build_runner_command(
                     runner_type, "$_AGENTICK_CFG", output_dir=shared_output,
-                    render_mode=args.render_mode, difficulties=args.difficulties,
+                    render_mode=args.render_mode, difficulties=job_difficulties,
                 )
-                display_config = f"{config_path.name} [{task}]"
+                diff_tag = f"/{difficulty}" if difficulty else ""
+                display_config = f"{config_path.name} [{task}{diff_tag}]"
 
             script_content = generate_sbatch_script(
                 template,
@@ -826,7 +852,11 @@ Relaunch failed jobs:
             )
 
             if task:
-                script_name = f"{stem}_{task_short}_{timestamp}.sh"
+                task_short = task.removesuffix("-v0")
+                if difficulty:
+                    script_name = f"{stem}_{task_short}_{difficulty}_{timestamp}.sh"
+                else:
+                    script_name = f"{stem}_{task_short}_{timestamp}.sh"
             else:
                 script_name = f"{stem}_{timestamp}.sh"
             script_path = scripts_dir / script_name

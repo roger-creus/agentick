@@ -100,3 +100,4 @@ check_openai_credits.py
 check_results.sh
 generate_relaunches.py
 relaunch_scripts/
+launch_batch.sh
