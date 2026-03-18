@@ -3,7 +3,7 @@
 Produces beautiful isometric renders using Kenney Isometric Blocks sprites
 via pure Pillow 2D compositing. No 3D engine needed.
 
-Renders the SAME information as the flat 2D SimpleGridRenderer:
+Renders rich visual information:
 - Metadata-driven visuals (fog, lit/unlit, energy levels, colored nodes, etc.)
 - Text labels on tiles for numbered tiles, energy levels, graph coloring, etc.
 - Entity elevation: objects that sit on the floor are drawn one cube height above
@@ -30,7 +30,7 @@ from agentick.rendering.iso_math import (
 from agentick.rendering.tile_atlas import TileAtlas
 
 # --------------------------------------------------------------------------- #
-# Metadata constants — must match SimpleGridRenderer exactly
+# Metadata constants for task-specific rendering
 # --------------------------------------------------------------------------- #
 META_FOG = -1       # FogOfWar: cell hidden under fog
 META_LIT = 1        # LightsOut: cell is lit (bright yellow)
@@ -119,7 +119,7 @@ class IsometricRenderer:
     - Direction arrows: labeled UP/DOWN/LEFT/RIGHT at diamond edges
     - Metadata-driven rendering: fog, lit/unlit, energy, colored nodes, labels
     - Ghost tiles: target slots show faded version of the expected object
-    - Full parity with SimpleGridRenderer visual information
+    - Comprehensive visual information for all 38 tasks
     """
 
     def __init__(

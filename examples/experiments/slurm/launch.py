@@ -161,7 +161,7 @@ def build_runner_command(
         config_path: Path to the YAML config (relative to project root)
         task: If set, run only this single task
         output_dir: Optional output directory override
-        render_mode: Optional render mode override (e.g. 'rgb_array_flat')
+        render_mode: Optional render mode override (e.g. 'rgb_array')
         difficulties: Optional list of difficulties to run (PPO only)
     """
     if runner_type == "ppo":
@@ -578,7 +578,7 @@ Relaunch failed jobs:
     parser.add_argument("--conda-env", help="Override conda env name")
     parser.add_argument("--output-dir", help="Override results output directory")
     parser.add_argument(
-        "--render-mode", help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+        "--render-mode", help="Override render mode (e.g. rgb_array, rgb_array)",
     )
     parser.add_argument(
         "--tasks", nargs="+", metavar="TASK",

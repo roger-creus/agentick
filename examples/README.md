@@ -44,7 +44,7 @@ RL training examples using CleanRL and Stable Baselines3:
 | `sb3_ppo.py` | SB3 PPO with CnnPolicy |
 | `sb3_dqn.py` | SB3 DQN with CnnPolicy |
 
-All pixel-based RL uses `render_mode="rgb_array_flat"` (fast 2D grid).
+All pixel-based RL uses `render_mode="rgb_array"` (isometric 512x512).
 
 ```bash
 uv sync --extra rl

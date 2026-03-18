@@ -4,14 +4,13 @@ Agentick supports multiple observation modes optimized for different agent types
 
 ## Overview
 
-Seven modes via `render_mode`:
+Six modes via `render_mode`:
 - **ASCII**: Colored text grid
 - **Language**: Natural language descriptions
 - **Language Structured**: Dictionary with semantic info
 - **RGB Array**: Isometric sprite-based pixel observations (512x512)
-- **RGB Array Flat**: Flat 2D top-down sprite observations (512x512)
 - **State Dict**: Full state access
-- **Human**: Pygame window
+- **Human**: Isometric display (same as rgb_array, for interactive use)
 
 ## 1. ASCII Mode
 
@@ -114,7 +113,7 @@ env = agentick.make("GoToGoal-v0", render_mode="state_dict", fast_mode=True)
 
 Space: `gymnasium.spaces.Dict`
 
-## 7. Human Mode
+## 6. Human Mode
 
 ```python
 env = agentick.make("GoToGoal-v0", render_mode="human")

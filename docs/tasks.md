@@ -2,6 +2,14 @@
 
 38 procedurally generated tasks across 6 categories. All tasks support 4 difficulty levels (easy/medium/hard/expert), multiple observation modes, and both sparse and dense rewards.
 
+**Browse tasks interactively** — the best way to understand each task is to play it yourself and watch oracle demos in the webapp:
+
+```bash
+uv run python -m agentick.human.webapp   # Opens http://localhost:5000
+```
+
+Or create one programmatically:
+
 ```python
 import agentick
 env = agentick.make("GoToGoal-v0", difficulty="medium", render_mode="language", seed=42)
