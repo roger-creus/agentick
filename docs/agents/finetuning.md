@@ -6,14 +6,14 @@ Fine-tune language models on expert trajectories from Agentick oracles.
 
 Oracle trajectory datasets are available on HuggingFace:
 
-| Dataset | Size | Link |
-|---------|------|------|
-| `rogercc/agentick-oracle-trajectories-100k` | ~100k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) |
-| `rogercc/agentick-oracle-trajectories-50k` | ~50k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) |
-| `rogercc/agentick-oracle-trajectories-200k` | ~200k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) |
-| `rogercc/agentick-oracle-trajectories-400k` | ~400k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) |
+| Dataset | Train | Test | Link |
+|---------|-------|------|------|
+| `rogercc/agentick-oracle-trajectories-50k` | ~50k steps | ~50k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) |
+| `rogercc/agentick-oracle-trajectories-100k` | ~100k steps | ~100k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) |
+| `rogercc/agentick-oracle-trajectories-200k` | ~200k steps | ~200k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) |
+| `rogercc/agentick-oracle-trajectories-400k` | ~400k steps | ~400k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) |
 
-Each dataset contains per-step records with `ascii_render`, `language_render`, `action_int`, `action_name`, `task`, `difficulty`, `reward`, and `done` columns.
+Each dataset is a DatasetDict with train/test splits (using different deterministic seeds). Per-step records with `ascii_render`, `language_render`, `action_int`, `action_name`, `task`, `difficulty`, `reward`, and `done` columns.
 
 ## Pipeline Overview
 
@@ -21,24 +21,28 @@ Each dataset contains per-step records with `ascii_render`, `language_render`, `
 
 ## Step 1: Collect Trajectories (optional)
 
-Skip this if using the pre-built datasets above.
+Skip this if using the pre-built datasets above. The script collects from all 38 tasks x 4 difficulties. Use `--n-test-episodes` to produce a DatasetDict with train/test splits (using different deterministic seeds).
 
 ```bash
-# ~100k steps: all 38 tasks, all difficulties, 10 episodes each
+# ~100k train + ~100k test (25 episodes per split per task-difficulty)
 uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
-    --n-episodes 10 --push-to-hub rogercc/agentick-oracle-trajectories-100k
+    --n-episodes 25 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-100k
 
-# ~50k steps: fewer episodes
+# ~50k train + ~50k test
 uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
-    --n-episodes 5 --push-to-hub rogercc/agentick-oracle-trajectories-50k
+    --n-episodes 12 --n-test-episodes 12 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-50k
 
-# ~200k steps
+# ~200k train + ~200k test
 uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
-    --n-episodes 20 --push-to-hub rogercc/agentick-oracle-trajectories-200k
+    --n-episodes 50 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-200k
 
-# ~400k steps
+# ~400k train + ~400k test
 uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
-    --n-episodes 40 --push-to-hub rogercc/agentick-oracle-trajectories-400k
+    --n-episodes 100 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-400k
 ```
 
 ## Step 2: Fine-Tune with TRL

@@ -143,14 +143,14 @@ uv run python -m agentick.experiments.run --config config.yaml
 
 Pre-built datasets of expert trajectories for SFT fine-tuning:
 
-| Dataset | Steps | Episodes/task-difficulty |
-|---------|-------|------------------------|
-| [`agentick-oracle-trajectories-50k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) | ~50k | 5 |
-| [`agentick-oracle-trajectories-100k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) | ~100k | 10 |
-| [`agentick-oracle-trajectories-200k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) | ~200k | 20 |
-| [`agentick-oracle-trajectories-400k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) | ~400k | 40 |
+| Dataset | Train | Test |
+|---------|-------|------|
+| [`agentick-oracle-trajectories-50k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) | ~50k steps | ~50k steps |
+| [`agentick-oracle-trajectories-100k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) | ~100k steps | ~100k steps |
+| [`agentick-oracle-trajectories-200k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) | ~200k steps | ~200k steps |
+| [`agentick-oracle-trajectories-400k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) | ~400k steps | ~400k steps |
 
-Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
+Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. Train/test use different deterministic seeds. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
 
 ## Leaderboard
 
