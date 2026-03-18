@@ -30,6 +30,7 @@ dependencies = [
     "pyyaml",
     "python-dotenv",
     "tqdm",
+    "jinja2>=3.1",
 ]
 
 [project.scripts]
