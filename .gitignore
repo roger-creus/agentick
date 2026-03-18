@@ -48,7 +48,7 @@ results/
 checkpoints/
 wandb/
 leaderboard_site/
-site/
+/site/
 trajectories/
 data/
 test_output/

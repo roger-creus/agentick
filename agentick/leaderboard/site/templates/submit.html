@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Submit Your Agent</h1>
+<p>Evaluate your agent on all 38 Agentick tasks and submit your results to the leaderboard.</p>
+
+<h2>1. Run the evaluation</h2>
+<p>
+    Evaluate your agent on all 38 tasks, all 4 difficulty levels, using the official eval seeds
+    (25 seeds per task-difficulty). Save results as JSON files in the following layout:
+</p>
+<pre><code>results/my_agent/
+  per_task/
+    GoToGoal-v0/
+      easy.json
+      medium.json
+      hard.json
+      expert.json
+    MazeNavigation-v0/
+      easy.json
+      ...
+    ... (all 38 tasks)</code></pre>
+
+<p>Each difficulty JSON must contain:</p>
+<pre><code>{
+  "task_name": "GoToGoal-v0",
+  "difficulty": "easy",
+  "seeds": [123, 456, ...],           // 25 official eval seeds
+  "episode_returns": [1.0, 0.8, ...], // one float per seed
+  "success_flags": [true, false, ...], // one bool per seed
+  "episode_steps": [42, 100, ...]      // optional
+}</code></pre>
+
+<p>
+    The official eval seeds are generated deterministically. You can obtain them in Python:
+</p>
+<pre><code>from agentick.leaderboard.seeds import get_eval_seeds
+
+seeds = get_eval_seeds("GoToGoal-v0", "easy")  # returns tuple of 25 ints</code></pre>
+
+<h2>2. Validate your results</h2>
+<p>Run the validation script to check completeness and correctness:</p>
+<pre><code>python scripts/validate_submission.py results/my_agent/ \
+    --agent-name "My Agent Name"</code></pre>
+<p>
+    This checks that all 38 tasks and 4 difficulties are present, seeds match the official eval
+    seeds, episode counts are correct (25 per task-difficulty), and computes your Agentick score.
+    If everything passes, it packages your results into a submission zip file.
+</p>
+
+<h2>3. Email your submission</h2>
+<p>Send the zip file to:</p>
+<pre><code>roger.creus-castanyer@mila.quebec</code></pre>
+<p>Use the subject line: <code>[Agentick Submission] Your Agent Name</code></p>
+<p>In the email body, include:</p>
+<ul>
+    <li><strong>Agent name</strong></li>
+    <li><strong>Your name / affiliation</strong></li>
+    <li><strong>Brief description</strong> of the agent</li>
+    <li><strong>Agent type</strong>: rl, llm, vlm, hybrid, human, or other</li>
+    <li><strong>Observation mode</strong>: ascii, language, rgb_array, rgb_array_flat, or state_dict</li>
+    <li><strong>Harness preset</strong> (if using the agentick agent harness)</li>
+    <li><strong>Model name</strong> (e.g., gpt-4o, claude-3.5-sonnet, custom-cnn)</li>
+    <li><strong>Open weights</strong>: yes or no</li>
+</ul>
+
+<h2>Scoring methodology</h2>
+<p>
+    The Agentick score is computed as the mean of per-category success rates (equally weighted
+    across 6 categories: navigation, planning, reasoning, memory, generalization, multi-agent).
+    This ensures each capability contributes equally regardless of the number of tasks it contains.
+    A 95% bootstrap confidence interval is computed over the category means.
+</p>
+
+<h2>Important notes</h2>
+<ul>
+    <li>You must use the official eval seeds &mdash; results with non-matching seeds will be rejected.</li>
+    <li>Each (task, difficulty) must have exactly 25 episodes (one per seed).</li>
+    <li>Submissions are verified by the Agentick team before appearing on the leaderboard.</li>
+    <li>Your agent may be re-evaluated for reproducibility checking.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,126 @@
+"""Static leaderboard site generator."""
+
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from agentick.leaderboard.database import load_entries
+from agentick.leaderboard.scoring import TASK_CAPABILITY_MAP
+
+
+class SiteGenerator:
+    """Generate static leaderboard website."""
+
+    def __init__(
+        self,
+        data_dir: str | Path = "leaderboard_data",
+        output_dir: str | Path = "leaderboard_site",
+    ):
+        """Initialize site generator.
+
+        Args:
+            data_dir: Leaderboard data directory (contains entries.json)
+            output_dir: Output directory for generated site
+        """
+        self.data_dir = Path(data_dir)
+        self.output_dir = Path(output_dir)
+        self.entries_path = self.data_dir / "entries.json"
+
+        # Setup Jinja2
+        template_dir = Path(__file__).parent / "templates"
+        self.env = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+
+    def generate(self) -> None:
+        """Generate complete static site."""
+        print("Generating leaderboard site...")
+
+        # Create output directories
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy assets
+        self._copy_assets()
+
+        # Generate pages
+        self._generate_index()
+        self._generate_about()
+        self._generate_submit()
+
+        print(f"Site generated in {self.output_dir}")
+
+    def _copy_assets(self) -> None:
+        """Copy static assets."""
+        assets_src = Path(__file__).parent / "assets"
+        assets_dst = self.output_dir / "assets"
+
+        if assets_src.exists():
+            shutil.copytree(assets_src, assets_dst, dirs_exist_ok=True)
+
+    def _generate_index(self) -> None:
+        """Generate main leaderboard page."""
+        entries = load_entries(self.entries_path)
+
+        # Build rankings from entries (sorted by agentick_score descending)
+        rankings = []
+        for entry in entries:
+            scores = entry.get("scores", {})
+            ci = scores.get("agentick_score_ci", [0.0, 0.0])
+            rankings.append({
+                "rank": 0,
+                "agent_name": entry.get("agent_name", ""),
+                "author": entry.get("author", ""),
+                "agent_type": entry.get("agent_type", ""),
+                "observation_mode": entry.get("observation_mode", ""),
+                "model": entry.get("model", ""),
+                "score": scores.get("agentick_score", 0.0),
+                "score_ci_lower": ci[0] if len(ci) >= 2 else 0.0,
+                "score_ci_upper": ci[1] if len(ci) >= 2 else 0.0,
+                "per_category": scores.get("per_category", {}),
+                "per_task": scores.get("per_task", {}),
+                "open_weights": entry.get("open_weights", False),
+                "harness": entry.get("harness", ""),
+                "date": entry.get("date", ""),
+            })
+
+        rankings.sort(key=lambda x: x["score"], reverse=True)
+        for i, r in enumerate(rankings):
+            r["rank"] = i + 1
+
+        # Capability list for tabs
+        categories = sorted(set(TASK_CAPABILITY_MAP.values()))
+
+        template = self.env.get_template("index.html")
+        html = template.render(
+            title="Agentick Leaderboard",
+            rankings=rankings,
+            categories=categories,
+        )
+
+        (self.output_dir / "index.html").write_text(html)
+
+    def _generate_about(self) -> None:
+        """Generate about page."""
+        template = self.env.get_template("about.html")
+        html = template.render(title="About Agentick")
+        (self.output_dir / "about.html").write_text(html)
+
+    def _generate_submit(self) -> None:
+        """Generate submission instructions page."""
+        template = self.env.get_template("submit.html")
+        html = template.render(title="Submit Your Agent")
+        (self.output_dir / "submit.html").write_text(html)
+
+
+def main() -> None:
+    """CLI entrypoint for site generation."""
+    generator = SiteGenerator()
+    generator.generate()
+
+
+if __name__ == "__main__":
+    main()

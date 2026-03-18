@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Agentick Leaderboard</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+            --bar-bg: #21262d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+        header nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        header nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            transition: color 0.15s;
+        }
+        header nav a:hover { color: var(--text); }
+        header nav a:first-child {
+            color: var(--accent);
+            font-size: 18px;
+            font-weight: 700;
+            margin-right: auto;
+        }
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+        footer {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+            color: var(--text-muted);
+            font-size: 13px;
+            border-top: 1px solid var(--border);
+        }
+        h1 { font-size: 28px; margin-bottom: 8px; }
+        h2 { font-size: 20px; margin: 24px 0 12px; color: var(--text); }
+        h3 { font-size: 16px; margin: 16px 0 8px; color: var(--text-muted); }
+        p { color: var(--text-muted); margin-bottom: 16px; }
+        code {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 13px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        pre code { border: none; padding: 0; }
+
+        /* Tables */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin: 16px 0;
+        }
+        .leaderboard-table th {
+            text-align: left;
+            padding: 10px 12px;
+            background: var(--surface);
+            border-bottom: 2px solid var(--border);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .leaderboard-table th:hover { color: var(--accent); }
+        .leaderboard-table th .sort-arrow { margin-left: 4px; font-size: 10px; }
+        .leaderboard-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .leaderboard-table tr:hover td { background: rgba(88, 166, 255, 0.04); }
+        .rank-cell { font-weight: 700; color: var(--text-muted); width: 48px; }
+        .rank-1 { color: #f0c040; }
+        .rank-2 { color: #c0c0c0; }
+        .rank-3 { color: #cd7f32; }
+        .agent-name { font-weight: 600; color: var(--text); }
+        .score-cell { font-family: "SFMono-Regular", Consolas, monospace; font-weight: 600; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-llm { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+        .badge-vlm { background: rgba(210, 153, 34, 0.15); color: var(--accent-orange); }
+        .badge-rl { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+        .badge-hybrid { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+        .badge-human { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); }
+        .badge-other { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); }
+        .open-weights { color: var(--accent-green); }
+        .closed-weights { color: var(--text-muted); }
+
+        /* Score bar */
+        .score-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .score-bar {
+            flex: 1;
+            height: 8px;
+            background: var(--bar-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 60px;
+            max-width: 120px;
+        }
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, var(--accent-red), var(--accent-orange), var(--accent-green));
+            transition: width 0.3s;
+        }
+        .score-value { min-width: 48px; text-align: right; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin: 24px 0 16px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+        .tab-btn {
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 64px 24px;
+            color: var(--text-muted);
+        }
+        .empty-state h2 { color: var(--text-muted); }
+
+        /* Lists */
+        ol, ul { margin: 8px 0 16px 24px; color: var(--text-muted); }
+        li { margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="./">Agentick</a>
+            <a href="./">Leaderboard</a>
+            <a href="./about.html">About</a>
+            <a href="./submit.html">Submit</a>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>Agentick Leaderboard -- Universal Agent Benchmark. 38 tasks, 6 categories, 4 difficulty levels.</p>
+    </footer>
+</body>
+</html>
