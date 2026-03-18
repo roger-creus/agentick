@@ -8,7 +8,6 @@ cluster:
 profiles:
   ppo:              { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "07:59:00" }
   local_vlm_1g_12h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "11:59:00", partition: "long" }
-  local_llm_sft:    { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "99:59:00", partition: "lab-real" }
   local_vlm_1g_16h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "15:59:00", partition: "long" }
   local_vlm_1g_23h: { cpus: 8,  gres: "gpu:1", mem: "50G",  time: "22:59:00", partition: "long" }
   local_llm_4g:     { cpus: 32, gres: "gpu:4", mem: "128G", time: "23:59:00", partition: "lab-real" }
@@ -38,10 +37,10 @@ classification:
   - { pattern: "qwen35_2b_lang_reasoner*",     profile: local_vlm_1g_16h }
 
   # Qwen3.5-4B SFT (ASCII fine-tuned) configs
-  - { pattern: "qwen35_4b_sft_ascii_markov*",    profile: local_llm_sft }
-  - { pattern: "qwen35_4b_sft_ascii_reasoner*",  profile: local_llm_sft }
-  - { pattern: "qwen35_4b_sft_lang_markov*",     profile: local_llm_sft }
-  - { pattern: "qwen35_4b_sft_lang_reasoner*",   profile: local_llm_sft }
+  - { pattern: "qwen35_4b_sft_ascii_markov*",    profile: local_vlm_1g_16h }
+  - { pattern: "qwen35_4b_sft_ascii_reasoner*",  profile: local_vlm_1g_16h }
+  - { pattern: "qwen35_4b_sft_lang_markov*",     profile: local_vlm_1g_16h }
+  - { pattern: "qwen35_4b_sft_lang_reasoner*",   profile: local_vlm_1g_16h }
 
   # Qwen3.5-4B ascii/lang configs
   - { pattern: "qwen35_4b_ascii_markov*",       profile: local_vlm_1g_12h }
