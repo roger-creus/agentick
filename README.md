@@ -1,11 +1,23 @@
-# Agentick
+<p align="center">
+  <img src="docs/assets/agentick_banner.png" alt="Agentick" width="100%">
+</p>
 
-**Universal benchmark for evaluating AI agents**
+<p align="center">
+  <strong>Universal benchmark for evaluating AI agents</strong>
+</p>
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+</p>
 
 Agentick provides 38 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
+
+<p align="center">
+  <img src="docs/showcase/videos/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">
+  <img src="docs/showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle">
+  <img src="docs/showcase/videos/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle">
+</p>
 
 ## Key Features
 

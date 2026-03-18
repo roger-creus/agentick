@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/agentick_banner.png" alt="Agentick" width="100%">
+</p>
+
 # Agentick
 
 **Universal benchmark for evaluating AI agents**

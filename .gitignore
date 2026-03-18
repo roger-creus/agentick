@@ -83,7 +83,12 @@ examples/debug_results.ipynb
 examples/human_results.ipynb
 
 # Generated gallery videos (regenerate with scripts/record_oracle_gallery.py)
-docs/showcase/videos/
+docs/showcase/videos/*
+!docs/showcase/videos/iso/
+docs/showcase/videos/iso/*
+!docs/showcase/videos/iso/ProgramSynthesis-v0_easy.gif
+!docs/showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif
+!docs/showcase/videos/iso/PackingPuzzle-v0_medium.gif
 
 # Logs
 logs/
@@ -100,3 +105,9 @@ check_openai_credits.py
 check_results.sh
 generate_relaunches.py
 relaunch_scripts/
+
+# Personal cluster experiment manager (not part of agentick)
+cluster_manager/
+
+.cache/
+*.sbatch
