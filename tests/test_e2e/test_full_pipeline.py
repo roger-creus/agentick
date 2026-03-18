@@ -4,14 +4,12 @@ import pytest
 
 from agentick.experiments.config import ExperimentConfig
 from agentick.experiments.runner import ExperimentRunner
-from agentick.visualization.plots import plot_bar_comparison
-from agentick.visualization.tables import generate_main_results_table
 
 
 @pytest.mark.slow
 def test_full_pipeline(tmp_path):
     """
-    Test full pipeline: experiment -> analysis -> figures -> tables.
+    Test full pipeline: experiment -> analysis -> output.
 
     Should complete in under 5 minutes.
     """
@@ -33,40 +31,7 @@ def test_full_pipeline(tmp_path):
     assert hasattr(results, "summary")
     assert hasattr(results, "per_task_results")
 
-    # Step 2: Generate figure
-    figures_dir = tmp_path / "figures"
-    figures_dir.mkdir()
-
-    try:
-        fig = plot_bar_comparison(
-            {"Random": results.per_task_results},
-            metric="success_rate",
-            save_path=str(figures_dir / "main_results.pdf"),
-        )
-        assert fig is not None
-        # PDF save may fail in headless environment - that's OK
-    except Exception:
-        pass  # Visualization is optional Phase 2 feature
-
-    # Step 3: Generate table
-    tables_dir = tmp_path / "tables"
-    tables_dir.mkdir()
-
-    try:
-        table = generate_main_results_table(
-            {"Random": results.per_task_results},
-            tasks=["GoToGoal-v0", "MazeNavigation-v0"],
-        )
-
-        # Save table
-        table_path = tables_dir / "results.csv"
-        table.to_csv(table_path)
-
-        assert table_path.exists()
-    except Exception:
-        pass  # Table generation is optional Phase 2 feature
-
-    # Step 4: Verify output structure
+    # Step 2: Verify output structure
     output_dir = results.output_dir
     assert (output_dir / "config.yaml").exists()
     assert (output_dir / "metadata.json").exists()
@@ -115,19 +80,5 @@ def test_multi_agent_comparison(tmp_path):
 
         runner = ExperimentRunner(config)
         all_results[agent_config["name"]] = runner.run()
-
-    # Generate comparison figure
-    figures_dir = tmp_path / "figures"
-    figures_dir.mkdir()
-
-    try:
-        fig = plot_bar_comparison(
-            all_results,
-            metric="success_rate",
-            save_path=str(figures_dir / "comparison.pdf"),
-        )
-        assert fig is not None
-    except Exception:
-        pass  # Visualization is optional Phase 2 feature
 
     assert len(all_results) == 2

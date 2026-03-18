@@ -8,7 +8,6 @@ from agentick.core.grid import Grid
 from agentick.core.renderer import (
     ASCIIRenderer,
     LanguageRenderer,
-    PixelRenderer,
     StateDictRenderer,
     create_renderer,
 )
@@ -107,27 +106,6 @@ def test_language_renderer_inventory(simple_grid, agent, info_dict):
     assert "carrying: key" in output
 
 
-def test_pixel_renderer(simple_grid, agent, info_dict):
-    """Test pixel rendering."""
-    renderer = PixelRenderer()
-    output = renderer.render(simple_grid, [], agent, info_dict)
-
-    assert isinstance(output, np.ndarray)
-    assert output.dtype == np.uint8
-    assert output.shape == (512, 512, 3)  # Fixed 512x512 output
-    assert output.min() >= 0
-    assert output.max() <= 255
-
-
-def test_pixel_renderer_custom_tile_size(simple_grid, agent, info_dict):
-    """Test pixel rendering with custom tile size."""
-    renderer = PixelRenderer(tile_size=16)
-    output = renderer.render(simple_grid, [], agent, info_dict)
-
-    # All outputs resized to fixed 512x512
-    assert output.shape == (512, 512, 3)
-
-
 def test_state_dict_renderer(simple_grid, agent, info_dict):
     """Test state dict rendering."""
     renderer = StateDictRenderer()
@@ -168,12 +146,6 @@ def test_create_renderer_language_structured():
     renderer = create_renderer("language_structured")
     assert isinstance(renderer, LanguageRenderer)
     assert renderer.structured
-
-
-def test_create_renderer_rgb_array():
-    """Test renderer factory for flat 2D pixels."""
-    renderer = create_renderer("rgb_array_flat")
-    assert isinstance(renderer, PixelRenderer)
 
 
 def test_create_renderer_state_dict():

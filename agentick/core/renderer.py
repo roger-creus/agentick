@@ -599,11 +599,11 @@ def create_renderer(
             verbosity=verbosity,
             perspective=perspective,
         )
-    elif mode in ("rgb_array_flat", "rgb_array_2d", "human"):
-        # Flat 2D top-down grid renderer
-        from agentick.core.simple_grid_renderer import SimpleGridRenderer
+    elif mode == "human":
+        # Human mode uses isometric renderer (lazy import to avoid circular deps)
+        from agentick.rendering.iso_renderer import IsometricRenderer
 
-        return SimpleGridRenderer(tile_size=tile_size)
+        return IsometricRenderer()
     elif mode == "state_dict":
         return StateDictRenderer(fast_mode=fast_mode)
     else:
@@ -612,4 +612,3 @@ def create_renderer(
 
 # Backward compatibility aliases
 LanguageRenderer = EnhancedLanguageRenderer
-from agentick.core.simple_grid_renderer import SimpleGridRenderer as PixelRenderer  # noqa: E402, F401, I001, N812

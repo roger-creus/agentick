@@ -58,7 +58,7 @@ Valid actions: move_down (1), move_right (3)
  "info": {"step_count": 0, "max_steps": 50, "valid_actions": [1, 3]}}
 ```
 
-**RGB Pixels** — isometric (512x512) and flat 2D (512x512) for VLMs and RL CNNs.
+**RGB Pixels** — isometric (512x512) for VLMs and RL CNNs.
 
 ## Quick Start
 
@@ -95,21 +95,21 @@ env.close()
 ```python
 from stable_baselines3 import PPO
 
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")  # 2D sprites, fast
+env = agentick.make("GoToGoal-v0", render_mode="rgb_array")  # Isometric pixels (512x512)
 model = PPO("CnnPolicy", env, verbose=1)
 model.learn(total_timesteps=100_000)
 ```
 
 ### Evaluate an LLM Agent
 ```python
-from agentick.leaderboard.adapters.api_adapter import APIAgent
+import agentick
+from agentick.agents import BaseAgent, create_agent
+from agentick.experiments.config import AgentConfig
 
 env = agentick.make("GoToGoal-v0", render_mode="language")
-agent = APIAgent(provider="openai", model="gpt-4o", observation_mode="language")
 
 obs, info = env.reset()
-action = agent.act(obs, info)
-obs, reward, terminated, truncated, info = env.step(action)
+# See examples/llm/openai_text_agent.py for a complete LLM evaluation example
 ```
 
 ### Collect Expert Trajectories

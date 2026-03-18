@@ -8,8 +8,8 @@ from typing import Any
 
 from agentick.agents.backends.base import ModelBackend
 from agentick.agents.harness import HarnessPreset
+from agentick.agents.prompt_templates import parse_action_from_text
 from agentick.core.types import ActionType
-from agentick.leaderboard.adapters.prompt_templates import parse_action_from_text
 
 
 @dataclass

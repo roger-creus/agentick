@@ -48,52 +48,7 @@ trainer.train()
 agent = trainer.as_agent()
 ```
 
-### BehaviorCloningTrainer (pixel-based)
-
-```python
-from agentick.training.behavior_cloning import BehaviorCloningTrainer
-
-trainer = BehaviorCloningTrainer(
-    dataset_path="trajectories/oracle_pixels/",
-    output_dir="models/bc/",
-    num_epochs=50,
-)
-trainer.train()
-agent = trainer.as_agent()
-```
-
-### Tinker (remote SFT + RL)
-
-[Tinker](https://github.com/TinkerAI/tinker) provides remote LoRA fine-tuning infrastructure. Requires `uv add tinker` and a `TINKER_API_KEY`.
-
-**SFT** on oracle trajectories:
-
-```python
-from agentick.training.tinker.sft import TinkerSFTTrainer
-
-trainer = TinkerSFTTrainer(
-    base_model="Qwen/Qwen2.5-7B-Instruct",
-    dataset_path="data/hf_dataset/",
-    rank=32,
-)
-trainer.train(num_steps=100, learning_rate=1e-4)
-```
-
-**RL** on live environment interactions (optionally warmstarted from SFT):
-
-```python
-from agentick.training.tinker.rl import TinkerRLTrainer
-
-trainer = TinkerRLTrainer(
-    base_model="Qwen/Qwen2.5-7B-Instruct",
-    task_id="GoToGoal-v0",
-    difficulty="medium",
-    rank=32,
-)
-trainer.train(num_episodes=100, learning_rate=1e-5)
-```
-
-### TRL
+### Direct TRL
 
 ```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -120,6 +75,4 @@ Use the finetuned model as an agent — see `examples/llm/huggingface_local_agen
 ## Complete Examples
 
 - `examples/data_and_finetuning/` — end-to-end collect → train → evaluate scripts
-- `agentick/training/tinker/` — Tinker SFT and RL trainer source
 - `agentick/training/trl/sft.py` — AgentickSFTTrainer source
-- `agentick/training/behavior_cloning.py` — BehaviorCloningTrainer source

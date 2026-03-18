@@ -9,9 +9,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from agentick.leaderboard.submission import SubmissionSpec
-
-
 class EpisodeResult(BaseModel):
     """Result for a single episode."""
 
@@ -28,7 +25,7 @@ class EvaluationResult(BaseModel):
     """Complete evaluation result for an agent on a benchmark suite."""
 
     # === Identity ===
-    submission: SubmissionSpec
+    submission: dict[str, Any] = Field(default_factory=dict)
     suite_name: str
     suite_version: str
     suite_hash: str

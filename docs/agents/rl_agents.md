@@ -5,15 +5,14 @@ Train RL agents on Agentick using CleanRL-style scripts (recommended) or Stable-
 ## Quick Start (CleanRL)
 
 ```python
-# See examples/rl/ppo_cleanrl.py for the full implementation
+# See examples/rl/sb3_ppo.py for the full implementation
 import gymnasium as gym
 from agentick.wrappers import make_atari_env
 
 # make_atari_env: pixels -> resize 84x84 -> grayscale -> frame stack 4
-# render_mode can be "rgb_array_flat" (2D grid) or "rgb_array" (isometric)
 envs = gym.vector.SyncVectorEnv(
     [lambda: make_atari_env("GoToGoal-v0", difficulty="easy",
-                            render_mode="rgb_array_flat") for _ in range(8)]
+                            render_mode="rgb_array") for _ in range(8)]
 )
 # obs shape: (8, 84, 84, 4), uint8
 ```

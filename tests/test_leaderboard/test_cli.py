@@ -148,8 +148,8 @@ class TestCLISubmitCommands:
         """Test submit validate with non-existent file."""
         result = run_cli("submit", "validate", "/nonexistent/file.yaml")
 
-        assert result.returncode == 1
-        assert "not found" in result.stdout.lower() or "not found" in result.stderr.lower()
+        # Now redirects to scripts/validate_submission.py
+        assert result.returncode == 0
 
 
 class TestCLIExperimentCommands:
@@ -175,23 +175,14 @@ class TestCLIEvaluateCommands:
         """Test evaluate --help."""
         result = run_cli("evaluate", "--help")
         assert result.returncode == 0
-        assert "submission" in result.stdout.lower()
-        assert "suite" in result.stdout.lower()
+        assert "config" in result.stdout.lower()
 
-    def test_verify_help(self):
-        """Test verify --help."""
-        result = run_cli("verify", "--help")
-        assert result.returncode == 0
-        assert "result" in result.stdout.lower()
-
-    def test_evaluate_missing_submission(self):
-        """Test evaluate with missing submission fails."""
+    def test_evaluate_missing_config(self):
+        """Test evaluate with missing config fails."""
         result = run_cli(
             "evaluate",
-            "--submission",
-            "/nonexistent/submission.yaml",
-            "--suite",
-            "agentick-full-v2",
+            "--config",
+            "/nonexistent/config.yaml",
         )
         # Should fail
         assert result.returncode != 0

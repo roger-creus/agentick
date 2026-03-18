@@ -10,7 +10,6 @@ __all__ = [
 # Lazy imports to avoid requiring all SDKs at import time
 _BACKEND_REGISTRY: dict[str, str] = {
     "openai": "agentick.agents.backends.openai_backend.OpenAIBackend",
-    "anthropic": "agentick.agents.backends.anthropic_backend.AnthropicBackend",
     "huggingface_llm": "agentick.agents.backends.huggingface_llm.HuggingFaceLLMBackend",
     "huggingface_vlm": "agentick.agents.backends.huggingface_vlm.HuggingFaceVLMBackend",
     "vllm_llm": "agentick.agents.backends.vllm_llm.VLLMLLMBackend",

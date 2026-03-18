@@ -36,7 +36,7 @@ grid.flood_fill((x, y))
 | `ascii` | ASCIIRenderer | ANSI text grid |
 | `language` | EnhancedLanguageRenderer | Natural language |
 | `rgb_array` | IsometricRenderer | 512x512 isometric sprites |
-| `rgb_array_flat` | SimpleGridRenderer | 512x512 flat 2D grid (RL training) |
+| `human` | IsometricRenderer | Same as rgb_array (for display) |
 | `state_dict` | StateDictRenderer | Structured numpy dict |
 
 ## Tasks Module: `agentick/tasks/`

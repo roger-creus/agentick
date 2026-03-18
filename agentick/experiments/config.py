@@ -106,7 +106,6 @@ class ExperimentConfig(BaseModel):
             "language",
             "language_structured",
             "rgb_array",
-            "rgb_array_flat",
             "human",
             "state_dict",
         ]

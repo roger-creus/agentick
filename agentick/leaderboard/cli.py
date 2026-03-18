@@ -7,10 +7,6 @@ import argparse
 from dotenv import load_dotenv
 
 import agentick
-from agentick.leaderboard.evaluator import LeaderboardEvaluator
-from agentick.leaderboard.integrity import verify_result
-from agentick.leaderboard.result import EvaluationResult
-from agentick.leaderboard.submission import SubmissionSpec
 from agentick.leaderboard.suites import list_suites
 from agentick.tasks.registry import list_tasks
 
@@ -19,48 +15,15 @@ load_dotenv()
 
 
 def cmd_evaluate(args):
-    """Run evaluation command."""
-    # Load submission
-    submission = SubmissionSpec.from_yaml(args.submission)
+    """Run evaluation using the experiment runner."""
+    from agentick.experiments import ExperimentRunner
+    from agentick.experiments.config import load_config
 
-    # Validate
-    warnings = submission.validate_submission()
-    if warnings:
-        print("Warnings:")
-        for warning in warnings:
-            print(f"  - {warning}")
-
-    # Run evaluation
-    evaluator = LeaderboardEvaluator(verbose=True)
-
-    _result = evaluator.evaluate(
-        submission=submission,
-        suite=args.suite,
-        output_dir=args.output,
-        verify_reproducibility_flag=args.verify_reproducibility,
-    )
+    config = load_config(args.config)
+    runner = ExperimentRunner(config)
+    runner.run()
 
     print("\n✓ Evaluation complete!")
-    return 0
-
-
-def cmd_verify(args):
-    """Verify evaluation result."""
-    # Load result
-    result = EvaluationResult.from_json(args.result)
-
-    # Verify hash
-    is_valid = verify_result(result)
-
-    if is_valid:
-        print("✓ Result integrity verified - hash matches")
-    else:
-        print("✗ Result integrity check FAILED - hash mismatch")
-        return 1
-
-    # Print summary
-    print(f"\n{result.get_summary()}")
-
     return 0
 
 
@@ -215,33 +178,8 @@ def cmd_submit_init(args):
 
 
 def cmd_submit_validate(args):
-    """Validate a submission file."""
-    from pathlib import Path
-
-    submission_path = Path(args.submission)
-    if not submission_path.exists():
-        print(f"❌ File not found: {submission_path}")
-        return 1
-
-    try:
-        submission = SubmissionSpec.from_yaml(str(submission_path))
-    except Exception as e:
-        print(f"❌ Failed to load submission: {e}")
-        return 1
-
-    # Validate
-    warnings = submission.validate_submission()
-
-    if warnings:
-        print("Validation warnings:")
-        for warning in warnings:
-            print(f"  ⚠️  {warning}")
-        print("\nSubmission is valid but has warnings.")
-    else:
-        print("✓ Submission is valid!")
-        print(f"\nSubmission: {submission.agent_name}")
-        print(f"Model: {submission.config.get('model', 'N/A')}")
-
+    """Validate a submission results directory."""
+    print("Use 'python scripts/validate_submission.py <results_dir>' to validate submissions.")
     return 0
 
 
@@ -271,19 +209,9 @@ def main():
     info_parser.set_defaults(func=cmd_info)
 
     # Evaluate command
-    eval_parser = subparsers.add_parser("evaluate", help="Evaluate an agent submission")
-    eval_parser.add_argument("--submission", required=True, help="Path to submission YAML")
-    eval_parser.add_argument("--suite", required=True, help="Benchmark suite name")
-    eval_parser.add_argument("--output", default="results", help="Output directory")
-    eval_parser.add_argument(
-        "--verify-reproducibility", action="store_true", help="Verify reproducibility"
-    )
+    eval_parser = subparsers.add_parser("evaluate", help="Run evaluation from config")
+    eval_parser.add_argument("--config", required=True, help="Path to experiment config YAML")
     eval_parser.set_defaults(func=cmd_evaluate)
-
-    # Verify command
-    verify_parser = subparsers.add_parser("verify", help="Verify evaluation result")
-    verify_parser.add_argument("--result", required=True, help="Path to result JSON")
-    verify_parser.set_defaults(func=cmd_verify)
 
     # Experiment command group
     experiment_parser = subparsers.add_parser("experiment", help="Experiment commands")

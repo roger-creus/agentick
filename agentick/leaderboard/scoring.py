@@ -46,48 +46,50 @@ class AggregateScore:
 
 # Capability mapping (task -> capability tags)
 TASK_CAPABILITY_MAP = {
-    # Navigation
+    # Navigation (8)
     "GoToGoal-v0": "navigation",
     "MazeNavigation-v0": "navigation",
-    "FogOfWarExploration-v0": "navigation",
-    "DynamicObstacles-v0": "navigation",
     "ShortestPath-v0": "navigation",
-    # Memory
-    "KeyDoorPuzzle-v0": "memory",
+    "DynamicObstacles-v0": "navigation",
+    "CuriosityMaze-v0": "navigation",
+    "RecursiveRooms-v0": "navigation",
+    "TimingChallenge-v0": "navigation",
+    "InstructionFollowing-v0": "navigation",
+    # Planning (9)
+    "SokobanPush-v0": "planning",
+    "KeyDoorPuzzle-v0": "planning",
+    "BacktrackPuzzle-v0": "planning",
+    "TileSorting-v0": "planning",
+    "PackingPuzzle-v0": "planning",
+    "PreciseNavigation-v0": "planning",
+    "RecipeAssembly-v0": "planning",
+    "ToolUse-v0": "planning",
+    "ResourceManagement-v0": "planning",
+    # Reasoning (9)
+    "CausalChain-v0": "reasoning",
+    "SwitchCircuit-v0": "reasoning",
+    "RuleInduction-v0": "reasoning",
+    "LightsOut-v0": "reasoning",
+    "GraphColoring-v0": "reasoning",
+    "SymbolMatching-v0": "reasoning",
+    "ProgramSynthesis-v0": "reasoning",
+    "TaskInterference-v0": "reasoning",
+    "DeceptiveReward-v0": "reasoning",
+    # Memory (4)
     "SequenceMemory-v0": "memory",
     "DelayedGratification-v0": "memory",
-    "BacktrackPuzzle-v0": "memory",
-    # Reasoning
-    "SokobanPush-v0": "reasoning",
-    "CausalChain-v0": "reasoning",
-    "SymbolMatching-v0": "reasoning",
-    "RuleInduction-v0": "reasoning",
-    "SwitchCircuit-v0": "reasoning",
-    # Skill Discovery
-    "ToolUse-v0": "skill",
-    "RecipeAssembly-v0": "skill",
-    "EmergentStrategy-v0": "skill",
-    "ResourceManagement-v0": "skill",
-    # Control
-    "PreciseNavigation-v0": "control",
-    "TimingChallenge-v0": "control",
-    "ChaseEvade-v0": "control",
-    "Herding-v0": "control",
-    # Combinatorial
-    "LightsOut-v0": "combinatorial",
-    "GraphColoring-v0": "combinatorial",
-    "TileSorting-v0": "combinatorial",
-    "PackingPuzzle-v0": "combinatorial",
-    # Adversarial
-    "DeceptiveReward-v0": "adversarial",
-    "DistributionShift-v0": "adversarial",
-    "NoisyObservation-v0": "adversarial",
-    # Meta-learning
-    "FewShotAdaptation-v0": "meta",
-    "TaskInterference-v0": "meta",
-    # Multi-agent
-    "CooperativeTransport-v0": "multiagent",
-    "TagHunt-v0": "multiagent",
+    "TreasureHunt-v0": "memory",
+    "FogOfWarExploration-v0": "memory",
+    # Generalization (3)
+    "FewShotAdaptation-v0": "generalization",
+    "DistributionShift-v0": "generalization",
+    "NoisyObservation-v0": "generalization",
+    # Multi-Agent (5)
+    "CooperativeTransport-v0": "multi_agent",
+    "TagHunt-v0": "multi_agent",
+    "ChaseEvade-v0": "multi_agent",
+    "Herding-v0": "multi_agent",
+    "EmergentStrategy-v0": "multi_agent",
 }
 
 

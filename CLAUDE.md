@@ -76,10 +76,7 @@ Tasks use the `@register_task("Name-v0", tags=[...])` decorator (from `tasks/reg
 - `"ascii"` — ANSI-colored text grid (`ASCIIRenderer`)
 - `"language"` / `"language_structured"` — natural language descriptions (`EnhancedLanguageRenderer` wrapping `AdvancedLanguageRenderer` from `core/language.py`)
 - `"rgb_array"` — **Isometric pixel sprites** via `IsometricRenderer` (Kenney assets, fixed 512×512 output). Default visual mode.
-- `"rgb_array_flat"` — Flat 2D top-down grid sprites via `SimpleGridRenderer` (grid-size-dependent shape). Use for RL training (faster, CNN-friendly).
 - `"state_dict"` — structured dict with numpy arrays (use `fast_mode=True` to skip `.tolist()` conversions)
-
-Note: `"rgb_array_2d"` and `"rgb_iso"` modes have been removed. Use `"rgb_array_flat"` for 2D grid and `"rgb_array"` for isometric.
 
 ### Observation Flow
 
@@ -90,8 +87,8 @@ Note: `"rgb_array_2d"` and `"rgb_iso"` modes have been removed. Use `"rgb_array_
 `agents/` provides a composable harness for LLM/VLM agents:
 
 - `BaseAgent` (in `agents/base.py`) composes a `ModelBackend` + `HarnessPreset` and conforms to `AgentProtocol`
-- **Backends** (`agents/backends/`): OpenAI, Anthropic, HuggingFaceLLM, HuggingFaceVLM — lazy-loaded to avoid import overhead
-- **Harness presets** (`agents/harness.py`): MarkovianZeroShot, NonMarkovianZeroShot, MarkovianReasoner — control observation history and prompting strategy
+- **Backends** (`agents/backends/`): OpenAI, Gemini, HuggingFaceLLM, HuggingFaceVLM, vLLM — lazy-loaded to avoid import overhead
+- **Harness presets** (`agents/harness.py`): MarkovianZeroShot, MarkovianReasoner — control prompting strategy
 - **Factory**: `create_agent(AgentConfig)` builds an agent from a YAML config
 - **Circular import note**: `experiments/__init__.py` uses `__getattr__` lazy import for agent classes to break `agents/` ↔ `experiments/` circular dependency
 
@@ -115,11 +112,9 @@ API: `get_oracle(task_name, env)` returns an oracle instance; `list_oracles()` l
 
 ### Training Infrastructure
 
-`training/` contains three training approaches:
+`training/` provides SFT fine-tuning:
 
-- `training/behavior_cloning.py` — BehaviorCloningTrainer with Nature CNN encoder
 - `training/trl/sft.py` — AgentickSFTTrainer using TRL with LoRA support
-- `training/tinker/` — TinkerSFTTrainer, TinkerRLTrainer (graceful fallback if not installed)
 
 ### Data Collection
 

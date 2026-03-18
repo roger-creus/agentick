@@ -76,21 +76,7 @@ The default visual mode uses an **isometric sprite renderer** powered by Kenney 
 
 Space: `gymnasium.spaces.Box` shape `(512, 512, 3)`, dtype `uint8`, range `[0, 255]`
 
-## 5. RGB Array Flat Mode (2D Sprites)
-
-For maximum speed (e.g., during RL training), use the flat 2D sprite renderer:
-
-```python
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")
-obs, info = env.reset()
-print(obs.shape)  # (512, 512, 3), uint8
-```
-
-Renders a top-down 2D grid with colored tile sprites. Includes a header with task name, step count, and task-specific indicators (e.g., target type for InstructionFollowing). Images are resized to a consistent 512x512.
-
-**Visual elements**: Agent (triangle), Goal (star), Keys (key icon), Doors (rectangle), Walls (gray), Hazards (red X)
-
-## 6. State Dict Mode
+## 5. State Dict Mode
 
 ```python
 env = agentick.make("GoToGoal-v0", render_mode="state_dict")
