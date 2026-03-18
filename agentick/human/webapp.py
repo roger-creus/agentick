@@ -1,7 +1,7 @@
-"""Web-based showcase interface for Agentick tasks using Flask.
+"""Web-based interface for Agentick tasks using Flask.
 
 Provides:
-- Task carousel with video previews
+- Task carousel for browsing tasks
 - Human play mode with multi-modal observations (ASCII + language + pixels)
 - API endpoints for task browsing and interactive play
 """
@@ -107,7 +107,6 @@ class ShowcaseWebApp:
             for name, desc in sorted(descs.items()):
                 entry = desc.to_dict()
                 entry["video"] = _find_video(name, videos_dir)
-                entry["gallery_gif"] = _find_gallery_gif(name)
                 result.append(entry)
             return jsonify(result)
 
@@ -116,21 +115,6 @@ class ShowcaseWebApp:
             """Serve video files from docs/showcase/videos/."""
             videos_dir = _project_root() / "docs" / "showcase" / "videos"
             return send_from_directory(str(videos_dir), filename)
-
-        @self.app.route("/gallery/<path:filename>")
-        def serve_gallery(filename):
-            """Serve gallery GIF files."""
-            videos_dir = _project_root() / "docs" / "showcase" / "videos"
-            iso_path = videos_dir / "iso" / filename
-            if iso_path.is_file():
-                return send_from_directory(str(videos_dir / "iso"), filename)
-            return send_from_directory(str(videos_dir), filename)
-
-        @self.app.route("/gallery/iso/<path:filename>")
-        def serve_gallery_iso(filename):
-            """Serve isometric gallery GIF files."""
-            videos_dir = _project_root() / "docs" / "showcase" / "videos"
-            return send_from_directory(str(videos_dir / "iso"), filename)
 
         # ── Play-mode API endpoints ───────────────────────────────────────
 
@@ -337,23 +321,6 @@ def _project_root() -> Path:
     """Return the Agentick project root (two levels up from this file)."""
     return Path(__file__).resolve().parent.parent.parent
 
-
-def _find_gallery_gif(task_name: str) -> dict[str, str] | None:
-    """Return dict of difficulty -> GIF filename for the given task.
-
-    Looks for isometric GIFs in docs/showcase/videos/iso/.
-    """
-    videos_dir = _project_root() / "docs" / "showcase" / "videos"
-    result: dict[str, str] = {}
-
-    iso_dir = videos_dir / "iso"
-    if iso_dir.is_dir():
-        for diff in ("easy", "medium", "hard", "expert"):
-            gif = iso_dir / f"{task_name}_{diff}.gif"
-            if gif.is_file():
-                result[diff] = f"{task_name}_{diff}.gif"
-
-    return result or None
 
 
 def _find_video(task_name: str, videos_dir: Path) -> str | None:

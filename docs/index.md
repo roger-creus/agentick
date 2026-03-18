@@ -10,7 +10,7 @@ Agentick provides 38 procedurally generated gridworld tasks spanning navigation,
 
 ## Try It Now
 
-The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
+The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
 git clone https://github.com/agentick/agentick.git && cd agentick
