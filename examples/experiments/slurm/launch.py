@@ -30,10 +30,9 @@ EXPERIMENTS_DIR = SCRIPT_DIR.parent
 CONFIGS_DIR = EXPERIMENTS_DIR / "configs"
 PROJECT_ROOT = SCRIPT_DIR.parents[2]  # agentick repo root
 
-API_KEY_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN"]
+API_KEY_VARS = ["OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN"]
 
 REQUIRED_KEYS: dict[str, str] = {
-    "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "huggingface_llm": "HUGGING_FACE_HUB_TOKEN",
@@ -214,8 +213,6 @@ def get_required_api_key(config: dict) -> str | None:
             return key_env
 
     name = config.get("name", "")
-    if "anthropic" in name.lower() or "claude" in name.lower():
-        return "ANTHROPIC_API_KEY"
     if "openai" in name.lower() or "gpt" in name.lower():
         return "OPENAI_API_KEY"
     return None

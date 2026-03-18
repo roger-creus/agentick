@@ -1,7 +1,7 @@
 [project]
 name = "agentick"
 version = "0.1.0"
-description = "Universal benchmark for evaluating generally capable AI agents across all paradigms"
+description = "Universal benchmark for evaluating generally capable AI agents"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}

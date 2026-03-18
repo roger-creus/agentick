@@ -1,6 +1,6 @@
 # Agentick
 
-**Universal benchmark for evaluating AI agents across all paradigms**
+**Universal benchmark for evaluating AI agents**
 
 Agentick provides 38 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
 

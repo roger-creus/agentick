@@ -114,9 +114,10 @@ def _load_difficulty_data(
 ) -> dict | None:
     """Load difficulty data, auto-detecting format.
 
-    Supports two layouts:
-      1. ExperimentRunner output:  metrics.json with nested per_difficulty
-      2. Flat submission format:   {difficulty}.json with seeds/episode_returns/success_flags
+    Supports three layouts:
+      1. Flat submission format:   {difficulty}.json with seeds/episode_returns/success_flags
+      2. ExperimentRunner output:  metrics.json with nested per_difficulty.episodes[]
+      3. TrainingBenchmarkRunner:  {difficulty}/metrics.json with eval_returns[]
 
     Returns a normalized dict with keys: seeds, episode_returns, success_flags
     or None if not found.
@@ -130,24 +131,44 @@ def _load_difficulty_data(
     metrics_file = task_dir / "metrics.json"
     if metrics_file.exists():
         data = _load_json(metrics_file)
-        if data is None:
-            return None
-        per_diff = data.get("per_difficulty", {})
-        diff_data = per_diff.get(diff)
-        if diff_data is None:
-            return None
-        episodes = diff_data.get("episodes", [])
-        if not episodes:
-            return None
-        # Convert runner format -> submission format
-        return {
-            "task_name": task_name,
-            "difficulty": diff,
-            "seeds": [ep["seed"] for ep in episodes],
-            "episode_returns": [ep["return"] for ep in episodes],
-            "success_flags": [ep["success"] for ep in episodes],
-            "episode_steps": [ep.get("length", 0) for ep in episodes],
-        }
+        if data is not None:
+            per_diff = data.get("per_difficulty", {})
+            diff_data = per_diff.get(diff)
+            if diff_data is not None:
+                episodes = diff_data.get("episodes", [])
+                if episodes:
+                    return {
+                        "task_name": task_name,
+                        "difficulty": diff,
+                        "seeds": [ep["seed"] for ep in episodes],
+                        "episode_returns": [ep["return"] for ep in episodes],
+                        "success_flags": [ep["success"] for ep in episodes],
+                        "episode_steps": [ep.get("length", 0) for ep in episodes],
+                    }
+
+    # --- Format 3: {difficulty}/metrics.json from TrainingBenchmarkRunner ---
+    # PPO runner writes per_task/{Task}/{difficulty}/metrics.json with
+    # eval_returns (list of per-seed returns) and success_rate (aggregate).
+    diff_dir_metrics = task_dir / diff / "metrics.json"
+    if diff_dir_metrics.exists():
+        data = _load_json(diff_dir_metrics)
+        if data is not None:
+            eval_returns = data.get("eval_returns", [])
+            if eval_returns:
+                # Reconstruct per-seed data from the eval seeds
+                eval_seeds = list(
+                    generate_task_seeds(task_name, diff, "eval", len(eval_returns))
+                )
+                # success_flags: PPO runner stores aggregate success_rate but not
+                # per-episode flags. Use return > 0 as proxy.
+                success_flags = [r > 0 for r in eval_returns]
+                return {
+                    "task_name": task_name,
+                    "difficulty": diff,
+                    "seeds": eval_seeds,
+                    "episode_returns": eval_returns,
+                    "success_flags": success_flags,
+                }
 
     return None
 
@@ -158,8 +179,8 @@ def validate_results_dir(
 ) -> dict[str, dict[str, dict]]:
     """Validate the results directory structure and contents.
 
-    Auto-detects format: ExperimentRunner output (metrics.json) or
-    flat submission format ({difficulty}.json).
+    Auto-detects format: ExperimentRunner (metrics.json), TrainingBenchmarkRunner
+    ({difficulty}/metrics.json), or flat submission format ({difficulty}.json).
 
     Returns:
         Nested dict: task_name -> difficulty -> normalized data dict.

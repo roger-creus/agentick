@@ -17,7 +17,7 @@ profiles:
   baseline:         { cpus: 4,  gres: "",      mem: "8G",   time: "05:59:00" }
 
 # Classification rules — first match wins.
-# Order matters: nonmarkov patterns MUST come before their broader markov counterparts.
+# Order matters: more specific patterns MUST come before broader counterparts.
 classification:
   # PPO
   - { pattern: "ppo_*",                        profile: ppo }
@@ -62,7 +62,6 @@ classification:
   - { pattern: "qwen3_4b_lang_reasoner*",               profile: local_vlm_1g_16h }
 
   # Qwen3-VL-4B
-  - { pattern: "qwen3_vl4b*_nonmarkov*",        profile: local_vlm_1g_16h }
   - { pattern: "qwen3_vl4b*",                   profile: local_vlm_1g_12h }
 
   # GPT-5-mini ascii/lang configs
@@ -70,12 +69,6 @@ classification:
   - { pattern: "gpt5mini_ascii_reasoner*",       profile: api_llm }
   - { pattern: "gpt5mini_lang_markov*",          profile: api_llm }
   - { pattern: "gpt5mini_lang_reasoner*",        profile: api_llm }
-
-  # Claude Haiku ascii/lang configs
-  - { pattern: "claude_haiku_ascii_markov*",     profile: api_llm }
-  - { pattern: "claude_haiku_ascii_reasoner*",   profile: api_llm }
-  - { pattern: "claude_haiku_lang_markov*",      profile: api_llm }
-  - { pattern: "claude_haiku_lang_reasoner*",    profile: api_llm }
 
   # Gemini Flash ascii/lang configs
   - { pattern: "gemini_flash_lite_ascii_markov*",     profile: api_llm }

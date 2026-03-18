@@ -1,6 +1,6 @@
 # Agentick
 
-**Universal benchmark for evaluating AI agents across all paradigms**
+**Universal benchmark for evaluating AI agents**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
