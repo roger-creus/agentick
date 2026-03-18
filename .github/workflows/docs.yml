@@ -1,4 +1,4 @@
-name: Deploy Documentation
+name: Deploy Site (Docs + Leaderboard)
 
 on:
   push:
@@ -26,8 +26,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra docs
 
-      - name: Build docs
-        run: uv run mkdocs build --strict
+      - name: Build docs (mkdocs -> site/)
+        run: uv run mkdocs build
+
+      - name: Generate leaderboard (-> site/board/)
+        run: |
+          uv run python -c "
+          from agentick.leaderboard.site.generate import SiteGenerator
+          gen = SiteGenerator(output_dir='site/board')
+          gen.generate()
+          "
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
