@@ -13,11 +13,13 @@ Install only what you need:
 
 ```bash
 uv sync                     # Core only
-uv sync --extra rl          # RL training (torch, wandb)
-uv sync --extra llm         # LLM agents (openai, anthropic)
-uv sync --extra local-llm   # Local HuggingFace models
-uv sync --extra train-llm   # Fine-tuning (trl, peft)
+uv sync --extra rl          # RL training (torch, stable-baselines3)
+uv sync --extra llm         # LLM agents (openai, transformers)
+uv sync --extra vllm        # vLLM serving
+uv sync --extra finetune    # Fine-tuning (trl, peft)
 uv sync --extra viz         # Visualization (matplotlib)
+uv sync --extra tracking    # Experiment tracking (wandb)
+uv sync --extra webapp      # Human play webapp (flask)
 uv sync --extra all         # Everything
 ```
 
@@ -43,7 +45,6 @@ env.close()
 env = agentick.make("GoToGoal-v0", render_mode="ascii")           # Text grid
 env = agentick.make("GoToGoal-v0", render_mode="language")         # Natural language
 env = agentick.make("GoToGoal-v0", render_mode="rgb_array")        # Isometric pixels (512x512)
-env = agentick.make("GoToGoal-v0", render_mode="rgb_array_flat")   # 2D sprites (512x512, fast)
 env = agentick.make("GoToGoal-v0", render_mode="state_dict")       # Full state dict
 ```
 

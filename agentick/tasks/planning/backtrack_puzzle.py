@@ -330,10 +330,11 @@ class BacktrackPuzzleTask(TaskSpec):
         for sw in list(switches):
             sx, sy = sw
             if (ax, ay) == (sx, sy) and grid.objects[sy, sx] == ObjectType.SWITCH:
-                # Keep switch object, mark as activated via metadata (renders as switch_on)
-                grid.metadata[sy, sx] = 100
-                config["_switches_activated"] = config.get("_switches_activated", 0) + 1
-                config["_switch_activated"] = True
+                if grid.metadata[sy, sx] < 100:
+                    # Keep switch object, mark as activated via metadata (renders as switch_on)
+                    grid.metadata[sy, sx] = 100
+                    config["_switches_activated"] = config.get("_switches_activated", 0) + 1
+                    config["_switch_activated"] = True
 
         n_needed = config.get("n_switches", 1)
         if config.get("_switches_activated", 0) >= n_needed and not config.get(

@@ -1,116 +1,111 @@
-"""JSON-file based leaderboard database."""
+"""Thin JSON I/O wrapper for leaderboard entries."""
 
 from __future__ import annotations
 
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any  # noqa: I001
 
-from agentick.leaderboard.result import EvaluationResult
+# Default path relative to repo root
+_DEFAULT_ENTRIES_PATH = Path(__file__).resolve().parents[2] / "leaderboard_data" / "entries.json"
 
 
-class LeaderboardDatabase:
+def _default_entries_path() -> Path:
+    """Return the default entries.json path (repo_root/leaderboard_data/entries.json)."""
+    return _DEFAULT_ENTRIES_PATH
+
+
+def load_entries(path: str | Path | None = None) -> list[dict[str, Any]]:
+    """Load all leaderboard entries from the JSON file.
+
+    Args:
+        path: Path to entries.json. Defaults to leaderboard_data/entries.json.
+
+    Returns:
+        List of entry dicts. Empty list if file does not exist yet.
     """
-    Simple JSON-file based database for leaderboard entries.
+    path = Path(path) if path else _default_entries_path()
+    if not path.exists():
+        return []
+    with open(path) as f:
+        data = json.load(f)
+    return data.get("entries", [])
 
-    No server needed - just files on disk.
+
+def save_entries(entries: list[dict[str, Any]], path: str | Path | None = None) -> None:
+    """Write all entries to the JSON file.
+
+    Args:
+        entries: List of entry dicts.
+        path: Path to entries.json. Defaults to leaderboard_data/entries.json.
     """
+    path = Path(path) if path else _default_entries_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({"entries": entries, "updated_at": datetime.now().isoformat()}, f, indent=2)
 
-    def __init__(self, data_dir: str | Path = "leaderboard_data"):
-        """
-        Initialize database.
 
-        Args:
-            data_dir: Root directory for leaderboard data
-        """
-        self.data_dir = Path(data_dir)
-        self.entries_dir = self.data_dir / "entries"
-        self.rankings_dir = self.data_dir / "rankings"
-        self.history_dir = self.data_dir / "history"
+def add_entry(entry: dict[str, Any], path: str | Path | None = None) -> None:
+    """Add a single entry to the leaderboard.
 
-        # Create directories
-        self.entries_dir.mkdir(parents=True, exist_ok=True)
-        self.rankings_dir.mkdir(parents=True, exist_ok=True)
-        self.history_dir.mkdir(parents=True, exist_ok=True)
+    Required keys in *entry*:
+        agent_name, author, description, agent_type, observation_mode,
+        harness, model, open_weights, date,
+        scores: {agentick_score, agentick_score_ci, per_category, per_task},
+        metadata (optional dict)
 
-    def add_entry(self, result: EvaluationResult) -> None:
-        """
-        Add evaluation result to database.
+    Args:
+        entry: The entry dict to add.
+        path: Path to entries.json. Defaults to leaderboard_data/entries.json.
 
-        Args:
-            result: Evaluation result to add
-        """
-        # Generate entry filename
-        agent_name = result.submission.agent_name
-        suite_name = result.suite_name
-        filename = f"{agent_name}_{suite_name}.json"
+    Raises:
+        ValueError: If required keys are missing.
+    """
+    required_keys = {
+        "agent_name",
+        "author",
+        "description",
+        "agent_type",
+        "observation_mode",
+        "harness",
+        "model",
+        "open_weights",
+        "date",
+        "scores",
+    }
+    missing = required_keys - set(entry.keys())
+    if missing:
+        raise ValueError(f"Entry is missing required keys: {missing}")
 
-        # Save entry
-        entry_path = self.entries_dir / filename
-        result.to_json(entry_path)
+    score_keys = {"agentick_score", "agentick_score_ci", "per_category", "per_task"}
+    missing_scores = score_keys - set(entry.get("scores", {}).keys())
+    if missing_scores:
+        raise ValueError(f"Entry scores dict is missing required keys: {missing_scores}")
 
-    def get_entries(self, suite_name: str | None = None) -> list[EvaluationResult]:
-        """
-        Get all entries, optionally filtered by suite.
+    entries = load_entries(path)
+    entries.append(entry)
+    save_entries(entries, path)
 
-        Args:
-            suite_name: Optional suite name to filter by
 
-        Returns:
-            List of evaluation results
-        """
-        entries = []
+def get_entries(
+    suite_name: str | None = None, path: str | Path | None = None
+) -> list[dict[str, Any]]:
+    """Get entries, optionally filtered by suite name stored in metadata.
 
-        for entry_file in self.entries_dir.glob("*.json"):
-            result = EvaluationResult.from_json(entry_file)
+    Args:
+        suite_name: If provided, only return entries whose
+            metadata.suite_name matches.
+        path: Path to entries.json.
 
-            if suite_name is None or result.suite_name == suite_name:
-                entries.append(result)
-
+    Returns:
+        Filtered (or full) list of entry dicts.
+    """
+    entries = load_entries(path)
+    if suite_name is None:
         return entries
-
-    def save_rankings(self, suite_name: str, rankings: list[dict[str, Any]]) -> None:
-        """
-        Save pre-computed rankings for a suite.
-
-        Args:
-            suite_name: Suite name
-            rankings: List of ranked entries
-        """
-        ranking_file = self.rankings_dir / f"{suite_name}.json"
-
-        with open(ranking_file, "w") as f:
-            json.dump(rankings, f, indent=2, default=str)
-
-    def load_rankings(self, suite_name: str) -> list[dict[str, Any]]:
-        """
-        Load rankings for a suite.
-
-        Args:
-            suite_name: Suite name
-
-        Returns:
-            List of ranked entries
-        """
-        ranking_file = self.rankings_dir / f"{suite_name}.json"
-
-        if not ranking_file.exists():
-            return []
-
-        with open(ranking_file) as f:
-            return json.load(f)
-
-    def create_snapshot(self) -> None:
-        """Create historical snapshot of current leaderboard state."""
-        timestamp = datetime.now().strftime("%Y-%m-%d")
-        snapshot_file = self.history_dir / f"{timestamp}.json"
-
-        # Collect all entries
-        all_entries = {}
-        for entry_file in self.entries_dir.glob("*.json"):
-            all_entries[entry_file.stem] = json.load(open(entry_file))
-
-        # Save snapshot
-        with open(snapshot_file, "w") as f:
-            json.dump(all_entries, f, indent=2, default=str)
+    return [
+        e
+        for e in entries
+        if e.get("metadata", {}).get("suite_name") == suite_name
+    ]

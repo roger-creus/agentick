@@ -81,7 +81,7 @@ def main() -> None:
         "--render-mode",
         type=str,
         default=None,
-        help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+        help="Override render mode (e.g. rgb_array)",
     )
     args = parser.parse_args()
 

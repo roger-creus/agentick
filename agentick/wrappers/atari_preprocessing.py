@@ -115,7 +115,7 @@ def make_atari_env(task_name: str, seed: int = 0, **kwargs) -> gym.Env:
         task_name: Agentick task name (e.g., "GoToGoal-v0")
         seed: Random seed
         **kwargs: Additional args passed to agentick.make(), including render_mode
-            (e.g. "rgb_array_flat" or "rgb_array"). Defaults to "rgb_array_flat"
+            (e.g. "rgb_array"). Defaults to "rgb_array"
             if not specified.
 
     Returns:
@@ -123,7 +123,7 @@ def make_atari_env(task_name: str, seed: int = 0, **kwargs) -> gym.Env:
     """
     import agentick
 
-    kwargs.setdefault("render_mode", "rgb_array_flat")
+    kwargs.setdefault("render_mode", "rgb_array")
     env = agentick.make(task_name, **kwargs)
     env = ResizeObservation(env, size=(84, 84))
     env = GrayscaleObservation(env)

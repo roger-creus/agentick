@@ -119,7 +119,7 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
 
                 # Save episode data
                 if config.record_trajectories:
-                    episode_file = episodes_dir / f"seed_{seed_idx}_ep_{ep_idx}.json"
+                    episode_file = episodes_dir / f"diff_{difficulty}_seed_{seed_idx}_ep_{ep_idx}.json"
                     with open(episode_file, "w") as f:
                         json.dump(trajectory, f, indent=2)
 
@@ -326,7 +326,7 @@ class ExperimentResults:
         return cls(config, output_dir, metadata, summary, per_task_results)
 
 
-_API_BACKENDS = frozenset({"openai", "anthropic", "gemini"})
+_API_BACKENDS = frozenset({"openai", "gemini"})
 
 
 class ExperimentRunner:
@@ -556,6 +556,8 @@ class ExperimentRunner:
 
     def _collect_metadata(self) -> dict[str, Any]:
         """Collect metadata about the run."""
+        import platform as _platform
+
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "config_name": self.config.name,
@@ -577,11 +579,18 @@ class ExperimentRunner:
             metadata["agentick_version"] = "unknown"
 
         # System info
-        import platform
-
-        metadata["python_version"] = platform.python_version()
-        metadata["platform"] = platform.platform()
+        metadata["python_version"] = _platform.python_version()
+        metadata["platform"] = _platform.platform()
         metadata["cpu_count"] = os.cpu_count()
+
+        # Agent info
+        hp = self.config.agent.hyperparameters
+        metadata["agent_type"] = self.config.agent.type
+        metadata["agent_name"] = hp.get("agent_name", self.config.name)
+        metadata["model"] = hp.get("model", None)
+        metadata["backend"] = hp.get("backend", None)
+        metadata["observation_modes"] = hp.get("observation_modes", [])
+        metadata["harness"] = hp.get("harness", None)
 
         return metadata
 
@@ -1000,7 +1009,7 @@ class ExperimentRunner:
         ep_idx: int,
     ) -> None:
         """Save episode frames as video (mp4 if ffmpeg available, else gif)."""
-        from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
+        from agentick.experiments._video_utils import _has_ffmpeg, _save_gif, _save_mp4
 
         name = f"seed_{seed_idx}_ep_{ep_idx}"
         try:
@@ -1027,7 +1036,7 @@ class ExperimentRunner:
         import random
 
         import agentick
-        from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
+        from agentick.experiments._video_utils import _has_ffmpeg, _save_gif, _save_mp4
 
         # Collect episodes that have step data (with actions for replay)
         seed_to_ep: dict[int, dict[str, Any]] = {}
@@ -1242,7 +1251,7 @@ class ExperimentRunner:
 
         # Save episode data
         if self.config.record_trajectories:
-            episode_file = episodes_dir / f"seed_{seed_idx}_ep_{ep_idx}.json"
+            episode_file = episodes_dir / f"diff_{difficulty}_seed_{seed_idx}_ep_{ep_idx}.json"
             with open(episode_file, "w") as f:
                 json.dump(trajectory, f, indent=2)
 

@@ -30,10 +30,9 @@ EXPERIMENTS_DIR = SCRIPT_DIR.parent
 CONFIGS_DIR = EXPERIMENTS_DIR / "configs"
 PROJECT_ROOT = SCRIPT_DIR.parents[2]  # agentick repo root
 
-API_KEY_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN"]
+API_KEY_VARS = ["OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN"]
 
 REQUIRED_KEYS: dict[str, str] = {
-    "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "huggingface_llm": "HUGGING_FACE_HUB_TOKEN",
@@ -161,7 +160,7 @@ def build_runner_command(
         config_path: Path to the YAML config (relative to project root)
         task: If set, run only this single task
         output_dir: Optional output directory override
-        render_mode: Optional render mode override (e.g. 'rgb_array_flat')
+        render_mode: Optional render mode override (e.g. 'rgb_array')
         difficulties: Optional list of difficulties to run (PPO only)
     """
     if runner_type == "ppo":
@@ -214,8 +213,6 @@ def get_required_api_key(config: dict) -> str | None:
             return key_env
 
     name = config.get("name", "")
-    if "anthropic" in name.lower() or "claude" in name.lower():
-        return "ANTHROPIC_API_KEY"
     if "openai" in name.lower() or "gpt" in name.lower():
         return "OPENAI_API_KEY"
     return None
@@ -578,7 +575,7 @@ Relaunch failed jobs:
     parser.add_argument("--conda-env", help="Override conda env name")
     parser.add_argument("--output-dir", help="Override results output directory")
     parser.add_argument(
-        "--render-mode", help="Override render mode (e.g. rgb_array_flat, rgb_array)",
+        "--render-mode", help="Override render mode (e.g. rgb_array, rgb_array)",
     )
     parser.add_argument(
         "--tasks", nargs="+", metavar="TASK",

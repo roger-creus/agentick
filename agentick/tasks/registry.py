@@ -114,7 +114,7 @@ def make(
     Args:
         task_name: Name of the task (e.g., "GoToGoal-v0")
         difficulty: Difficulty level (easy, medium, hard, expert)
-        render_mode: Rendering mode. ``"rgb_array"`` for isometric sprites, ``"rgb_array_flat"`` for flat 2D grid.
+        render_mode: Rendering mode. ``"rgb_array"`` for isometric sprites, ``"ascii"`` for text grid, etc.
         reward_mode: Reward mode (sparse, dense)
         seed: Random seed for task generation
         fast_mode: Enable fast mode for state_dict rendering (skip expensive conversions)

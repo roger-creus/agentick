@@ -119,14 +119,11 @@ class ShowcaseWebApp:
 
         @self.app.route("/gallery/<path:filename>")
         def serve_gallery(filename):
-            """Serve gallery GIF files — iso preferred, flat 2D as fallback."""
+            """Serve gallery GIF files."""
             videos_dir = _project_root() / "docs" / "showcase" / "videos"
             iso_path = videos_dir / "iso" / filename
             if iso_path.is_file():
                 return send_from_directory(str(videos_dir / "iso"), filename)
-            flat_path = videos_dir / "flat" / filename
-            if flat_path.is_file():
-                return send_from_directory(str(videos_dir / "flat"), filename)
             return send_from_directory(str(videos_dir), filename)
 
         @self.app.route("/gallery/iso/<path:filename>")
@@ -134,12 +131,6 @@ class ShowcaseWebApp:
             """Serve isometric gallery GIF files."""
             videos_dir = _project_root() / "docs" / "showcase" / "videos"
             return send_from_directory(str(videos_dir / "iso"), filename)
-
-        @self.app.route("/gallery/flat/<path:filename>")
-        def serve_gallery_flat(filename):
-            """Serve flat 2D gallery GIF files."""
-            videos_dir = _project_root() / "docs" / "showcase" / "videos"
-            return send_from_directory(str(videos_dir / "flat"), filename)
 
         # ── Play-mode API endpoints ───────────────────────────────────────
 
@@ -350,27 +341,15 @@ def _project_root() -> Path:
 def _find_gallery_gif(task_name: str) -> dict[str, str] | None:
     """Return dict of difficulty -> GIF filename for the given task.
 
-    Checks iso GIFs first (docs/showcase/videos/iso/), then flat 2D GIFs
-    (docs/showcase/videos/flat/). Both served via the /gallery/ route.
+    Looks for isometric GIFs in docs/showcase/videos/iso/.
     """
     videos_dir = _project_root() / "docs" / "showcase" / "videos"
     result: dict[str, str] = {}
 
-    # 1. Isometric GIFs: showcase/videos/iso/{task}_{diff}.gif
     iso_dir = videos_dir / "iso"
     if iso_dir.is_dir():
         for diff in ("easy", "medium", "hard", "expert"):
             gif = iso_dir / f"{task_name}_{diff}.gif"
-            if gif.is_file():
-                result[diff] = f"{task_name}_{diff}.gif"
-    if result:
-        return result
-
-    # 2. Flat 2D GIFs: showcase/videos/flat/{task}_{diff}.gif
-    flat_dir = videos_dir / "flat"
-    if flat_dir.is_dir():
-        for diff in ("easy", "medium", "hard", "expert"):
-            gif = flat_dir / f"{task_name}_{diff}.gif"
             if gif.is_file():
                 result[diff] = f"{task_name}_{diff}.gif"
 

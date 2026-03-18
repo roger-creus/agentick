@@ -1,456 +1,344 @@
 """
-CleanRL PPO training example with wandb logging, evaluation, video recording, and checkpoints.
+CleanRL-style PPO with CNN policy for Agentick pixel observations.
 
-This example demonstrates:
-- PPO training from scratch using CleanRL-style implementation
-- Integration with wandb for experiment tracking
-- Periodic evaluation with video recording
-- Model checkpointing
-- Performance metrics logging
+Adapted from https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
+Uses the standard Atari preprocessing pipeline: 512x512 isometric -> 84x84 grayscale -> 4-frame stack.
 
 Requirements:
-    uv sync --extra rl --extra all
+    uv sync --extra rl
 
 Usage:
     uv run python examples/rl/ppo_cleanrl.py
+    uv run python examples/rl/ppo_cleanrl.py --task-id MazeNavigation-v0 --difficulty medium
+    uv run python examples/rl/ppo_cleanrl.py --total-timesteps 1000000 --track
 """
 
+import os
+import random
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.distributions import Categorical
+from torch.distributions.categorical import Categorical
+from torch.utils.tensorboard import SummaryWriter
 
+import agentick
 from agentick.wrappers import make_atari_env
-
-try:
-    import wandb
-
-    WANDB_AVAILABLE = True
-except ImportError:
-    WANDB_AVAILABLE = False
-    print("⚠️  wandb not available. Install with: uv sync --extra all")
 
 
 @dataclass
-class PPOConfig:
-    """PPO hyperparameters."""
-
-    # Environment
-    env_id: str = "GoToGoal-v0"
-    num_envs: int = 8
-    num_steps: int = 128
-
-    # Training
-    total_timesteps: int = 500_000
-    learning_rate: float = 2.5e-4
-    anneal_lr: bool = True
-    gamma: float = 0.99
-    gae_lambda: float = 0.95
-    num_minibatches: int = 4
-    update_epochs: int = 4
-    clip_coef: float = 0.2
-    ent_coef: float = 0.01
-    vf_coef: float = 0.5
-    max_grad_norm: float = 0.5
-
-    # Evaluation
-    eval_freq: int = 50_000
-    eval_episodes: int = 10
-    record_video: bool = True
-
-    # Logging
-    log_freq: int = 10
-    use_wandb: bool = True
-    wandb_project: str = "agentick-ppo"
-    wandb_entity: str | None = None
-
-    # Checkpointing
-    checkpoint_freq: int = 100_000
-    checkpoint_dir: str = "checkpoints/ppo"
-
-    # Device
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+class Args:
+    exp_name: str = "ppo_cleanrl"
+    """the name of this experiment"""
     seed: int = 1
+    """seed of the experiment"""
+    torch_deterministic: bool = True
+    """if toggled, torch.backends.cudnn.deterministic=False"""
+    cuda: bool = True
+    """if toggled, cuda will be enabled by default"""
+    track: bool = False
+    """if toggled, this experiment will be tracked with Weights and Biases"""
+    wandb_project_name: str = "agentick-rl"
+    """the wandb's project name"""
+    capture_video: bool = False
+    """whether to capture videos of the agent performances"""
+
+    # Agentick-specific
+    task_id: str = "GoToGoal-v0"
+    """the Agentick task to train on"""
+    difficulty: str = "easy"
+    """difficulty level (easy, medium, hard, expert)"""
+    reward_mode: str = "dense"
+    """reward mode (sparse or dense)"""
+
+    # Algorithm specific arguments
+    total_timesteps: int = 500_000
+    """total timesteps of the experiments"""
+    learning_rate: float = 2.5e-4
+    """the learning rate of the optimizer"""
+    num_envs: int = 8
+    """the number of parallel game environments"""
+    num_steps: int = 128
+    """the number of steps to run in each environment per policy rollout"""
+    anneal_lr: bool = True
+    """Toggle learning rate annealing"""
+    gamma: float = 0.99
+    """the discount factor gamma"""
+    gae_lambda: float = 0.95
+    """the lambda for the general advantage estimation"""
+    num_minibatches: int = 4
+    """the number of mini-batches"""
+    update_epochs: int = 4
+    """the K epochs to update the policy"""
+    norm_adv: bool = True
+    """Toggles advantages normalization"""
+    clip_coef: float = 0.1
+    """the surrogate clipping coefficient"""
+    clip_vloss: bool = True
+    """Toggles clipped loss for the value function"""
+    ent_coef: float = 0.01
+    """coefficient of the entropy"""
+    vf_coef: float = 0.5
+    """coefficient of the value function"""
+    max_grad_norm: float = 0.5
+    """the maximum norm for the gradient clipping"""
+    target_kl: float | None = None
+    """the target KL divergence threshold"""
 
 
-class ActorCritic(nn.Module):
-    """Combined actor-critic network with Nature CNN architecture for visual observations."""
-
-    def __init__(self, obs_space: gym.Space, action_space: gym.Space):
-        super().__init__()
-
-        # Get action dimension
-        if isinstance(action_space, gym.spaces.Discrete):
-            action_dim = action_space.n
-        else:
-            raise ValueError(f"Unsupported action space: {action_space}")
-
-        # Check if we have image observations
-        if isinstance(obs_space, gym.spaces.Box) and len(obs_space.shape) == 3:
-            # Nature CNN for image observations
-            # Input is (H, W, C) but we need (C, H, W) for PyTorch
-            h, w, c = obs_space.shape
-            in_channels = c
-
-            self.network = nn.Sequential(
-                nn.Conv2d(in_channels, 32, kernel_size=8, stride=4),
-                nn.ReLU(),
-                nn.Conv2d(32, 64, kernel_size=4, stride=2),
-                nn.ReLU(),
-                nn.Conv2d(64, 64, kernel_size=3, stride=1),
-                nn.ReLU(),
-                nn.Flatten(),
-            )
-
-            # Calculate output size with a dummy forward pass
-            # Create dummy input as (1, C, H, W)
-            with torch.no_grad():
-                dummy_input = torch.zeros(1, c, h, w)
-                dummy_output = self.network(dummy_input)
-                feature_dim = dummy_output.shape[1]
-
-            self.fc = nn.Sequential(
-                nn.Linear(feature_dim, 512),
-                nn.ReLU(),
-            )
-            feature_size = 512
-        else:
-            # Fallback for non-image observations
-            if isinstance(obs_space, gym.spaces.Dict):
-                obs_dim = int(np.prod(obs_space["text"].shape))
-            else:
-                obs_dim = int(np.prod(obs_space.shape))
-
-            self.network = nn.Sequential(
-                nn.Linear(obs_dim, 256),
-                nn.ReLU(),
-                nn.Linear(256, 256),
-                nn.ReLU(),
-            )
-            self.fc = None
-            feature_size = 256
-
-        # Actor head
-        self.actor = nn.Linear(feature_size, action_dim)
-
-        # Critic head
-        self.critic = nn.Linear(feature_size, 1)
-
-    def get_value(self, obs: torch.Tensor) -> torch.Tensor:
-        """Get state value."""
-        features = self.network(obs)
-        if self.fc is not None:
-            features = self.fc(features)
-        return self.critic(features)
-
-    def get_action_and_value(
-        self, obs: torch.Tensor, action: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Get action, log probability, entropy, and value."""
-        features = self.network(obs)
-        if self.fc is not None:
-            features = self.fc(features)
-        logits = self.actor(features)
-        probs = Categorical(logits=logits)
-
-        if action is None:
-            action = probs.sample()
-
-        return action, probs.log_prob(action), probs.entropy(), self.critic(features)
-
-
-def make_env(env_id: str, seed: int, idx: int):
-    """Create a single environment with Atari preprocessing."""
-
+def make_env(task_id, difficulty, reward_mode, seed, idx, capture_video, run_name):
     def thunk():
-        env = make_atari_env(env_id, seed=seed)
+        env = make_atari_env(
+            task_id,
+            seed=seed + idx,
+            difficulty=difficulty,
+            reward_mode=reward_mode,
+        )
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env.action_space.seed(seed + idx)
-        env.observation_space.seed(seed + idx)
+        if capture_video and idx == 0:
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         return env
 
     return thunk
 
 
-def evaluate(
-    agent: ActorCritic,
-    env_id: str,
-    num_episodes: int,
-    device: str,
-    record_video: bool = False,
-    video_dir: str | None = None,
-) -> dict:
-    """Evaluate the agent."""
-    eval_env = make_atari_env(env_id, seed=42)
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
 
-    if record_video and video_dir:
-        Path(video_dir).mkdir(parents=True, exist_ok=True)
-        eval_env = gym.wrappers.RecordVideo(
-            eval_env,
-            video_folder=video_dir,
-            episode_trigger=lambda x: x < 3,  # Record first 3 episodes
+
+class Agent(nn.Module):
+    """Nature CNN agent (Mnih et al., 2015) for 84x84x4 grayscale frame-stacked observations."""
+
+    def __init__(self, envs):
+        super().__init__()
+        self.network = nn.Sequential(
+            layer_init(nn.Conv2d(4, 32, 8, stride=4)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(32, 64, 4, stride=2)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(64, 64, 3, stride=1)),
+            nn.ReLU(),
+            nn.Flatten(),
+            layer_init(nn.Linear(64 * 7 * 7, 512)),
+            nn.ReLU(),
         )
+        self.actor = layer_init(
+            nn.Linear(512, envs.single_action_space.n), std=0.01
+        )
+        self.critic = layer_init(nn.Linear(512, 1), std=1)
 
-    returns = []
-    lengths = []
-    successes = []
+    def get_value(self, x):
+        return self.critic(self.network(x / 255.0))
 
-    for _ in range(num_episodes):
-        obs, _ = eval_env.reset()
-        done = False
-        episode_return = 0
-        episode_length = 0
-
-        while not done:
-            # Get observation - normalize images to [0, 1]
-            if isinstance(obs, dict):
-                if "rgb" in obs:
-                    # Image observation: (H, W, C) -> (C, H, W) and normalize
-                    obs_array = obs["rgb"].transpose(2, 0, 1) / 255.0
-                    obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(device)
-                else:
-                    obs_tensor = torch.FloatTensor(obs["text"].flatten()).unsqueeze(0).to(device)
-            elif len(obs.shape) == 3:
-                # Image observation: (H, W, C) -> (C, H, W) and normalize
-                obs_array = obs.transpose(2, 0, 1) / 255.0
-                obs_tensor = torch.FloatTensor(obs_array).unsqueeze(0).to(device)
-            else:
-                obs_tensor = torch.FloatTensor(obs.flatten()).unsqueeze(0).to(device)
-
-            # Get action
-            with torch.no_grad():
-                action, _, _, _ = agent.get_action_and_value(obs_tensor)
-
-            obs, reward, terminated, truncated, info = eval_env.step(action.item())
-            done = terminated or truncated
-            episode_return += reward
-            episode_length += 1
-
-        returns.append(episode_return)
-        lengths.append(episode_length)
-
-        # Track success if available
-        if "success" in info:
-            successes.append(float(info["success"]))
-
-    eval_env.close()
-
-    results = {
-        "eval/mean_return": np.mean(returns),
-        "eval/std_return": np.std(returns),
-        "eval/mean_length": np.mean(lengths),
-        "eval/std_length": np.std(lengths),
-    }
-
-    if successes:
-        results["eval/success_rate"] = np.mean(successes)
-
-    return results
+    def get_action_and_value(self, x, action=None):
+        hidden = self.network(x / 255.0)
+        logits = self.actor(hidden)
+        probs = Categorical(logits=logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
 
-def train(config: PPOConfig):
-    """Train PPO agent."""
-    # Set seeds
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
+def parse_args():
+    """Parse CLI args, falling back to Args defaults."""
+    import argparse
 
-    # Initialize wandb
-    run_name = f"{config.env_id.split('/')[-1]}_{int(time.time())}"
-    if config.use_wandb and WANDB_AVAILABLE:
+    defaults = Args()
+    parser = argparse.ArgumentParser(description="CleanRL PPO for Agentick")
+    for field_name, field_val in vars(defaults).items():
+        field_type = type(field_val) if field_val is not None else str
+        if field_type is bool:
+            parser.add_argument(
+                f"--{field_name.replace('_', '-')}",
+                action="store_true",
+                default=field_val,
+            )
+        else:
+            parser.add_argument(
+                f"--{field_name.replace('_', '-')}",
+                type=field_type,
+                default=field_val,
+            )
+    parsed = parser.parse_args()
+    args = Args(**vars(parsed))
+    return args
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    batch_size = int(args.num_envs * args.num_steps)
+    minibatch_size = int(batch_size // args.num_minibatches)
+    num_iterations = args.total_timesteps // batch_size
+
+    run_name = f"{args.task_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+
+    if args.track:
+        import wandb
+
         wandb.init(
-            project=config.wandb_project,
-            entity=config.wandb_entity,
+            project=args.wandb_project_name,
+            sync_tensorboard=True,
+            config=vars(args),
             name=run_name,
-            config=vars(config),
-            sync_tensorboard=False,
+            save_code=True,
         )
 
-    # Create vectorized environment
-    envs = gym.vector.SyncVectorEnv(
-        [make_env(config.env_id, config.seed, i) for i in range(config.num_envs)]
+    writer = SummaryWriter(f"runs/{run_name}")
+    writer.add_text(
+        "hyperparameters",
+        "|param|value|\n|-|-|\n%s"
+        % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
-    # Create agent
-    agent = ActorCritic(envs.single_observation_space, envs.single_action_space).to(config.device)
-    optimizer = optim.Adam(agent.parameters(), lr=config.learning_rate, eps=1e-5)
+    # Seeding
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    # Get observation shape for buffer
-    if isinstance(envs.single_observation_space, gym.spaces.Dict):
-        if "rgb" in envs.single_observation_space.spaces:
-            # Use rgb observation
-            obs_shape = envs.single_observation_space["rgb"].shape
-            obs_shape = (obs_shape[2], obs_shape[0], obs_shape[1])  # (C, H, W)
-        else:
-            # Use text observation
-            obs_shape = (int(np.prod(envs.single_observation_space["text"].shape)),)
-    elif len(envs.single_observation_space.shape) == 3:
-        # Image observation (H, W, C) -> store as (C, H, W)
-        h, w, c = envs.single_observation_space.shape
-        obs_shape = (c, h, w)
-    else:
-        obs_shape = (int(np.prod(envs.single_observation_space.shape)),)
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() and args.cuda else "cpu"
+    )
 
-    # Learning curve tracking
-    learning_curve = {"steps": [], "returns": [], "lengths": []}
+    # Environment setup
+    envs = gym.vector.SyncVectorEnv(
+        [
+            make_env(
+                args.task_id,
+                args.difficulty,
+                args.reward_mode,
+                args.seed,
+                i,
+                args.capture_video,
+                run_name,
+            )
+            for i in range(args.num_envs)
+        ],
+    )
+    assert isinstance(
+        envs.single_action_space, gym.spaces.Discrete
+    ), "only discrete action space is supported"
 
-    # Storage
-    obs_buffer = torch.zeros((config.num_steps, config.num_envs, *obs_shape)).to(config.device)
-    actions_buffer = torch.zeros((config.num_steps, config.num_envs)).to(config.device)
-    logprobs_buffer = torch.zeros((config.num_steps, config.num_envs)).to(config.device)
-    rewards_buffer = torch.zeros((config.num_steps, config.num_envs)).to(config.device)
-    dones_buffer = torch.zeros((config.num_steps, config.num_envs)).to(config.device)
-    values_buffer = torch.zeros((config.num_steps, config.num_envs)).to(config.device)
-
-    # Initialize environment
-    next_obs, _ = envs.reset(seed=config.seed)
-    next_done = torch.zeros(config.num_envs).to(config.device)
-
-    # Training loop
-    num_updates = config.total_timesteps // (config.num_steps * config.num_envs)
-    global_step = 0
-
-    print(f"Training PPO on {config.env_id}")
-    print(f"Device: {config.device}")
-    print(f"Total timesteps: {config.total_timesteps:,}")
-    print(f"Updates: {num_updates:,}")
-    print(f"Wandb: {config.use_wandb and WANDB_AVAILABLE}")
+    print(f"Task: {args.task_id} ({args.difficulty})")
+    print(f"Obs space: {envs.single_observation_space.shape}")
+    print(f"Act space: {envs.single_action_space.n}")
+    print(f"Device: {device}")
+    print(f"Total timesteps: {args.total_timesteps:,}")
+    print(f"Batch size: {batch_size}, Minibatch size: {minibatch_size}")
+    print(f"Iterations: {num_iterations}")
     print()
 
-    for update in range(1, num_updates + 1):
-        # Anneal learning rate
-        if config.anneal_lr:
-            frac = 1.0 - (update - 1.0) / num_updates
-            lrnow = frac * config.learning_rate
-            optimizer.param_groups[0]["lr"] = lrnow
+    agent = Agent(envs).to(device)
+    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
-        # Collect rollout
-        for step in range(config.num_steps):
-            global_step += config.num_envs
+    # Storage
+    obs = torch.zeros(
+        (args.num_steps, args.num_envs) + envs.single_observation_space.shape
+    ).to(device)
+    actions = torch.zeros(
+        (args.num_steps, args.num_envs) + envs.single_action_space.shape
+    ).to(device)
+    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-            # Convert observation - normalize images to [0, 1]
-            if isinstance(next_obs, dict):
-                if "rgb" in next_obs:
-                    # Image observation: (N, H, W, C) -> (N, C, H, W) and normalize
-                    obs_array = np.transpose(next_obs["rgb"], (0, 3, 1, 2)) / 255.0
-                    obs_tensor = torch.FloatTensor(obs_array).to(config.device)
-                else:
-                    obs_tensor = torch.FloatTensor(next_obs["text"].reshape(config.num_envs, -1)).to(
-                        config.device
-                    )
-            elif len(next_obs.shape) == 4:
-                # Image observation: (N, H, W, C) -> (N, C, H, W) and normalize
-                obs_array = np.transpose(next_obs, (0, 3, 1, 2)) / 255.0
-                obs_tensor = torch.FloatTensor(obs_array).to(config.device)
-            else:
-                obs_tensor = torch.FloatTensor(next_obs.reshape(config.num_envs, -1)).to(
-                    config.device
-                )
+    # Start
+    global_step = 0
+    start_time = time.time()
+    next_obs, _ = envs.reset(seed=args.seed)
+    next_obs = torch.Tensor(next_obs).to(device)
+    next_done = torch.zeros(args.num_envs).to(device)
 
-            obs_buffer[step] = obs_tensor
-            dones_buffer[step] = next_done
+    for iteration in range(1, num_iterations + 1):
+        # Anneal LR
+        if args.anneal_lr:
+            frac = 1.0 - (iteration - 1.0) / num_iterations
+            optimizer.param_groups[0]["lr"] = frac * args.learning_rate
 
-            # Get action
+        for step in range(0, args.num_steps):
+            global_step += args.num_envs
+            obs[step] = next_obs
+            dones[step] = next_done
+
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(obs_tensor)
-                values_buffer[step] = value.flatten()
+                action, logprob, _, value = agent.get_action_and_value(next_obs)
+                values[step] = value.flatten()
+            actions[step] = action
+            logprobs[step] = logprob
 
-            actions_buffer[step] = action
-            logprobs_buffer[step] = logprob
+            next_obs, reward, terminations, truncations, infos = envs.step(
+                action.cpu().numpy()
+            )
+            next_done = np.logical_or(terminations, truncations)
+            rewards[step] = torch.tensor(reward).to(device).view(-1)
+            next_obs = torch.Tensor(next_obs).to(device)
+            next_done = torch.Tensor(next_done).to(device)
 
-            # Step environment
-            next_obs, reward, terminated, truncated, info = envs.step(action.cpu().numpy())
-            done = np.logical_or(terminated, truncated)
-            rewards_buffer[step] = torch.tensor(reward).to(config.device)
-            next_done = torch.Tensor(done).to(config.device)
+            if "final_info" in infos:
+                for info in infos["final_info"]:
+                    if info and "episode" in info:
+                        ep_r = info["episode"]["r"]
+                        ep_l = info["episode"]["l"]
+                        print(
+                            f"global_step={global_step}, "
+                            f"episodic_return={ep_r:.2f}, "
+                            f"length={ep_l}"
+                        )
+                        writer.add_scalar(
+                            "charts/episodic_return", ep_r, global_step
+                        )
+                        writer.add_scalar(
+                            "charts/episodic_length", ep_l, global_step
+                        )
 
-            # Log episode statistics
-            if "final_info" in info:
-                for item in info["final_info"]:
-                    if item and "episode" in item:
-                        # Track learning curve
-                        learning_curve["steps"].append(global_step)
-                        learning_curve["returns"].append(item["episode"]["r"])
-                        learning_curve["lengths"].append(item["episode"]["l"])
-
-                        if update % config.log_freq == 0:
-                            print(
-                                f"Step {global_step:,}: episode_return={item['episode']['r']:.2f}, episode_length={item['episode']['l']}"
-                            )
-
-                        if config.use_wandb and WANDB_AVAILABLE:
-                            wandb.log(
-                                {
-                                    "train/episode_return": item["episode"]["r"],
-                                    "train/episode_length": item["episode"]["l"],
-                                    "train/global_step": global_step,
-                                }
-                            )
-
-        # Bootstrap value
+        # GAE
         with torch.no_grad():
-            if isinstance(next_obs, dict):
-                if "rgb" in next_obs:
-                    obs_array = np.transpose(next_obs["rgb"], (0, 3, 1, 2)) / 255.0
-                    next_obs_tensor = torch.FloatTensor(obs_array).to(config.device)
-                else:
-                    next_obs_tensor = torch.FloatTensor(
-                        next_obs["text"].reshape(config.num_envs, -1)
-                    ).to(config.device)
-            elif len(next_obs.shape) == 4:
-                obs_array = np.transpose(next_obs, (0, 3, 1, 2)) / 255.0
-                next_obs_tensor = torch.FloatTensor(obs_array).to(config.device)
-            else:
-                next_obs_tensor = torch.FloatTensor(next_obs.reshape(config.num_envs, -1)).to(
-                    config.device
-                )
-            next_value = agent.get_value(next_obs_tensor).reshape(1, -1)
-
-            # GAE
-            advantages = torch.zeros_like(rewards_buffer).to(config.device)
+            next_value = agent.get_value(next_obs).reshape(1, -1)
+            advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
-            for t in reversed(range(config.num_steps)):
-                if t == config.num_steps - 1:
+            for t in reversed(range(args.num_steps)):
+                if t == args.num_steps - 1:
                     nextnonterminal = 1.0 - next_done
                     nextvalues = next_value
                 else:
-                    nextnonterminal = 1.0 - dones_buffer[t + 1]
-                    nextvalues = values_buffer[t + 1]
+                    nextnonterminal = 1.0 - dones[t + 1]
+                    nextvalues = values[t + 1]
                 delta = (
-                    rewards_buffer[t]
-                    + config.gamma * nextvalues * nextnonterminal
-                    - values_buffer[t]
+                    rewards[t]
+                    + args.gamma * nextvalues * nextnonterminal
+                    - values[t]
                 )
                 advantages[t] = lastgaelam = (
-                    delta + config.gamma * config.gae_lambda * nextnonterminal * lastgaelam
+                    delta
+                    + args.gamma
+                    * args.gae_lambda
+                    * nextnonterminal
+                    * lastgaelam
                 )
-            returns = advantages + values_buffer
+            returns = advantages + values
 
-        # Flatten batch
-        b_obs = obs_buffer.reshape((-1, *obs_shape))
-        b_logprobs = logprobs_buffer.reshape(-1)
-        b_actions = actions_buffer.reshape(-1)
+        # Flatten
+        b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+        b_logprobs = logprobs.reshape(-1)
+        b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
-        values_buffer.reshape(-1)
+        b_values = values.reshape(-1)
 
-        # Optimize policy
-        b_inds = np.arange(config.num_steps * config.num_envs)
+        # Optimize
+        b_inds = np.arange(batch_size)
         clipfracs = []
-        for epoch in range(config.update_epochs):
+        for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
-            for start in range(
-                0,
-                config.num_steps * config.num_envs,
-                config.num_steps * config.num_envs // config.num_minibatches,
-            ):
-                end = start + config.num_steps * config.num_envs // config.num_minibatches
+            for start in range(0, batch_size, minibatch_size):
+                end = start + minibatch_size
                 mb_inds = b_inds[start:end]
 
                 _, newlogprob, entropy, newvalue = agent.get_action_and_value(
@@ -461,179 +349,76 @@ def train(config: PPOConfig):
 
                 with torch.no_grad():
                     approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfracs += [((ratio - 1.0).abs() > config.clip_coef).float().mean().item()]
+                    clipfracs += [
+                        ((ratio - 1.0).abs() > args.clip_coef)
+                        .float()
+                        .mean()
+                        .item()
+                    ]
 
                 mb_advantages = b_advantages[mb_inds]
-                mb_advantages = (mb_advantages - mb_advantages.mean()) / (
-                    mb_advantages.std() + 1e-8
-                )
+                if args.norm_adv:
+                    mb_advantages = (mb_advantages - mb_advantages.mean()) / (
+                        mb_advantages.std() + 1e-8
+                    )
 
                 # Policy loss
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(
-                    ratio, 1 - config.clip_coef, 1 + config.clip_coef
+                    ratio, 1 - args.clip_coef, 1 + args.clip_coef
                 )
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
                 newvalue = newvalue.view(-1)
-                v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
+                if args.clip_vloss:
+                    v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
+                    v_clipped = b_values[mb_inds] + torch.clamp(
+                        newvalue - b_values[mb_inds],
+                        -args.clip_coef,
+                        args.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
+                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                else:
+                    v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
-                # Entropy loss
                 entropy_loss = entropy.mean()
-
-                # Total loss
-                loss = pg_loss - config.ent_coef * entropy_loss + config.vf_coef * v_loss
+                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
                 optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), config.max_grad_norm)
+                nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
                 optimizer.step()
 
-        # Log training metrics
-        if config.use_wandb and WANDB_AVAILABLE:
-            wandb.log(
-                {
-                    "train/learning_rate": optimizer.param_groups[0]["lr"],
-                    "train/value_loss": v_loss.item(),
-                    "train/policy_loss": pg_loss.item(),
-                    "train/entropy": entropy_loss.item(),
-                    "train/approx_kl": approx_kl.item(),
-                    "train/clipfrac": np.mean(clipfracs),
-                    "train/global_step": global_step,
-                }
-            )
+            if args.target_kl is not None and approx_kl > args.target_kl:
+                break
 
-        # Evaluation
-        if global_step % config.eval_freq < (config.num_steps * config.num_envs):
-            video_dir = None
-            if config.record_video:
-                video_dir = f"{config.checkpoint_dir}/videos/step_{global_step}"
+        y_pred, y_true = b_values.cpu().numpy(), b_returns.cpu().numpy()
+        var_y = np.var(y_true)
+        explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
-            eval_results = evaluate(
-                agent,
-                config.env_id,
-                config.eval_episodes,
-                config.device,
-                config.record_video,
-                video_dir,
-            )
-
-            print(f"\nEvaluation at step {global_step:,}:")
-            for key, value in eval_results.items():
-                print(f"  {key}: {value:.2f}")
-            print()
-
-            if config.use_wandb and WANDB_AVAILABLE:
-                wandb.log({**eval_results, "train/global_step": global_step})
-
-        # Checkpointing
-        if global_step % config.checkpoint_freq < (config.num_steps * config.num_envs):
-            checkpoint_path = Path(config.checkpoint_dir) / f"checkpoint_{global_step}.pt"
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-
-            torch.save(
-                {
-                    "global_step": global_step,
-                    "model_state_dict": agent.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "config": vars(config),
-                },
-                checkpoint_path,
-            )
-
-            print(f"Checkpoint saved: {checkpoint_path}")
-
-    # Final evaluation
-    print("\nFinal evaluation...")
-    video_dir = None
-    if config.record_video:
-        video_dir = f"{config.checkpoint_dir}/videos/final"
-
-    final_results = evaluate(
-        agent,
-        config.env_id,
-        config.eval_episodes * 2,  # More episodes for final eval
-        config.device,
-        config.record_video,
-        video_dir,
-    )
-
-    print("\nFinal results:")
-    for key, value in final_results.items():
-        print(f"  {key}: {value:.2f}")
-
-    if config.use_wandb and WANDB_AVAILABLE:
-        wandb.log({**final_results, "train/global_step": global_step})
-        wandb.finish()
-
-    # Save final model
-    final_model_path = Path(config.checkpoint_dir) / "final_model.pt"
-    final_model_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "global_step": global_step,
-            "model_state_dict": agent.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "config": vars(config),
-        },
-        final_model_path,
-    )
-    print(f"\nFinal model saved: {final_model_path}")
-
-    # Save and plot learning curves
-    if learning_curve["steps"]:
-        # Save raw data
-        learning_curve_path = Path(config.checkpoint_dir) / "learning_curve.npz"
-        np.savez(
-            learning_curve_path,
-            steps=np.array(learning_curve["steps"]),
-            returns=np.array(learning_curve["returns"]),
-            lengths=np.array(learning_curve["lengths"]),
+        # Logging
+        writer.add_scalar(
+            "charts/learning_rate", optimizer.param_groups[0]["lr"], global_step
         )
-        print(f"Learning curve data saved: {learning_curve_path}")
+        writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
+        writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
+        writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
+        writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
+        writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
+        writer.add_scalar("losses/explained_variance", explained_var, global_step)
+        sps = int(global_step / (time.time() - start_time))
+        writer.add_scalar("charts/SPS", sps, global_step)
 
-        # Create plots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-        # Plot returns
-        ax1.plot(learning_curve["steps"], learning_curve["returns"], alpha=0.6)
-        # Add smoothed curve (moving average)
-        window = min(50, len(learning_curve["returns"]) // 10)
-        if window > 1:
-            smoothed_returns = np.convolve(
-                learning_curve["returns"], np.ones(window) / window, mode="valid"
+        if iteration % 10 == 0:
+            print(
+                f"Iteration {iteration}/{num_iterations} | "
+                f"SPS: {sps} | "
+                f"Loss: {loss.item():.4f} | "
+                f"Explained var: {explained_var:.3f}"
             )
-            smoothed_steps = learning_curve["steps"][window - 1 :]
-            ax1.plot(smoothed_steps, smoothed_returns, linewidth=2, label="Smoothed")
-        ax1.set_xlabel("Steps")
-        ax1.set_ylabel("Episode Return")
-        ax1.set_title("Training Returns")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        # Plot episode lengths
-        ax2.plot(learning_curve["steps"], learning_curve["lengths"], alpha=0.6)
-        if window > 1:
-            smoothed_lengths = np.convolve(
-                learning_curve["lengths"], np.ones(window) / window, mode="valid"
-            )
-            ax2.plot(smoothed_steps, smoothed_lengths, linewidth=2, label="Smoothed")
-        ax2.set_xlabel("Steps")
-        ax2.set_ylabel("Episode Length")
-        ax2.set_title("Episode Lengths")
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-        plot_path = Path(config.checkpoint_dir) / "learning_curves.png"
-        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-        print(f"Learning curve plot saved: {plot_path}")
-        plt.close()
 
     envs.close()
-
-
-if __name__ == "__main__":
-    config = PPOConfig()
-    train(config)
+    writer.close()
+    print(f"\nTraining complete! Logs: runs/{run_name}")

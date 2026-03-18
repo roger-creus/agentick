@@ -1,6 +1,6 @@
 # RL Agents
 
-Train RL agents on Agentick using CleanRL-style scripts (recommended) or Stable-Baselines3. All examples use 8 vectorized environments by default.
+Train RL agents on Agentick using CleanRL-style single-file scripts or Stable-Baselines3. All pixel-based examples use the standard Atari preprocessing pipeline: isometric 512x512 -> resize 84x84 -> grayscale -> 4-frame stack.
 
 ## Quick Start (CleanRL)
 
@@ -10,10 +10,9 @@ import gymnasium as gym
 from agentick.wrappers import make_atari_env
 
 # make_atari_env: pixels -> resize 84x84 -> grayscale -> frame stack 4
-# render_mode can be "rgb_array_flat" (2D grid) or "rgb_array" (isometric)
 envs = gym.vector.SyncVectorEnv(
     [lambda: make_atari_env("GoToGoal-v0", difficulty="easy",
-                            render_mode="rgb_array_flat") for _ in range(8)]
+                            render_mode="rgb_array") for _ in range(8)]
 )
 # obs shape: (8, 84, 84, 4), uint8
 ```
@@ -42,5 +41,19 @@ env = agentick.make("GoToGoal-v0", reward_mode="dense")   # Shaped progress rewa
 
 See `examples/rl/`:
 
-- **CleanRL (recommended)**: `ppo_cleanrl.py`, `dqn_cleanrl.py`, `ppo_pixels.py`, `dqn_pixels.py`
-- **SB3**: `sb3_ppo.py`, `sb3_dqn.py`
+- **CleanRL**: `ppo_cleanrl.py`, `dqn_cleanrl.py` — single-file, hackable, TensorBoard logging
+- **SB3**: `sb3_ppo.py`, `sb3_dqn.py` — higher-level API, wandb integration, checkpointing
+
+```bash
+# CleanRL PPO (default: GoToGoal-v0, easy, dense, 500k steps)
+uv run python examples/rl/ppo_cleanrl.py
+
+# CleanRL PPO on a harder task
+uv run python examples/rl/ppo_cleanrl.py --task-id MazeNavigation-v0 --difficulty medium
+
+# CleanRL DQN
+uv run python examples/rl/dqn_cleanrl.py
+
+# SB3 PPO
+uv run python examples/rl/sb3_ppo.py
+```

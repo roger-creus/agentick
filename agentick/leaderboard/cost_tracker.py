@@ -12,12 +12,6 @@ MODEL_PRICING = {
     "gpt-4-turbo": {"input": 10.00, "output": 30.00},
     "gpt-4": {"input": 30.00, "output": 60.00},
     "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
-    # Anthropic
-    "claude-opus-4": {"input": 15.00, "output": 75.00},
-    "claude-sonnet-4": {"input": 3.00, "output": 15.00},
-    "claude-sonnet-3.5": {"input": 3.00, "output": 15.00},
-    "claude-haiku-4.5": {"input": 1.00, "output": 5.00},
-    "claude-haiku-4": {"input": 1.00, "output": 5.00},
     # Google
     "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
     "gemini-2.5-flash": {"input": 0.30, "output": 2.50},

@@ -13,7 +13,7 @@ from agentick.core.actions import ActionSpace, ActionType, compute_action_mask, 
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.renderer import create_renderer
-from agentick.core.types import CellType, ObjectType
+from agentick.core.types import CellType
 
 
 class AgentickEnv(gym.Env):
@@ -32,7 +32,6 @@ class AgentickEnv(gym.Env):
             "language",
             "language_structured",
             "rgb_array",
-            "rgb_array_flat",
             "human",
             "state_dict",
         ],
@@ -57,7 +56,6 @@ class AgentickEnv(gym.Env):
                 ``"ascii"`` — ANSI-colored text grid (default).
                 ``"language"`` / ``"language_structured"`` — natural language.
                 ``"rgb_array"`` — isometric pixel sprites (512×512, Kenney assets).
-                ``"rgb_array_flat"`` — flat 2D top-down grid sprites.
                 ``"state_dict"`` — structured dict with numpy arrays.
             reward_mode: "sparse", "dense", or "custom"
             max_steps: Maximum steps per episode
@@ -96,7 +94,6 @@ class AgentickEnv(gym.Env):
 
         # Renderer setup:
         # rgb_array → isometric Kenney sprite renderer (lazy init via _render_isometric)
-        # rgb_array_flat → flat 2D SimpleGridRenderer
         # all others → create_renderer factory
         if render_mode == "rgb_array":
             self._iso_renderer = None  # Lazy init
@@ -150,13 +147,8 @@ class AgentickEnv(gym.Env):
                     "max_steps": spaces.Box(0, np.inf, shape=(), dtype=np.int32),
                 }
             )
-        elif self.render_mode in ("rgb_array", "rgb_iso"):
+        elif self.render_mode in ("rgb_array", "human"):
             # Isometric pixel observations — fixed 512×512 output
-            self.observation_space = spaces.Box(
-                low=0, high=255, shape=(512, 512, 3), dtype=np.uint8
-            )
-        elif self.render_mode in ("rgb_array_flat", "rgb_array_2d", "human"):
-            # Flat 2D top-down pixel observations — fixed 512×512 output
             self.observation_space = spaces.Box(
                 low=0, high=255, shape=(512, 512, 3), dtype=np.uint8
             )
@@ -335,11 +327,7 @@ class AgentickEnv(gym.Env):
 
     def get_pixel_observation(self) -> np.ndarray:
         """Get pixel observation regardless of render mode."""
-        from agentick.core.renderer import PixelRenderer
-
-        renderer = PixelRenderer()
-        info = self._get_info()
-        return renderer.render(self.grid, self.entities, self.agent, info)
+        return self._render_isometric()
 
     def get_state_dict(self) -> dict[str, Any]:
         """Get full state dictionary."""

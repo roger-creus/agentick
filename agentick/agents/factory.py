@@ -50,7 +50,7 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
     backend_kwargs: dict[str, Any] = {}
     if "model" in hp:
         backend_kwargs[
-            "model" if backend_name in ("openai", "anthropic", "gemini") else "model_id"
+            "model" if backend_name in ("openai", "gemini") else "model_id"
         ] = hp["model"]
     for key in (
         "api_key_env",

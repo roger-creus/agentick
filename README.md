@@ -1,6 +1,6 @@
 # Agentick
 
-**Universal benchmark for evaluating AI agents across all paradigms**
+**Universal benchmark for evaluating AI agents**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -10,22 +10,30 @@ Agentick provides 38 procedurally generated tasks for evaluating AI agents. Trai
 ## Key Features
 
 - **38 Tasks** across navigation, planning, reasoning, memory, generalization, and multi-agent coordination
-- **Multi-Modal Observations**: isometric pixel sprites, flat 2D grid, ASCII text, language, structured state
-- **Training-First**: vectorized environments, trajectory export, SFT and RL fine-tuning
+- **Multi-Modal Observations**: isometric pixel sprites, ASCII text, natural language, structured state
+- **Training-First**: trajectory export, SFT fine-tuning, RL baselines
 - **Universal Support**: RL, LLMs, VLMs, bots, humans
 - **Capability Decomposition**: radar charts showing agent strengths/weaknesses
 - **Experiment System**: pre-configured YAML configs, reproducible evaluation, leaderboard
+
+## Try It First
+
+The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
+
+```bash
+git clone https://github.com/agentick/agentick.git && cd agentick
+uv sync --extra all
+uv run python -m agentick.human.webapp   # Opens http://localhost:5000
+```
 
 ## Quick Start
 
 ```python
 import agentick
 
-# Create environment (default: ASCII observation)
 env = agentick.make("GoToGoal-v0")
 obs, info = env.reset()
 
-# Agent loop
 for _ in range(100):
     action = env.action_space.sample()
     obs, reward, terminated, truncated, info = env.step(action)
@@ -38,50 +46,26 @@ env.close()
 ## Installation
 
 ```bash
-# Install uv (fast package manager)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and install
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv
 git clone https://github.com/agentick/agentick.git
 cd agentick
 uv sync --extra all
-
-# Verify
 uv run agentick --version
 ```
 
 ### Dependency Groups
 
 ```bash
-uv sync --extra rl         # RL training (torch, wandb)
-uv sync --extra llm        # LLM agents (openai, anthropic)
-uv sync --extra viz        # Visualization (matplotlib, seaborn)
-uv sync --extra all        # Everything
+uv sync                     # Core only (gymnasium, numpy, pygame, Pillow)
+uv sync --extra rl          # RL training (torch, stable-baselines3)
+uv sync --extra llm         # LLM agents (openai, transformers, google-genai)
+uv sync --extra vllm        # vLLM serving
+uv sync --extra finetune    # Fine-tuning (trl, peft, datasets)
+uv sync --extra tracking    # Experiment tracking (wandb)
+uv sync --extra viz         # Visualization (matplotlib, seaborn, plotly)
+uv sync --extra webapp      # Human play webapp (flask)
+uv sync --extra all         # Everything
 ```
-
-## Examples
-
-Runnable examples in `examples/`:
-
-```bash
-# Basic usage
-uv run python examples/basics/01_make_and_step.py
-
-# RL training (flat 2D pixel observations)
-uv run python examples/rl/sb3_ppo.py
-
-# LLM agent (requires API key)
-export OPENAI_API_KEY="your-key"
-uv run python examples/llm/openai_text_agent.py
-
-# Data collection
-uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
-
-# Run a full benchmark experiment
-uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/random_agent.yaml
-```
-
-See [examples/README.md](examples/README.md) for the full list.
 
 ## Render Modes
 
@@ -90,16 +74,12 @@ See [examples/README.md](examples/README.md) for the full list.
 | `"ascii"` | ANSI-colored text grid (default) | `str` |
 | `"language"` | Natural language description | `str` |
 | `"language_structured"` | Structured dict with position, surroundings | `dict` |
-| `"rgb_array"` | **Isometric pixel sprites** (512×512, Kenney assets) | `np.ndarray` |
-| `"rgb_array_flat"` | Flat 2D top-down grid sprites | `np.ndarray` |
+| `"rgb_array"` | **Isometric pixel sprites** (512x512, Kenney assets) | `np.ndarray` |
 | `"state_dict"` | Numpy arrays for grid layers and agent state | `dict` |
 
 ```python
-# Isometric rendering (default pixel mode)
-env = agentick.make("MazeNavigation-v0", render_mode="rgb_array")
-
-# Flat 2D grid (faster, good for RL training)
-env = agentick.make("MazeNavigation-v0", render_mode="rgb_array_flat")
+env = agentick.make("MazeNavigation-v0", render_mode="rgb_array")  # Isometric pixels
+env = agentick.make("MazeNavigation-v0", render_mode="language")   # Natural language
 ```
 
 ## Task Gallery
@@ -115,31 +95,91 @@ env = agentick.make("MazeNavigation-v0", render_mode="rgb_array_flat")
 
 **Total: 38 tasks**, each with 4 difficulty levels (easy, medium, hard, expert).
 
+## Examples
+
+```bash
+# Basic usage
+uv run python examples/basics/01_make_and_step.py
+
+# RL training with SB3
+uv run python examples/rl/sb3_ppo.py
+
+# LLM agent (requires API key)
+export OPENAI_API_KEY="your-key"
+uv run python examples/llm/openai_text_agent.py
+
+# Data collection from oracles
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
+
+# Run a full benchmark experiment
+uv run python -m agentick.experiments.run --config examples/experiments/configs/random_agent.yaml
+```
+
+## Experiment Runner
+
+The primary interface for benchmarking is the experiment runner with YAML configs:
+
+```yaml
+name: my-agent
+agent:
+  type: llm
+  hyperparameters:
+    backend: openai
+    model: gpt-4o
+    harness: markovian_zero_shot
+    observation_modes: [language]
+tasks: "full"
+difficulties: [easy, medium, hard, expert]
+n_seeds: 25
+n_episodes: 1
+output_dir: results/my-agent
+```
+
+```bash
+uv run python -m agentick.experiments.run --config config.yaml
+```
+
+## Oracle Trajectory Datasets
+
+Pre-built datasets of expert trajectories for SFT fine-tuning:
+
+| Dataset | Train | Test |
+|---------|-------|------|
+| [`agentick-oracle-trajectories-50k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) | ~50k steps | ~50k steps |
+| [`agentick-oracle-trajectories-100k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) | ~100k steps | ~100k steps |
+| [`agentick-oracle-trajectories-200k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) | ~200k steps | ~200k steps |
+| [`agentick-oracle-trajectories-400k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) | ~400k steps | ~400k steps |
+
+Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. Train/test use different deterministic seeds. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
+
+## Leaderboard
+
+Submit your results for inclusion on the public leaderboard:
+
+1. Run evaluation on all 38 tasks with official eval seeds
+2. Validate: `uv run python scripts/validate_submission.py results/<run>/`
+3. Email the generated zip to `roger.creus-castanyer@mila.quebec`
+
+See [docs/leaderboard.md](docs/leaderboard.md) for details.
+
 ## CLI
 
 ```bash
-uv run agentick --version                     # Show version
-uv run agentick list-tasks                     # List all tasks
-uv run agentick list-suites                    # List benchmark suites
-uv run agentick evaluate --submission X --suite Y  # Run evaluation
-```
-
-## Try It First
-
-The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
-
-```bash
-uv run agentick webapp          # Opens http://localhost:5000
+uv run agentick --version        # Show version
+uv run agentick list-tasks       # List all 38 tasks
+uv run agentick list-suites      # List benchmark suites
+uv run agentick info GoToGoal-v0 # Task details
 ```
 
 ## Documentation
 
-- [Installation Guide](docs/getting_started/installation.md)
-- [Quickstart Tutorial](docs/getting_started/quickstart.md)
-- [Task Reference](docs/concepts/tasks.md)
-- [RL Training Guide](docs/agents/rl_agents.md)
-- [LLM Agent Guide](docs/agents/llm_agents.md)
-- [API Reference](docs/api/index.md)
+- [Quickstart](docs/getting_started/quickstart.md)
+- [Tasks](docs/tasks.md)
+- [Observations](docs/concepts/observations.md)
+- [RL Agents](docs/agents/rl_agents.md)
+- [LLM/VLM Agents](docs/agents/llm_agents.md)
+- [Experiments](docs/experiments.md)
+- [Leaderboard](docs/leaderboard.md)
 
 ## Project Structure
 
@@ -149,16 +189,28 @@ agentick/
 │   ├── core/              # Environment, grid, renderer, types
 │   ├── tasks/             # 38 task implementations
 │   ├── oracles/           # Optimal reference policies
-│   ├── agents/            # LLM/VLM/RL agent harnesses
+│   ├── agents/            # LLM/VLM agent harnesses
 │   ├── leaderboard/       # Evaluation system and suites
-│   ├── rendering/         # Isometric sprite renderer
 │   ├── data/              # Trajectory collection
-│   ├── training/          # SFT, BC, and RL trainers
+│   ├── training/          # SFT trainer (TRL)
 │   └── human/             # Web showcase and human play
 ├── examples/              # Runnable examples
 ├── docs/                  # Documentation + showcase gallery
 └── tests/                 # Test suite
 ```
+
+## Roadmap
+
+Features on the `dev` branch for future releases:
+
+- Non-markovian conversation history harnesses
+- Tinker RL training integration
+- Behaviour cloning from pixels
+- Curriculum learning
+- Vector environments for parallel training
+- Docker/git-repo leaderboard submission types
+- SFT model evaluation pipeline
+
 ## Citation
 
 ```bibtex

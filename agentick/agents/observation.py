@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from agentick.leaderboard.adapters.prompt_templates import format_observation_to_text
+from agentick.agents.prompt_templates import format_observation_to_text
 
 
 def format_text_observation(obs: Any, info: dict[str, Any], mode: str) -> str:

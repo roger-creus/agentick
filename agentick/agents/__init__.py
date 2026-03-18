@@ -7,7 +7,6 @@ from agentick.agents.harness import (
     HarnessPreset,
     MarkovianReasoner,
     MarkovianZeroShot,
-    NonMarkovianZeroShot,
 )
 
 __all__ = [
@@ -16,7 +15,6 @@ __all__ = [
     "ModelBackend",
     "HarnessPreset",
     "MarkovianZeroShot",
-    "NonMarkovianZeroShot",
     "MarkovianReasoner",
     "create_agent",
 ]

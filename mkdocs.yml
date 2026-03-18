@@ -25,7 +25,7 @@ nav:
     - LLM / VLM Agents: agents/llm_agents.md
     - Fine-Tuning: agents/finetuning.md
   - Experiments: experiments.md
-  - Evaluation Seeds: seeds.md
+  - Leaderboard: leaderboard.md
   - Architecture: concepts/architecture.md
   - CLI: cli.md
 

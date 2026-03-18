@@ -2,124 +2,95 @@
 
 Fine-tune language models on expert trajectories from Agentick oracles.
 
+## Pre-built Datasets
+
+Oracle trajectory datasets are available on HuggingFace:
+
+| Dataset | Train | Test | Link |
+|---------|-------|------|------|
+| `rogercc/agentick-oracle-trajectories-50k` | ~50k steps | ~50k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) |
+| `rogercc/agentick-oracle-trajectories-100k` | ~100k steps | ~100k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) |
+| `rogercc/agentick-oracle-trajectories-200k` | ~200k steps | ~200k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) |
+| `rogercc/agentick-oracle-trajectories-400k` | ~400k steps | ~400k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) |
+
+Each dataset is a DatasetDict with train/test splits (using different deterministic seeds). Per-step records with `ascii_render`, `language_render`, `action_int`, `action_name`, `task`, `difficulty`, `reward`, and `done` columns.
+
 ## Pipeline Overview
 
-1. Collect oracle trajectories → 2. Export to HuggingFace format → 3. SFT → 4. Evaluate
+1. Collect oracle trajectories (or use pre-built datasets) → 2. SFT with TRL → 3. Evaluate
 
-## Step 1: Collect Trajectories
+## Step 1: Collect Trajectories (optional)
 
-```python
-import agentick
-from agentick.data.collector import DataCollector
-from agentick.oracles import get_oracle
+Skip this if using the pre-built datasets above. The script collects from all 38 tasks x 4 difficulties. Use `--n-test-episodes` to produce a DatasetDict with train/test splits (using different deterministic seeds).
 
-env = agentick.make("GoToGoal-v0", difficulty="easy", render_mode="language")
-oracle = get_oracle("GoToGoal-v0", env)
-collector = DataCollector(env, oracle, record_modalities=["language"])
+```bash
+# ~100k train + ~100k test (25 episodes per split per task-difficulty)
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --n-episodes 25 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-100k
 
-dataset = collector.collect(num_episodes=100, seeds=range(100))
-dataset.save("data/oracle_trajectories/")
+# ~50k train + ~50k test
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --n-episodes 12 --n-test-episodes 12 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-50k
+
+# ~200k train + ~200k test
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --n-episodes 50 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-200k
+
+# ~400k train + ~400k test
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --n-episodes 100 --n-test-episodes 25 \
+    --push-to-hub rogercc/agentick-oracle-trajectories-400k
 ```
 
-## Step 2: Export
+## Step 2: Fine-Tune with TRL
 
-```python
-dataset.export_to_huggingface("data/hf_dataset/", format="conversation")
-# Formats: "conversation" (chat), "sft" (text/label), "instruction" (instruction tuning)
+Use TRL's `SFTTrainer` directly with LoRA. The script in `examples/data_and_finetuning/sft_with_trl.py` handles everything: loading the dataset, converting to chat format matching the eval harness prompts, and multi-GPU training.
+
+```bash
+# Single GPU
+uv run python examples/data_and_finetuning/sft_with_trl.py \
+    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --model Qwen/Qwen2.5-0.5B
+
+# Multi-GPU with accelerate
+accelerate launch --num_processes 8 \
+    examples/data_and_finetuning/sft_with_trl.py \
+    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --model Qwen/Qwen3.5-4B
+
+# Language modality instead of ASCII
+uv run python examples/data_and_finetuning/sft_with_trl.py \
+    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --modality language \
+    --model Qwen/Qwen3.5-4B
 ```
 
-## Step 3: Fine-Tune
+Key options:
+- `--modality ascii|language` — which observation text to train on (default: ascii)
+- `--lora-r 16` — LoRA rank (default: 16)
+- `--epochs 3` — training epochs
+- `--report-to wandb` — enable wandb logging
 
-### AgentickSFTTrainer (recommended)
+## Step 3: Evaluate
 
-```python
-from agentick.training.trl.sft import AgentickSFTTrainer
+After training, merge LoRA adapters and evaluate:
 
-trainer = AgentickSFTTrainer(
-    model_name="Qwen/Qwen2.5-0.5B",
-    dataset_path="data/hf_dataset/",
-    output_dir="models/sft/",
-    use_lora=True,
-    lora_r=16,
-    num_train_epochs=3,
-    learning_rate=2e-5,
-)
-trainer.train()
-agent = trainer.as_agent()
+```bash
+# Merge adapters into base model
+uv run python examples/data_and_finetuning/merge_and_push.py \
+    --adapter-path models/sft \
+    --base-model Qwen/Qwen2.5-0.5B \
+    --push-to-hub rogercc/agentick-qwen-sft
+
+# Evaluate with experiment runner
+uv run python -m agentick.experiments.run --config examples/experiments/configs/qwen35_4b_sft_ascii_markov.yaml
 ```
-
-### BehaviorCloningTrainer (pixel-based)
-
-```python
-from agentick.training.behavior_cloning import BehaviorCloningTrainer
-
-trainer = BehaviorCloningTrainer(
-    dataset_path="trajectories/oracle_pixels/",
-    output_dir="models/bc/",
-    num_epochs=50,
-)
-trainer.train()
-agent = trainer.as_agent()
-```
-
-### Tinker (remote SFT + RL)
-
-[Tinker](https://github.com/TinkerAI/tinker) provides remote LoRA fine-tuning infrastructure. Requires `uv add tinker` and a `TINKER_API_KEY`.
-
-**SFT** on oracle trajectories:
-
-```python
-from agentick.training.tinker.sft import TinkerSFTTrainer
-
-trainer = TinkerSFTTrainer(
-    base_model="Qwen/Qwen2.5-7B-Instruct",
-    dataset_path="data/hf_dataset/",
-    rank=32,
-)
-trainer.train(num_steps=100, learning_rate=1e-4)
-```
-
-**RL** on live environment interactions (optionally warmstarted from SFT):
-
-```python
-from agentick.training.tinker.rl import TinkerRLTrainer
-
-trainer = TinkerRLTrainer(
-    base_model="Qwen/Qwen2.5-7B-Instruct",
-    task_id="GoToGoal-v0",
-    difficulty="medium",
-    rank=32,
-)
-trainer.train(num_episodes=100, learning_rate=1e-5)
-```
-
-### TRL
-
-```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from trl import SFTTrainer, SFTConfig
-from datasets import load_dataset
-
-model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B")
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B")
-dataset = load_dataset("data/hf_dataset")
-
-trainer = SFTTrainer(
-    model=model,
-    args=SFTConfig(output_dir="./sft_output", num_train_epochs=3, max_seq_length=512),
-    train_dataset=dataset["train"],
-    tokenizer=tokenizer,
-)
-trainer.train()
-```
-
-## Step 4: Evaluate
-
-Use the finetuned model as an agent — see `examples/llm/huggingface_local_agent.py` for the pattern.
 
 ## Complete Examples
 
-- `examples/data_and_finetuning/` — end-to-end collect → train → evaluate scripts
-- `agentick/training/tinker/` — Tinker SFT and RL trainer source
-- `agentick/training/trl/sft.py` — AgentickSFTTrainer source
-- `agentick/training/behavior_cloning.py` — BehaviorCloningTrainer source
+- `examples/data_and_finetuning/collect_oracle_trajectories.py` — collect trajectories from all oracles
+- `examples/data_and_finetuning/sft_with_trl.py` — full SFT training script (TRL + LoRA + multi-GPU)
+- `examples/data_and_finetuning/merge_and_push.py` — merge LoRA adapters and push to Hub

@@ -75,8 +75,8 @@ sft_model/
 
 .env
 
-# Internal maintainer scripts (not for public repo)
-scripts/
+# Internal maintainer scripts (keep public scripts, ignore private ones)
+scripts/__pycache__/
 
 # Debug/results notebooks (local only)
 examples/debug_results.ipynb

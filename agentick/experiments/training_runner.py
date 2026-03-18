@@ -160,7 +160,7 @@ class TrainingBenchmarkRunner:
         print(f"  Timesteps per run: {self.training_config.total_timesteps:,}")
         print(f"  Parallel envs: {self.training_config.n_envs}")
         print(f"  Reward mode: {self.config.reward_mode}")
-        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array"
         print(f"  Render mode: {render_mode}")
         print(f"  Output: {output_dir}")
         print()
@@ -285,9 +285,9 @@ class TrainingBenchmarkRunner:
         # Auto-generate plots
         print("\nGenerating training plots...")
         try:
-            from agentick.visualization.training_plots import TrainingBenchmarkPlotter
+            from agentick.visualization.experiment_plots import ExperimentPlotter
 
-            plotter = TrainingBenchmarkPlotter(output_dir)
+            plotter = ExperimentPlotter(output_dir)
             plotter.plot_all()
             print(f"  Figures saved to: {output_dir / 'figures'}")
         except Exception as e:
@@ -425,7 +425,7 @@ class TrainingBenchmarkRunner:
 
         from agentick.wrappers.atari_preprocessing import make_atari_env
 
-        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array"
 
         # Build per-env seed list
         if isinstance(seed, list):
@@ -474,7 +474,7 @@ class TrainingBenchmarkRunner:
         else:
             eval_model = model
 
-        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array_flat"
+        render_mode = self.config.render_modes[0] if self.config.render_modes else "rgb_array"
 
         returns = []
         lengths = []
@@ -520,7 +520,7 @@ class TrainingBenchmarkRunner:
         if video_dir:
             import random
 
-            from agentick.visualization.video import _has_ffmpeg, _save_gif, _save_mp4
+            from agentick.experiments._video_utils import _has_ffmpeg, _save_gif, _save_mp4
 
             n_video_seeds = min(5, len(seeds))
             video_seeds = random.sample(seeds, n_video_seeds)
