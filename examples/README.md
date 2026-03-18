@@ -37,11 +37,9 @@ RL training examples using CleanRL and Stable Baselines3:
 
 | Script | Description |
 |--------|-------------|
-| `ppo_cleanrl.py` | Full PPO with WandB, checkpoints, eval |
-| `dqn_cleanrl.py` | Full DQN with replay buffer, target network |
-| `ppo_pixels.py` | Minimal CLI PPO for quick experiments |
-| `dqn_pixels.py` | Minimal CLI DQN |
-| `sb3_ppo.py` | SB3 PPO with CnnPolicy |
+| `ppo_cleanrl.py` | CleanRL-style PPO with Nature CNN, TensorBoard logging |
+| `dqn_cleanrl.py` | CleanRL-style DQN with replay buffer, target network |
+| `sb3_ppo.py` | SB3 PPO with CnnPolicy, wandb, checkpointing |
 | `sb3_dqn.py` | SB3 DQN with CnnPolicy |
 
 All pixel-based RL uses `render_mode="rgb_array"` (isometric 512x512).
