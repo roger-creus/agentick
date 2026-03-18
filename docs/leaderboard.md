@@ -41,8 +41,4 @@ Scores are also computed per category:
 
 ## Evaluation Seeds
 
-Seeds are deterministic and derived from a SHA-256 hash of `"{task_name}::{difficulty}::eval"`. See [Evaluation Seeds](seeds.md) for details.
-
-## Results Format
-
-See [Results Format](results_format.md) for the canonical directory structure.
+Seeds are deterministic and derived from a SHA-256 hash of `"{task_name}::{difficulty}::eval"`. See the [Experiments](experiments.md) page for details on seed generation and results format.

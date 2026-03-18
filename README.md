@@ -139,6 +139,19 @@ output_dir: results/my-agent
 uv run python -m agentick.experiments.run --config config.yaml
 ```
 
+## Oracle Trajectory Datasets
+
+Pre-built datasets of expert trajectories for SFT fine-tuning:
+
+| Dataset | Steps | Episodes/task-difficulty |
+|---------|-------|------------------------|
+| [`agentick-oracle-trajectories-50k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) | ~50k | 5 |
+| [`agentick-oracle-trajectories-100k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) | ~100k | 10 |
+| [`agentick-oracle-trajectories-200k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) | ~200k | 20 |
+| [`agentick-oracle-trajectories-400k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) | ~400k | 40 |
+
+Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
+
 ## Leaderboard
 
 Submit your results for inclusion on the public leaderboard:

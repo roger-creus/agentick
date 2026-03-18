@@ -34,15 +34,6 @@ Run it:
 uv run python -m agentick.experiments.run --config my_experiment.yaml
 ```
 
-## Seed System
-
-Seeds are generated **per task per difficulty** from the `split` field. No need to list explicit seeds:
-
-- `split: eval` — uses the 25 deterministic eval seeds per (task, difficulty)
-- `split: train` — uses train-split seeds (for RL/SFT training)
-
-See [Evaluation Seeds](seeds.md) for details.
-
 ## Python API
 
 ```python
@@ -68,6 +59,35 @@ tasks: "generalization" # 3 generalization tasks
 tasks: "multi_agent"    # 5 multi-agent tasks
 ```
 
+## Seed System
+
+Seeds are generated **per task per difficulty** from the `split` field using SHA-256 hashing. No need to list explicit seeds:
+
+- `split: eval` — 25 deterministic eval seeds per (task, difficulty). Used for benchmarking and leaderboard.
+- `split: train` — 2000 train seeds per (task, difficulty). Used for RL/SFT training.
+
+**Never train on eval seeds.**
+
+```python
+from agentick.leaderboard.seeds import generate_task_seeds, get_train_seeds, get_eval_seeds
+
+eval_seeds = get_eval_seeds("GoToGoal-v0", "medium")    # 25 seeds
+train_seeds = get_train_seeds("GoToGoal-v0", "medium")  # 2000 seeds
+seeds = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)  # Custom count
+```
+
+7 official suites, all using per-task eval seeds:
+
+| Suite | Tasks |
+|---|---|
+| `agentick-full-v2` | 38 |
+| `agentick-navigation-v2` | 8 |
+| `agentick-planning-v2` | 9 |
+| `agentick-reasoning-v2` | 9 |
+| `agentick-memory-v2` | 4 |
+| `agentick-generalization-v2` | 3 |
+| `agentick-multiagent-v2` | 5 |
+
 ## Scoring
 
 Results are normalized to [0, 1]:
@@ -78,36 +98,35 @@ score = (agent_return - random_baseline) / (optimal_return - random_baseline)
 
 Where `random_baseline` is the expected return of a random agent and `optimal_return` comes from oracle performance. Scores are aggregated per-capability and overall.
 
-## Output
+## Results Format
 
 Results are saved to `output_dir/{name}_{timestamp}/`:
 
 ```
 results/gpt4o_20260302_120000/
 ├── config.yaml          # Experiment config
-├── metadata.json        # Runtime metadata
+├── metadata.json        # Runtime metadata (agent, platform, git hash)
 ├── summary.json         # Aggregate results
+├── figures/             # Auto-generated plots
 └── per_task/
     ├── GoToGoal-v0/
     │   ├── metrics.json
     │   └── episodes/
+    │       └── diff_easy_seed_0_ep_0.json
     └── MazeNavigation-v0/
         ├── metrics.json
         └── episodes/
 ```
+
+**metadata.json** includes: `agentick_version`, `python_version`, `platform`, `git_hash`, `agent_name`, `agent_type`, `model`, `backend`, `observation_modes`, `harness`.
+
+**per_task/{task}/metrics.json** contains per-difficulty episode data and aggregate metrics (mean_return, success_rate, mean_length).
 
 ## Example Configs
 
 Pre-built configs in `examples/experiments/configs/`:
 
 ```bash
-ls examples/experiments/configs/
-# claude_sonnet_ascii.yaml, gpt4o_language.yaml,
-# qwen3_4b_ascii_markov.yaml, ppo_pixels_dense.yaml, ...
-```
-
-Run a predefined config:
-
-```bash
-uv run python -m agentick.experiments.run --config examples/experiments/configs/qwen3_4b_ascii_markov.yaml
+# Run a predefined config
+uv run python -m agentick.experiments.run --config examples/experiments/configs/random_agent.yaml
 ```

@@ -112,9 +112,7 @@ API: `get_oracle(task_name, env)` returns an oracle instance; `list_oracles()` l
 
 ### Training Infrastructure
 
-`training/` provides SFT fine-tuning:
-
-- `training/trl/sft.py` — AgentickSFTTrainer using TRL with LoRA support
+`training/` provides training callbacks (EvalCallback, CheckpointCallback). For SFT, use TRL directly — see `examples/data_and_finetuning/sft_with_trl.py`.
 
 ### Data Collection
 
