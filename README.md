@@ -231,7 +231,7 @@ Features on the `dev` branch for future releases:
 ```bibtex
 @software{agentick2025,
   title={Agentick: Universal Benchmark for AI Agents},
-  author={Agentick Team},
+  author={Creus Castanyer, Roger},
   year={2025},
   url={https://github.com/roger-creus/agentick},
   doi={10.5281/zenodo.19104717}
