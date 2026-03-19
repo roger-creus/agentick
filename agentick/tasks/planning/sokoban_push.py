@@ -210,6 +210,9 @@ class SokobanPushTask(TaskSpec):
         config = getattr(self, "_current_config", {})
         if grid.terrain[y, x] == CellType.HAZARD:
             config["_hazard_hit"] = True
+        # Agent falls into uncovered hole (no fixed box on it)
+        if grid.terrain[y, x] == CellType.HOLE and int(grid.metadata[y, x]) < 100:
+            config["_fell_in_hole"] = True
 
     def can_agent_enter(self, pos, agent, grid) -> bool:
         """If moving into a box, try to push it one step further."""
@@ -219,6 +222,9 @@ class SokobanPushTask(TaskSpec):
             return False
         obj = grid.objects[y, x]
         if obj == ObjectType.BOX:
+            # Fixed boxes (on hole/target) cannot be pushed
+            if int(grid.metadata[y, x]) >= 100:
+                return False
             # Compute push direction (same as agent's direction of travel)
             ax, ay = agent.position
             dx = x - ax
@@ -241,6 +247,9 @@ class SokobanPushTask(TaskSpec):
                     grid.terrain[y, x] = CellType.HOLE
                 # Place box at new position
                 grid.objects[ny, nx] = ObjectType.BOX
+                # If box landed on a hole/target, fix it in place (unmovable)
+                if grid.terrain[ny, nx] == CellType.HOLE:
+                    grid.metadata[ny, nx] = 100
                 return True  # agent enters old box cell
             return False  # push blocked (wall or another box)
         return True
@@ -248,6 +257,7 @@ class SokobanPushTask(TaskSpec):
     def on_env_reset(self, agent, grid, config):
         """Cache config and compute initial box-to-target distance for reward shaping."""
         config["_hazard_hit"] = False
+        config["_fell_in_hole"] = False
         self._current_config = config
         # Pre-compute initial distance so box-progress reward fires from step 1
         boxes = config.get("box_positions", [])
@@ -263,8 +273,10 @@ class SokobanPushTask(TaskSpec):
         reward = -0.01
         if "grid" not in new_state or "config" not in new_state:
             return reward
-        grid = new_state["grid"]
         config = new_state.get("config", {})
+        if config.get("_fell_in_hole", False):
+            return -0.5
+        grid = new_state["grid"]
         from agentick.core.types import ObjectType
 
         boxes = [
@@ -297,12 +309,16 @@ class SokobanPushTask(TaskSpec):
         config = state.get("config", {})
         if config.get("_hazard_hit", False):
             return True
+        if config.get("_fell_in_hole", False):
+            return True
         return self.check_success(state)
 
     def check_success(self, state):
         """All boxes must be on target positions."""
         config = state.get("config", {})
         if config.get("_hazard_hit", False):
+            return False
+        if config.get("_fell_in_hole", False):
             return False
         if "grid" not in state or "config" not in state:
             return False

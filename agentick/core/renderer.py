@@ -132,11 +132,33 @@ class ASCIIRenderer:
                 row = clue_parts[row_start:row_start + max_per_line]
                 output.append("Clue: " + "  ".join(row))
 
+        if "RuleInduction" in task_name:
+            trial = task_config.get("_current_trial", 0) + 1
+            n_trials = task_config.get("_n_trials", 1)
+            target_type = task_config.get("_target_type", 0)
+            obj_names = {
+                int(ObjectType.GEM): "GEM", int(ObjectType.POTION): "POTION",
+                int(ObjectType.SCROLL): "SCROLL", int(ObjectType.COIN): "COIN",
+                int(ObjectType.ORB): "ORB",
+            }
+            tname = obj_names.get(int(target_type), f"OBJ_{target_type}")
+            output.append(f"Trial: {trial}/{n_trials}  Target: [{tname}]")
+
         if "DistributionShift" in task_name:
+            phase = task_config.get("_phases_completed", 0) + 1
+            n_phases = task_config.get("_n_phases", 3)
+            phase_type = task_config.get("_current_phase_type", "goal_reach")
+            phase_type_names = {
+                "goal_reach": "Navigate", "key_door": "Key+Door",
+                "lever_barrier": "Lever", "collection": "Collect",
+                "box_push": "BoxPush",
+            }
+            type_label = phase_type_names.get(phase_type, phase_type)
             remap = task_config.get("_action_remap")
-            phase = task_config.get("_current_phase", 0)
+            line = f"Phase: {phase}/{n_phases}  Task: {type_label}"
             if remap:
-                output.append(f"Phase: {phase}  Controls remapped: {remap}")
+                line += "  [REMAPPED]"
+            output.append(line)
 
         if "LightsOut" in task_name:
             output.append("LightsOut: 1=lit, 2=unlit")

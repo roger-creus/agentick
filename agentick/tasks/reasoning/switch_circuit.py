@@ -196,7 +196,7 @@ class SwitchCircuitTask(TaskSpec):
 
         # Build switch effects
         n_barriers = len(barriers)
-        switch_effects = self._build_dependency_graph(n, n_barriers)
+        switch_effects = self._build_dependency_graph(n, n_barriers, rng=rng)
 
         # Add scatter walls for visual interest (with connectivity check)
         self._add_scatter_walls(grid, chain_rooms, goal_room,
@@ -323,12 +323,13 @@ class SwitchCircuitTask(TaskSpec):
     # Dependency graph
     # ------------------------------------------------------------------
 
-    def _build_dependency_graph(self, n_switches, n_barriers):
-        """Build switch effects: Si opens Di, dual switches close D(i-1).
+    def _build_dependency_graph(self, n_switches, n_barriers, rng=None):
+        """Build switch effects with difficulty-dependent complexity.
 
         Easy (n<=2): simple chain, no closes.
-        Medium+ (n>=3): S0 opens D0, Si (0<i<n-1) opens Di + closes D(i-1),
-                        S(n-1) opens D_goal (last barrier).
+        Medium (n==3): linear dual (opens next, closes previous).
+        Hard (n==4): cross-dependencies with non-adjacent closures.
+        Expert (n>=5): mutual exclusion + cascading closures.
         """
         if n_switches == 0 or n_barriers == 0:
             return []
@@ -336,13 +337,73 @@ class SwitchCircuitTask(TaskSpec):
         if n_switches <= 2:
             return self._build_simple_chain(n_switches, n_barriers)
 
-        effects = []
-        for i in range(n_switches):
-            opens = [i]
-            closes = []
-            if 0 < i < n_switches - 1:
-                closes = [i - 1]
-            effects.append({"opens": opens, "closes": closes})
+        if n_switches == 3:
+            # Current dual behaviour: S0 opens D0; S1 opens D1, closes D0;
+            # S2 opens D_goal (last barrier).
+            effects = []
+            for i in range(n_switches):
+                opens = [min(i, n_barriers - 1)]
+                closes = []
+                if 0 < i < n_switches - 1:
+                    closes = [i - 1]
+                effects.append({"opens": opens, "closes": closes})
+            return effects
+
+        # Hard/Expert: complex cross-dependencies require rng.
+        if rng is None:
+            rng = np.random.default_rng(42)
+
+        if n_switches == 4:
+            # Hard: cross-dependencies verified to be solvable in the dual layout.
+            #
+            # Layout: R0->B0->R1->B1->R2->B2->R3; R0->B3(goal)->GoalRoom.
+            # S3 opens B3(goal) and must NOT close anything (closing chain barriers
+            # when the goal door opens creates unreachable deadlocks).
+            #
+            # Template pool: (c1, c2) — close target for S1 and S2.
+            # S0 and S3 always have empty closes. All 6 patterns confirmed solvable
+            # by exhaustive BFS over the abstract room graph.
+            hard_templates = [
+                (0, 0),  # S1 closes B0, S2 closes B0
+                (0, 1),  # S1 closes B0, S2 closes B1 (classic dual-style)
+                (0, 3),  # S1 closes B0, S2 closes B3(goal) — must toggle S2 off
+                (3, 0),  # S1 closes B3(goal), S2 closes B0
+                (3, 1),  # S1 closes B3(goal), S2 closes B1
+                (3, 3),  # S1 and S2 both close goal barrier (any one blocks goal)
+            ]
+            c1, c2 = hard_templates[int(rng.integers(len(hard_templates)))]
+            effects = [
+                {"opens": [0], "closes": []},
+                {"opens": [1], "closes": [c1]},
+                {"opens": [2], "closes": [c2]},
+                {"opens": [3], "closes": []},
+            ]
+            return effects
+
+        # Expert (n>=5): cascading closures.
+        #
+        # Layout: R0->B0->R1->B1->R2->B2->R3->B3->R4; R0->B4(goal)->GoalRoom.
+        # S4 opens B4(goal) and must NOT close anything (same deadlock constraint).
+        # S1, S2, S3 each close one barrier; S0 and S4 have empty closes.
+        # All 24 patterns confirmed solvable by exhaustive BFS.
+        #
+        # Template pool: (c1, c2, c3) — close targets for S1, S2, S3.
+        expert_templates = [
+            (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, 4),
+            (0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 1, 4),
+            (0, 4, 0), (0, 4, 1), (0, 4, 2), (0, 4, 4),
+            (4, 0, 0), (4, 0, 1), (4, 0, 2), (4, 0, 4),
+            (4, 1, 0), (4, 1, 1), (4, 1, 2), (4, 1, 4),
+            (4, 4, 0), (4, 4, 1), (4, 4, 2), (4, 4, 4),
+        ]
+        c1, c2, c3 = expert_templates[int(rng.integers(len(expert_templates)))]
+        effects = [
+            {"opens": [0], "closes": []},
+            {"opens": [1], "closes": [c1]},
+            {"opens": [2], "closes": [c2]},
+            {"opens": [3], "closes": [c3]},
+            {"opens": [4], "closes": []},
+        ]
         return effects
 
     def _build_simple_chain(self, n_switches, n_barriers):

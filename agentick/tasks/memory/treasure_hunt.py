@@ -264,6 +264,8 @@ class TreasureHuntTask(TaskSpec):
         if (x, y) in treasure_positions and (x, y) not in collected:
             collected.append((x, y))
             config["_collected_treasures"] = collected
+            # Visual feedback: place GOAL marker at discovered treasure position
+            grid.objects[y, x] = ObjectType.GOAL
 
     # ------------------------------------------------------------------
     # Success / reward

@@ -268,6 +268,7 @@ class CooperativeTransportTask(TaskSpec):
     # ------------------------------------------------------------------
 
     def on_env_reset(self, agent, grid, config):
+        config["_fell_in_hole"] = False
         self._config = config
         self._npc_pos = list(config["npc_start"])
         self._box_positions = [list(b) for b in config["box_positions"]]
@@ -294,6 +295,12 @@ class CooperativeTransportTask(TaskSpec):
         config["_hole_positions"] = self._hole_positions
         config["_npc_pos"] = self._npc_pos
         config["_boxes_delivered"] = 0
+
+    def on_agent_moved(self, pos, agent, grid):
+        """Detect if agent fell into a hole."""
+        x, y = pos
+        if grid.terrain[y, x] == CellType.HOLE:
+            self._config["_fell_in_hole"] = True
 
     # ------------------------------------------------------------------
     # Movement
@@ -572,6 +579,8 @@ class CooperativeTransportTask(TaskSpec):
         reward = -0.01  # step penalty
 
         config = new_state.get("config", {})
+        if config.get("_fell_in_hole", False):
+            return -0.5
         new_delivered = config.get("_boxes_delivered", 0)
         old_config = old_state.get("config", {})
         old_delivered = old_config.get("_boxes_delivered", 0)
@@ -607,8 +616,16 @@ class CooperativeTransportTask(TaskSpec):
     # Success
     # ------------------------------------------------------------------
 
+    def check_done(self, state):
+        config = state.get("config", {})
+        if config.get("_fell_in_hole", False):
+            return True
+        return self.check_success(state)
+
     def check_success(self, state):
         config = state.get("config", {})
+        if config.get("_fell_in_hole", False):
+            return False
         n_boxes = config.get("n_boxes", getattr(self, "_n_boxes", 1))
         delivered = config.get("_boxes_delivered", 0)
         return delivered >= n_boxes

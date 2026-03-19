@@ -379,23 +379,26 @@ _td(
 _td(
     "CausalChain-v0",
     "reasoning",
-    "Activate levers in causal sequence to remove barrier walls between zones. "
-    "Each real lever opens a specific barrier when stepped on. Decoy levers look "
-    "identical but do nothing or add walls.",
-    "LEVER objects (real: remove wall barriers; decoy: no effect or harmful), "
-    "WALL barriers (between zones, removed by correct levers), GOAL (in final zone).",
-    "Activate levers in causal order to open all barriers, then reach GOAL.",
+    "Open-arena lever combination puzzle. ALL levers reachable from the start. "
+    "Each lever toggles ON/OFF via INTERACT with complex effects: opens some "
+    "barriers, closes others. Find the correct combination that opens ALL barriers "
+    "simultaneously to reach the GOAL. Decoy levers toggle ICE patches but don't "
+    "affect barriers.",
+    "LEVER objects (toggleable ON/OFF, complex barrier effects), "
+    "WALL barriers (multiple segments blocking the goal), GOAL (behind all barriers), "
+    "ICE terrain (toggled by decoy levers).",
+    "Discover the correct lever combination to open all barriers, then reach GOAL.",
     "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Levers are solid "
     "— move toward a LEVER to stand adjacent and face it (orientation updates even when "
-    "blocked), then INTERACT (action 5) to activate it. Real levers remove wall barriers; "
-    "decoy levers do nothing. Identify real levers from decoys by observing their causal "
-    "effects on barriers. Walk onto the GOAL cell after all barriers are opened. "
+    "blocked), then INTERACT (action 5) to toggle it ON/OFF. Each lever has complex "
+    "effects: it may open some barriers while closing others. Experiment to find the "
+    "correct combination. Decoy levers toggle ICE terrain but don't affect barriers. "
     "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
     [
-        ("easy", "9x9 grid with 2 levers in linear chain. No decoys. Clear zone progression."),
-        ("medium", "11x11 grid with 3 levers, 1 decoy lever, maze zones."),
-        ("hard", "13x13 grid with 4 levers, 2 decoys. Complex layout."),
-        ("expert", "15x15 grid with 5 levers, 3 decoys, nonlinear layout."),
+        ("easy", "9x9 grid, 2 levers, 2 barriers. No decoys."),
+        ("medium", "11x11 grid, 3 levers, 3 barriers, 1 decoy."),
+        ("hard", "13x13 grid, 4 levers, 4 barriers, 2 decoys. Cross-dependencies."),
+        ("expert", "15x15 grid, 5 levers, 5 barriers, 3 decoys. Complex dependencies."),
     ],
     tags=["reasoning", "causal_reasoning"],
 )
@@ -427,23 +430,24 @@ _td(
 _td(
     "RuleInduction-v0",
     "reasoning",
-    "Discover which SWITCH objects are real by observing terrain patterns (ICE south "
-    "of real switches), then INTERACT to activate them in any order. Activating all real "
-    "switches opens a barrier DOOR to the GOAL. Activating a wrong (decoy) switch "
-    "deactivates the most recently activated real switch, penalizing trial-and-error.",
-    "SWITCH (real: ICE south; decoy: no ICE south), ICE terrain cues, GEM hints (easy), "
-    "DOOR (barrier, opens when all real switches active), GOAL (behind barrier), WALL.",
-    "Identify real switches via ICE pattern, INTERACT all real ones, pass barrier to GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Switches are solid "
-    "— move toward a SWITCH to stand adjacent and face it (orientation updates even when "
-    "blocked), then INTERACT (action 5) to activate it. Wrong (decoy) switches undo "
-    "your last correct activation. "
-    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
+    "XLand-style combination discovery. Objects (GEM, POTION, SCROLL, COIN, ORB) are "
+    "scattered on the grid. Hidden rules map pairs of objects to result objects. Pick up "
+    "one object, walk onto another to combine. Valid combos produce a result; invalid "
+    "combos destroy both objects. Craft the TARGET object shown on screen. Episode has "
+    "N resetting trials — learn from failed combinations across trials.",
+    "Various objects (GEM, POTION, SCROLL, COIN, ORB), hidden combination rules, "
+    "TARGET indicator (bottom-right), trial counter.",
+    "Discover combination rules through experimentation and craft the target object.",
+    "Move in 4 directions (actions 1-4). Walk onto an object to pick it up (one item "
+    "at a time). While carrying an item, walk onto another object to combine them. If "
+    "the combination is valid, a result object appears. If invalid, both objects are "
+    "destroyed. Craft and collect the target object to succeed. Each trial resets the "
+    "grid — use knowledge from failed trials to plan better combinations.",
     [
-        ("easy", "9x9 grid, 2 real + 1 decoy switches, GEM hints + ICE pattern."),
-        ("medium", "11x11 grid, 3 real + 2 decoy switches, ICE pattern only."),
-        ("hard", "13x13 grid, 4 real + 3 decoy switches, ICE pattern only."),
-        ("expert", "15x15 grid, 5 real + 4 decoy switches, ICE pattern only."),
+        ("easy", "9x9 grid, 6 objects, 2 valid combos, 5 trials."),
+        ("medium", "11x11 grid, 8 objects, 3 valid combos, 4 trials."),
+        ("hard", "13x13 grid, 10 objects, 4 valid combos, 3 trials."),
+        ("expert", "15x15 grid, 12 objects, 5 valid combos, 2 trials."),
     ],
     tags=["reasoning", "rule_learning"],
 )
@@ -900,24 +904,23 @@ _td(
 _td(
     "DistributionShift-v0",
     "generalization",
-    "Multi-phase maze navigation: reach 3 GOAL positions across shifting DFS mazes. "
-    "After each goal, the maze regenerates with a new layout and goal position. "
-    "Hard+ adds wall-toggling (walls appear/disappear between phases). "
-    "Expert adds action remapping (UP<->DOWN, LEFT<->RIGHT). No enemies at any difficulty.",
-    "GOAL (1 per phase, 3 total), WALL (DFS maze, toggling walls at hard+), "
-    "KEY/DOOR (hard+, color-coded), action remap (expert, UP<->DOWN LEFT<->RIGHT).",
-    "Reach all 3 goals across shifting maze phases.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5) at hard+. Walk onto "
-    "the GOAL cell to complete each phase. After each goal, the maze regenerates with a "
-    "new layout. At hard+: walk onto a KEY cell to auto-collect it. DOORs are solid — "
-    "move toward a DOOR to face it (orientation updates even when blocked), then INTERACT "
-    "(action 5) to unlock with the matching key. At expert: action controls flip "
-    "(UP<->DOWN, LEFT<->RIGHT) between phases.",
+    "Multi-task sequential episode. Each phase is a DIFFERENT mini-task type: "
+    "goal navigation, key+door, lever+barrier, or gem collection. After completing "
+    "each phase, the maze regenerates with a new layout and completely different "
+    "mechanics. Hard+ adds action remapping (UP<->DOWN, LEFT<->RIGHT).",
+    "GOAL (per phase), KEY/DOOR (key_door phases), LEVER/WALL barriers "
+    "(lever_barrier phases), GEM objects (collection phases), "
+    "action remap (hard+, UP<->DOWN LEFT<->RIGHT).",
+    "Complete all sequential mini-tasks across shifting maze phases.",
+    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Each phase has "
+    "different mechanics: Navigate (walk to goal), Key+Door (collect key, INTERACT on "
+    "door), Lever (INTERACT on lever to open barrier), Collect (walk over all gems). "
+    "Phase type shown in HUD. Adapt to new mechanics each phase.",
     [
-        ("easy", "9x9 DFS maze, 3 goals, maze shifts between phases. max_steps=200."),
-        ("medium", "11x11 DFS maze, 3 goals, maze shifts. max_steps=350."),
-        ("hard", "13x13 DFS maze, 3 goals, 1 key-door, walls toggle. max_steps=500."),
-        ("expert", "15x15 DFS maze, 3 goals, 2 key-doors, walls toggle + remap."),
+        ("easy", "9x9, 3 phases from 4 task types. max_steps=200."),
+        ("medium", "11x11, 4 phases. max_steps=350."),
+        ("hard", "13x13, 5 phases, action remap after phase 3. max_steps=500."),
+        ("expert", "17x17, 6 phases, action remap after phase 2. max_steps=700."),
     ],
     tags=["generalization", "ood", "robustness"],
 )

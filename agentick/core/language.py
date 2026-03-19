@@ -123,11 +123,29 @@ class AdvancedLanguageRenderer:
                     parts.append(
                         f"A scroll pointed {d}, {dist} tiles away."
                     )
+        if "RuleInduction" in task_name:
+            trial = task_config.get("_current_trial", 0) + 1
+            n_trials = task_config.get("_n_trials", 1)
+            target_type = task_config.get("_target_type", 0)
+            obj_names = {
+                int(ObjectType.GEM): "GEM", int(ObjectType.POTION): "POTION",
+                int(ObjectType.SCROLL): "SCROLL", int(ObjectType.COIN): "COIN",
+                int(ObjectType.ORB): "ORB",
+            }
+            tname = obj_names.get(int(target_type), "UNKNOWN")
+            parts.append(f"Trial {trial} of {n_trials}. Target object: {tname}.")
         if "DistributionShift" in task_name:
-            remap = task_config.get("_action_remap")
-            phase = task_config.get("_current_phase", 0)
-            if remap:
-                parts.append(f"Phase {phase}: controls are remapped: {remap}.")
+            phase = task_config.get("_phases_completed", 0) + 1
+            n_phases = task_config.get("_n_phases", 3)
+            phase_type = task_config.get("_current_phase_type", "goal_reach")
+            phase_desc = {
+                "goal_reach": "Navigate to the goal.",
+                "key_door": "Collect the key and open the door to reach the goal.",
+                "lever_barrier": "Activate the lever to open the barrier, then reach the goal.",
+                "collection": "Collect all gems, then reach the goal.",
+                "box_push": "Push the box onto the target, then reach the goal.",
+            }
+            parts.append(f"Phase {phase} of {n_phases}. {phase_desc.get(phase_type, '')}")
 
         # Spatial surroundings with relative directions
         if self.config.include_spatial_reasoning:

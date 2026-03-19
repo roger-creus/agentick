@@ -53,23 +53,13 @@ class FewShotAdaptationOracle(OracleAgent):
 
 @register_oracle("DistributionShift-v0")
 class DistributionShiftOracle(OracleAgent):
-    """Multi-phase maze oracle: BFS to each GOAL across 3 shifting phases.
+    """Multi-task sequential oracle: dispatches to phase-type-specific logic.
 
-    Re-plans every step. For hard/expert, collects keys (walkable auto-pickup)
-    then stands adjacent to a closed door, faces it, and INTERACTs to open it.
-
-    When an action remap is active (expert after first goal), the oracle
-    pre-applies the same remap so the env's remap cancels it out.
+    Phase types: goal_reach, key_door, lever_barrier, collection, box_push.
+    Re-plans every step. Pre-applies action remap when active.
     """
 
     def _apply_remap(self, actions: list[int]) -> list[int]:
-        """Pre-apply the env's action remap so movements are correct.
-
-        The env applies _action_remap at step time. Since the remap is
-        self-inverse (UP<->DOWN, LEFT<->RIGHT), applying it once before
-        the env applies it once yields the original intended action.
-        INTERACT is not in the remap dict and passes through unchanged.
-        """
         config = self.api.task_config
         remap = config.get("_action_remap", {})
         if not remap:
@@ -78,10 +68,34 @@ class DistributionShiftOracle(OracleAgent):
         return [int_remap.get(a, a) for a in actions]
 
     def plan(self):
+        config = self.api.task_config
+        phase_type = config.get("_current_phase_type", "goal_reach")
+
+        if phase_type == "goal_reach":
+            self._plan_goal_reach()
+        elif phase_type == "key_door":
+            self._plan_key_door()
+        elif phase_type == "lever_barrier":
+            self._plan_lever_barrier()
+        elif phase_type == "collection":
+            self._plan_collection()
+        elif phase_type == "box_push":
+            self._plan_box_push()
+        else:
+            self._plan_goal_reach()
+
+    def _plan_goal_reach(self):
+        goal = self.api.get_nearest("goal")
+        if goal:
+            actions = self.api.move_to(*goal.position)
+            self.action_queue = self._apply_remap(actions)
+        else:
+            self.action_queue = [0]
+
+    def _plan_key_door(self):
         grid = self.api.grid
         ax, ay = self.api.agent_position
 
-        # Identify closed door cells (meta < 10) and open door cells.
         closed_doors = set()
         open_doors = set()
         for y in range(grid.height):
@@ -92,34 +106,27 @@ class DistributionShiftOracle(OracleAgent):
                     else:
                         open_doors.add((x, y))
 
-        # Head to goal.
         goal = self.api.get_nearest("goal")
         if not goal:
             self.action_queue = [0]
             return
 
-        # Try to reach the goal avoiding closed doors (they are solid).
-        # Open doors are passable (extra_passable).
-        path_no_doors = self.api.bfs_path_positions(
-            (ax, ay),
-            goal.position,
+        # Try direct path to goal
+        path = self.api.bfs_path_positions(
+            (ax, ay), goal.position,
             avoid=closed_doors or None,
             extra_passable=open_doors or None,
         )
-        if path_no_doors:
-            actions = self.api.positions_to_actions(path_no_doors)
+        if path:
+            actions = self.api.positions_to_actions(path)
             if actions:
                 self.action_queue = self._apply_remap([actions[0]])
                 return
 
-        # Goal is blocked by closed doors.
         has_key = self.api.has_in_inventory("key")
-
         if has_key and closed_doors:
-            # Have a key — find the nearest closed door and INTERACT to open it.
             nearest_door = min(
-                closed_doors,
-                key=lambda d: abs(d[0] - ax) + abs(d[1] - ay),
+                closed_doors, key=lambda d: abs(d[0] - ax) + abs(d[1] - ay),
             )
             agent_ori = self.api.agent.orientation
             actions = interact_adjacent(
@@ -130,13 +137,11 @@ class DistributionShiftOracle(OracleAgent):
                 return
 
         if not has_key:
-            # No key — collect nearest key (walkable, auto-pickup on step).
             keys = self.api.get_entities_of_type("key")
             if keys:
                 nearest_key = min(keys, key=lambda k: k.distance)
                 path = self.api.bfs_path_positions(
-                    (ax, ay),
-                    nearest_key.position,
+                    (ax, ay), nearest_key.position,
                     avoid=closed_doors or None,
                     extra_passable=open_doors or None,
                 )
@@ -146,9 +151,131 @@ class DistributionShiftOracle(OracleAgent):
                         self.action_queue = self._apply_remap([actions[0]])
                         return
 
-        # Fallback: move toward goal heuristically.
         raw = self.api.move_toward(*goal.position)
         self.action_queue = self._apply_remap(raw)
+
+    def _plan_lever_barrier(self):
+        config = self.api.task_config
+        grid = self.api.grid
+        ax, ay = self.api.agent_position
+
+        barrier_opened = config.get("_barrier_opened", False)
+
+        if barrier_opened:
+            # Barrier open, go to goal
+            goal = self.api.get_nearest("goal")
+            if goal:
+                actions = self.api.move_to(*goal.position)
+                self.action_queue = self._apply_remap(actions)
+            else:
+                self.action_queue = [0]
+            return
+
+        # Find lever and interact with it
+        levers = self.api.get_entities_of_type("lever")
+        if levers:
+            lever = levers[0]
+            agent_ori = self.api.agent.orientation
+            actions = interact_adjacent(
+                (ax, ay), agent_ori, lever.position, grid, self.api,
+            )
+            if actions:
+                self.action_queue = self._apply_remap(actions)
+                return
+
+        self.action_queue = [0]
+
+    def _plan_collection(self):
+        ax, ay = self.api.agent_position
+
+        # Check if all gems collected (goal should be visible)
+        goal = self.api.get_nearest("goal")
+        if goal:
+            actions = self.api.move_to(*goal.position)
+            self.action_queue = self._apply_remap(actions)
+            return
+
+        # Collect nearest gem
+        gems = self.api.get_entities_of_type("gem")
+        if gems:
+            nearest = min(gems, key=lambda g: g.distance)
+            actions = self.api.move_to(*nearest.position)
+            self.action_queue = self._apply_remap(actions)
+        else:
+            self.action_queue = [0]
+
+    def _plan_box_push(self):
+        grid = self.api.grid
+        ax, ay = self.api.agent_position
+
+        # If goal is visible, box is on target — go to goal
+        goal = self.api.get_nearest("goal")
+        if goal:
+            actions = self.api.move_to(*goal.position)
+            self.action_queue = self._apply_remap(actions)
+            return
+
+        # Find box and target positions
+        box_pos = None
+        target_pos = None
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if int(grid.objects[y, x]) == int(ObjectType.BOX):
+                    box_pos = (x, y)
+                if int(grid.objects[y, x]) == int(ObjectType.TARGET):
+                    target_pos = (x, y)
+
+        if not box_pos or not target_pos:
+            self.action_queue = [0]
+            return
+
+        bx, by = box_pos
+        tx, ty = target_pos
+
+        # Determine push direction: box → target
+        dx = 0 if tx == bx else (1 if tx > bx else -1)
+        dy = 0 if ty == by else (1 if ty > by else -1)
+        # Prefer axis with larger distance
+        if abs(tx - bx) >= abs(ty - by) and dx != 0:
+            dy = 0
+        elif dy != 0:
+            dx = 0
+        else:
+            dx = 1 if tx >= bx else -1
+
+        # Push-from position: opposite side of box from push direction
+        push_from = (bx - dx, by - dy)
+
+        # Navigate to push-from position
+        if (ax, ay) == push_from:
+            # Push! Move toward box
+            move_action = self._dir_to_action(dx, dy)
+            self.action_queue = self._apply_remap([move_action])
+        else:
+            # Avoid walking through box
+            path = self.api.bfs_path_positions(
+                (ax, ay), push_from, avoid={box_pos},
+            )
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = self._apply_remap([actions[0]])
+                    return
+            # Fallback
+            actions = self.api.move_toward(*push_from)
+            self.action_queue = self._apply_remap(actions)
+
+    @staticmethod
+    def _dir_to_action(dx, dy):
+        if dy < 0:
+            return 1  # MOVE_UP
+        if dy > 0:
+            return 2  # MOVE_DOWN
+        if dx < 0:
+            return 3  # MOVE_LEFT
+        if dx > 0:
+            return 4  # MOVE_RIGHT
+        return 0
 
 
 @register_oracle("NoisyObservation-v0")

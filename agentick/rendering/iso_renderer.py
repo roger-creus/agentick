@@ -823,6 +823,44 @@ class IsometricRenderer:
                 sprite_y = canvas.height - sprite_size - 8
                 self._safe_paste(canvas, small_tile, sprite_x, sprite_y)
 
+        # RuleInduction trial + target indicator
+        if "RuleInduction" in task_name_str and "_target_type" in task_config:
+            trial = task_config.get("_current_trial", 0) + 1
+            n_trials = task_config.get("_n_trials", 1)
+            trial_text = f"Trial: {trial}/{n_trials}"
+            draw.text((10, canvas.height - 30), trial_text,
+                      fill=(255, 200, 50, 255), font=font)
+            obj_sprite_names = {14: "gem", 15: "potion", 17: "scroll", 18: "coin", 19: "orb"}
+            sprite_name = obj_sprite_names.get(
+                int(task_config["_target_type"]), "goal"
+            )
+            if self._atlas is not None:
+                target_tile = self._atlas.get_tile(sprite_name)
+                sprite_size = 48
+                small_tile = target_tile.resize(
+                    (sprite_size, sprite_size), Image.LANCZOS
+                )
+                tx = canvas.width - sprite_size - 10
+                ty = canvas.height - sprite_size - 10
+                canvas.paste(small_tile, (tx, ty), small_tile)
+                draw.text((tx - 60, ty + 15), "Target:",
+                          fill=(255, 255, 255, 200), font=font)
+
+        # DistributionShift phase indicator
+        if "DistributionShift" in task_name_str:
+            phase = task_config.get("_phases_completed", 0) + 1
+            n_phases = task_config.get("_n_phases", 3)
+            phase_type = task_config.get("_current_phase_type", "goal_reach")
+            phase_type_names = {
+                "goal_reach": "Navigate", "key_door": "Key+Door",
+                "lever_barrier": "Lever", "collection": "Collect",
+                "box_push": "BoxPush",
+            }
+            type_label = phase_type_names.get(phase_type, phase_type)
+            phase_text = f"Phase: {phase}/{n_phases}  [{type_label}]"
+            draw.text((10, canvas.height - 30), phase_text,
+                      fill=(100, 200, 255, 255), font=font)
+
         # TreasureHunt: show discovered clues
         if "TreasureHunt" in task_name_str:
             clue_info = task_config.get("_clue_info", {})

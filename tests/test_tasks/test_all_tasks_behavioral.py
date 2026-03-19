@@ -420,22 +420,150 @@ def test_shortest_path_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_distribution_shift_can_succeed():
-    """DistributionShift: navigate to 3 goals across shifting maze phases."""
-    env = agentick.make("DistributionShift-v0", difficulty="easy", seed=3, reward_mode="sparse")
-    env.reset(seed=3)
-    cfg = env.task_config
-    term, trunc, info = False, False, {}
-    # Must reach 3 goals; after each, the maze shifts and goal_positions updates
-    for i in range(3):
-        if term or trunc:
-            break
+    """DistributionShift: solve all phases across shifting maze layouts.
+
+    Tries multiple seeds. For each phase, dispatches to a phase-type-aware
+    solver (goal_reach, key_door, lever_barrier, collection, box_push).
+    """
+    from agentick.core.types import CellType, ObjectType
+
+    def _solve_phase(env, cfg, phase_type):
+        """Attempt to solve one phase. Returns (term, trunc, info)."""
+        term, trunc, info = False, False, {}
         goal = cfg["goal_positions"][0]
-        assert goal is not None, f"DistributionShift: missing goal in phase {i}"
-        obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
-    if not term and not trunc:
-        obs, rew, term, trunc, info = _noop(env)
-    env.close()
-    assert info.get("success"), "DistributionShift: couldn't reach all 3 goals"
+
+        if phase_type == "goal_reach":
+            obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+
+        elif phase_type == "key_door":
+            # Collect key (auto-pickup), open door (face+interact), reach goal.
+            grid = env.grid
+            key_pos = None
+            door_pos = None
+            for y in range(grid.height):
+                for x in range(grid.width):
+                    if int(grid.objects[y, x]) == int(ObjectType.KEY):
+                        key_pos = (x, y)
+                    if (int(grid.objects[y, x]) == int(ObjectType.DOOR)
+                            and int(grid.metadata[y, x]) < 10):
+                        door_pos = (x, y)
+            if key_pos:
+                obs, rew, term, trunc, info = _walk_to(env, key_pos[0], key_pos[1])
+                if term or trunc:
+                    return term, trunc, info
+            if door_pos:
+                obs, rew, term, trunc, info = _walk_adjacent_and_interact(
+                    env, door_pos[0], door_pos[1])
+                if term or trunc:
+                    return term, trunc, info
+            obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+
+        elif phase_type == "lever_barrier":
+            # Interact with lever (removes wall barrier), then reach goal.
+            grid = env.grid
+            lever_pos = None
+            for y in range(grid.height):
+                for x in range(grid.width):
+                    if int(grid.objects[y, x]) == int(ObjectType.LEVER):
+                        lever_pos = (x, y)
+                        break
+                if lever_pos:
+                    break
+            if lever_pos:
+                obs, rew, term, trunc, info = _walk_adjacent_and_interact(
+                    env, lever_pos[0], lever_pos[1])
+                if term or trunc:
+                    return term, trunc, info
+            obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+
+        elif phase_type == "collection":
+            # Collect all gems, then goal appears — walk to it.
+            for _ in range(50):
+                grid = env.grid
+                gem_pos = None
+                for y in range(grid.height):
+                    for x in range(grid.width):
+                        if int(grid.objects[y, x]) == int(ObjectType.GEM):
+                            gem_pos = (x, y)
+                            break
+                    if gem_pos:
+                        break
+                if gem_pos:
+                    obs, rew, term, trunc, info = _walk_to(env, gem_pos[0], gem_pos[1])
+                    if term or trunc:
+                        return term, trunc, info
+                else:
+                    # All gems collected — goal should be placed now.
+                    break
+            goal = cfg["goal_positions"][0]
+            # Walk to goal only if it's placed on the grid.
+            grid = env.grid
+            if int(grid.objects[goal[1], goal[0]]) == int(ObjectType.GOAL):
+                obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+
+        elif phase_type == "box_push":
+            # Push box onto target. Find box and target, maneuver.
+            grid = env.grid
+            box_pos = None
+            target_pos = None
+            for y in range(grid.height):
+                for x in range(grid.width):
+                    if int(grid.objects[y, x]) == int(ObjectType.BOX):
+                        box_pos = (x, y)
+                    if int(grid.objects[y, x]) == int(ObjectType.TARGET):
+                        target_pos = (x, y)
+            if box_pos and target_pos:
+                # Walk to the push position: one step beyond box from target direction.
+                bx, by = box_pos
+                tx, ty = target_pos
+                dx = bx - tx
+                dy = by - ty
+                # Normalise direction
+                if dx != 0:
+                    dx = dx // abs(dx)
+                if dy != 0:
+                    dy = dy // abs(dy)
+                push_from = (bx + dx, by + dy)
+                # Check push_from is walkable.
+                if (0 <= push_from[0] < grid.width
+                        and 0 <= push_from[1] < grid.height
+                        and grid.terrain[push_from[1], push_from[0]] != CellType.WALL):
+                    obs, rew, term, trunc, info = _walk_to(env, push_from[0], push_from[1])
+                    if term or trunc:
+                        return term, trunc, info
+                    # Walk into box to push it.
+                    obs, rew, term, trunc, info = _walk_to(env, bx, by)
+                    if term or trunc:
+                        return term, trunc, info
+            # If box now on target, goal appears — walk to it.
+            goal = cfg["goal_positions"][0]
+            grid = env.grid
+            if int(grid.objects[goal[1], goal[0]]) == int(ObjectType.GOAL):
+                obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
+
+        return term, trunc, info
+
+    success = False
+    for seed in range(10):
+        env = agentick.make("DistributionShift-v0", difficulty="easy",
+                            seed=seed, reward_mode="sparse")
+        env.reset(seed=seed)
+        cfg = env.task_config
+        n_phases = cfg.get("_n_phases", 3)
+        term, trunc, info = False, False, {}
+
+        for i in range(n_phases):
+            if term or trunc:
+                break
+            phase_type = cfg.get("_current_phase_type", "goal_reach")
+            term, trunc, info = _solve_phase(env, cfg, phase_type)
+
+        env.close()
+        if info.get("success"):
+            success = True
+            break
+
+    assert success, "DistributionShift: couldn't succeed across 10 seeds"
 
 
 @pytest.mark.timeout(60)
@@ -875,23 +1003,73 @@ def test_cooperative_transport_can_succeed():
 
 @pytest.mark.timeout(60)
 def test_rule_induction_can_succeed():
-    """RuleInduction: INTERACT on real switches in order, then navigate to goal."""
-    env = agentick.make("RuleInduction-v0", difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    # Walk adjacent to each real switch, face it, INTERACT to activate
-    real_switches = cfg.get("real_switch_positions", [])
-    term, trunc = False, False
-    for sw in real_switches:
-        obs, rew, term, trunc, info = _walk_adjacent_and_interact(env, sw[0], sw[1])
+    """RuleInduction: pick up an object, combine it with another, collect target."""
+    # Try multiple seeds to find one where the first rule produces the target
+    succeeded = False
+    for seed in range(20):
+        env = agentick.make("RuleInduction-v0", difficulty="easy", seed=seed, reward_mode="sparse")
+        env.reset(seed=seed)
+        cfg = env.task_config
+        grid = env.unwrapped.grid
+        agent = env.unwrapped.agent
+
+        rules = cfg.get("_rule_table_list", [])
+        target_type = cfg.get("_target_type", -1)
+        objects = cfg.get("_original_objects", [])
+        term, trunc = False, False
+
+        # Find a rule that directly produces the target type
+        combo_rule = None
+        for row in rules:
+            if row[2] == target_type:
+                combo_rule = row
+                break
+        if combo_rule is None:
+            env.close()
+            continue
+
+        a_type, b_type, _ = combo_rule
+        # Find positions of each type on the grid
+        obj_a = next(((x, y) for x, y, t in objects if t == a_type), None)
+        obj_b = next(((x, y) for x, y, t in objects if t == b_type and (x, y) != obj_a), None)
+        if obj_a is None or obj_b is None:
+            env.close()
+            continue
+
+        # Walk to obj_a to pick it up
+        obs, rew, term, trunc, info = _walk_to(env, obj_a[0], obj_a[1])
         if term or trunc:
+            env.close()
+            continue
+
+        # Walk to obj_b to attempt the combination
+        obs, rew, term, trunc, info = _walk_to(env, obj_b[0], obj_b[1])
+        if term or trunc:
+            if info.get("success"):
+                succeeded = True
+            env.close()
             break
-    assert cfg.get("_door_opened"), "RuleInduction: door didn't open after all switches"
-    goal = cfg.get("goal_positions", [None])[0]
-    if goal and not (term or trunc):
-        obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
-    env.close()
-    assert info.get("success"), "RuleInduction: couldn't reach goal after opening door"
+
+        # Target should now be crafted on the grid — walk to it to collect
+        if cfg.get("_target_crafted", False):
+            # Find the target object on the grid
+            result_pos = None
+            for cy in range(grid.height):
+                for cx in range(grid.width):
+                    if int(grid.objects[cy, cx]) == target_type:
+                        result_pos = (cx, cy)
+                        break
+                if result_pos:
+                    break
+            if result_pos:
+                obs, rew, term, trunc, info = _walk_to(env, result_pos[0], result_pos[1])
+                if info.get("success"):
+                    succeeded = True
+        env.close()
+        if succeeded:
+            break
+
+    assert succeeded, "RuleInduction: could not craft and collect the target object"
 
 
 @pytest.mark.timeout(60)
