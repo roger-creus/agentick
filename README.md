@@ -13,7 +13,7 @@
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
 </p>
 
-Agentick provides 38 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
+Agentick provides 37 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
 
 <p align="center">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">
@@ -23,7 +23,7 @@ Agentick provides 38 procedurally generated tasks for evaluating AI agents. Trai
 
 ## Key Features
 
-- **38 Tasks** across navigation, planning, reasoning, memory, generalization, and multi-agent coordination
+- **37 Tasks** across navigation, planning, reasoning, memory, generalization, and multi-agent coordination
 - **Multi-Modal Observations**: isometric pixel sprites, ASCII text, natural language, structured state
 - **Training-First**: trajectory export, SFT fine-tuning, RL baselines
 - **Universal Support**: RL, LLMs, VLMs, bots, humans
@@ -102,12 +102,12 @@ env = agentick.make("MazeNavigation-v0", render_mode="language")   # Natural lan
 |------------|---------------|-------|
 | Navigation | GoToGoal, MazeNavigation, CuriosityMaze, TimingChallenge | 8 |
 | Planning | SokobanPush, KeyDoorPuzzle, PackingPuzzle, ToolUse | 9 |
-| Reasoning | CausalChain, SwitchCircuit, GraphColoring, ProgramSynthesis | 9 |
+| Reasoning | SwitchCircuit, GraphColoring, SymbolMatching, ProgramSynthesis | 8 |
 | Memory | SequenceMemory, DelayedGratification, TreasureHunt, FogOfWar | 4 |
 | Generalization | FewShotAdaptation, DistributionShift, NoisyObservation | 3 |
 | Multi-Agent | CooperativeTransport, ChaseEvade, Herding, EmergentStrategy | 5 |
 
-**Total: 38 tasks**, each with 4 difficulty levels (easy, medium, hard, expert).
+**Total: 37 tasks**, each with 4 difficulty levels (easy, medium, hard, expert).
 
 ## Examples
 
@@ -170,7 +170,7 @@ Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`,
 
 Submit your results for inclusion on the [public leaderboard](https://roger-creus.github.io/agentick/board/):
 
-1. Run evaluation on all 38 tasks with official eval seeds
+1. Run evaluation on all 37 tasks with official eval seeds
 2. Validate: `uv run python scripts/validate_submission.py results/<run>/`
 3. Email the generated zip to `roger.creus-castanyer@mila.quebec`
 
@@ -180,7 +180,7 @@ See [docs/leaderboard.md](docs/leaderboard.md) for details and check out the [pu
 
 ```bash
 uv run agentick --version        # Show version
-uv run agentick list-tasks       # List all 38 tasks
+uv run agentick list-tasks       # List all 37 tasks
 uv run agentick list-suites      # List benchmark suites
 uv run agentick info GoToGoal-v0 # Task details
 ```
@@ -201,7 +201,7 @@ uv run agentick info GoToGoal-v0 # Task details
 agentick/
 ├── agentick/               # Core library
 │   ├── core/              # Environment, grid, renderer, types
-│   ├── tasks/             # 38 task implementations
+│   ├── tasks/             # 37 task implementations
 │   ├── oracles/           # Optimal reference policies
 │   ├── agents/            # LLM/VLM agent harnesses
 │   ├── leaderboard/       # Evaluation system and suites

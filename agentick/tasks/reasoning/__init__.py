@@ -1,6 +1,5 @@
 """Reasoning tasks."""
 
-from agentick.tasks.reasoning.causal_chain import CausalChainTask
 from agentick.tasks.reasoning.deceptive_reward import DeceptiveRewardTask
 from agentick.tasks.reasoning.graph_coloring import GraphColoringTask
 from agentick.tasks.reasoning.lights_out import LightsOutTask
@@ -11,7 +10,6 @@ from agentick.tasks.reasoning.symbol_matching import SymbolMatchingTask
 from agentick.tasks.reasoning.task_interference import TaskInterferenceTask
 
 __all__ = [
-    "CausalChainTask",
     "SwitchCircuitTask",
     "RuleInductionTask",
     "SymbolMatchingTask",

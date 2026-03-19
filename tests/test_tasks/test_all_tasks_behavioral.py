@@ -1,4 +1,4 @@
-"""Behavioral validation tests for all 38 Agentick tasks.
+"""Behavioral validation tests for all 37 Agentick tasks.
 
 Tests that each task:
 1. Initializes and resets without error
@@ -329,36 +329,6 @@ def test_dynamic_obstacles_can_succeed():
         if success:
             break  # one seed success is enough
     assert success, "DynamicObstacles-v0: could not navigate to goal avoiding obstacles"
-
-
-@pytest.mark.parametrize("task_name,switch_key", [
-    ("CausalChain-v0", "switch_positions"),
-])
-@pytest.mark.timeout(60)
-def test_switch_task_can_succeed(task_name, switch_key):
-    """Switch/toggle tasks: BFS walk to all switches then reach goal."""
-    env = agentick.make(task_name, difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    switches = cfg.get(switch_key, [])
-
-    from agentick.core.types import ActionType
-    # Walk adjacent to switch, face it, INTERACT
-    term = False
-    for wp in switches:
-        if term:
-            break
-        obs, rew, term, trunc, info = _walk_adjacent_and_interact(env, wp[0], wp[1])
-        term = term or trunc
-
-    goal_positions = cfg.get("goal_positions", [])
-    goal = goal_positions[0] if goal_positions else None
-    if goal and not term:
-        obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
-    if not term and not trunc:
-        obs, rew, term, trunc, info = _noop(env)
-    env.close()
-    assert info["success"], f"{task_name}: success didn't fire (cfg={cfg})"
 
 
 @pytest.mark.timeout(60)
@@ -1095,22 +1065,6 @@ def test_backtrack_puzzle_can_succeed():
         obs, rew, term, trunc, info = _walk_to(env, goal[0], goal[1])
     env.close()
     assert info.get("success"), "BacktrackPuzzle: couldn't reach goal after gate opened"
-
-
-@pytest.mark.timeout(60)
-def test_causal_chain_can_succeed():
-    """CausalChain: INTERACT adjacent to levers in order → gate opens → reach goal."""
-    env = agentick.make("CausalChain-v0", difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    cfg = env.task_config
-    for sw in cfg["switch_positions"]:
-        _walk_adjacent_and_interact(env, sw[0], sw[1])
-        if env.done:
-            break
-    if not env.done:
-        obs, rew, term, trunc, info = _walk_to(env, *cfg["goal_positions"][0])
-    env.close()
-    assert info.get("success"), "CausalChain: gate didn't open or goal unreachable"
 
 
 @pytest.mark.timeout(60)

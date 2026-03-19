@@ -40,7 +40,7 @@ def test_suite_structure():
 
     assert isinstance(suite, BenchmarkSuite)
     assert suite.name == "agentick-full-v2"
-    assert len(suite.tasks) == 38
+    assert len(suite.tasks) == 37
     assert suite.n_eval_seeds == 25
     assert suite.n_train_seeds == 2000
     assert suite.episodes_per_seed == 1

@@ -6,7 +6,7 @@
 
 **Universal benchmark for evaluating AI agents**
 
-Agentick provides 38 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
+Agentick provides 37 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
 
 ## Try It Now
 
@@ -82,13 +82,13 @@ env.close()
 
 ## Task Gallery
 
-38 tasks across 6 capability categories:
+37 tasks across 6 capability categories:
 
 | Capability | Tasks | Count |
 |---|---|---|
 | **Navigation** | GoToGoal, MazeNavigation, ShortestPath, DynamicObstacles, CuriosityMaze, RecursiveRooms, TimingChallenge, InstructionFollowing | 8 |
 | **Planning** | SokobanPush, KeyDoorPuzzle, BacktrackPuzzle, TileSorting, PackingPuzzle, PreciseNavigation, RecipeAssembly, ToolUse, ResourceManagement | 9 |
-| **Reasoning** | CausalChain, SwitchCircuit, RuleInduction, LightsOut, GraphColoring, SymbolMatching, ProgramSynthesis, TaskInterference, DeceptiveReward | 9 |
+| **Reasoning** | SwitchCircuit, RuleInduction, LightsOut, GraphColoring, SymbolMatching, ProgramSynthesis, TaskInterference, DeceptiveReward | 8 |
 | **Memory** | SequenceMemory, DelayedGratification, TreasureHunt, FogOfWarExploration | 4 |
 | **Generalization** | FewShotAdaptation, DistributionShift, NoisyObservation | 3 |
 | **Multi-Agent** | CooperativeTransport, TagHunt, ChaseEvade, Herding, EmergentStrategy | 5 |
@@ -132,7 +132,7 @@ dataset.export_to_huggingface("data/hf/", format="conversation")
 ## Learn More
 
 - [Quickstart](getting_started/quickstart.md) — Installation and 5-minute tutorial
-- [Tasks](tasks.md) — Browse all 38 tasks
+- [Tasks](tasks.md) — Browse all 37 tasks
 - [Observations](concepts/observations.md) — All observation modes
 
 ## License

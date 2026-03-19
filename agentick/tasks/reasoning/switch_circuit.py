@@ -1,23 +1,28 @@
-"""SwitchCircuit - Room-based dual-toggle switch dependency puzzle.
+"""SwitchCircuit - Room-based switch dependency puzzle with spatial chains.
 
 MECHANICS:
-  - Grid divided into rooms connected by single-cell doors
+  - Grid divided into rooms connected by single-cell doors (barriers)
   - N switches, one per room (Si in room Ri)
-  - Each switch opens the NEXT door; dual switches also close the PREVIOUS door
-  - INTERACT (action 5) on a switch toggles it ON/OFF; effects reverse when OFF
+  - Each switch opens exactly ONE door and NEVER closes anything
+  - INTERACT (action 5) on a switch toggles it ON/OFF
   - A barrier is OPEN if at least one switch that 'opens' it is ON
-    AND no switch that 'closes' it is ON
+  - Puzzle complexity comes from SPATIAL LAYOUT: switches behind locked doors
+    create a chain of dependencies requiring back-and-forth navigation
 
 TOPOLOGY:
-  - Easy: linear chain R0--D0--R1--D1--GoalRoom (no dual switches)
-  - Medium+: chain rooms with GoalRoom hanging off Hub (R0) via D_goal:
-      R0(S0)--D0--R1(S1)--...--R(N-1)(S(N-1))
-       |
-      D_goal
-       |
-      GoalRoom(GOAL)
-    Dual switches open the next door but close the previous, forcing the
-    agent to unwind toggles (ON->OFF) to get back to Hub and reach GoalRoom.
+  - Easy (n=2): linear chain R0--D0--R1--D1--GoalRoom
+  - Medium (n=3): chain rooms with GoalRoom below R0 via D_goal
+  - Hard (n=4): hub-and-spoke layout
+      S0 in hub → opens D0 (spoke0 door)
+      S1 in spoke0 → opens D1 (spoke1 door)
+      S2 in spoke1 → opens D2 (spoke2 door)
+      S3 in spoke2 → opens D_goal (goal door)
+  - Expert (n=5): 2x3 grid layout, all connections gated
+      S0 in R0 → opens B0 (R0→R1)
+      S1 in R1 → opens B1 (R1→R2)
+      S2 in R2 → opens B2 (R0→R3)
+      S3 in R3 → opens B3 (R3→R4)
+      S4 in R4 → opens B4 (R4→R5 goal)
 
   - Success = agent on GOAL cell
 """
@@ -95,11 +100,12 @@ def _room_connected(terrain, room_bounds, objects=None):
 
 @register_task("SwitchCircuit-v0", tags=["combinatorial_logic", "reasoning"])
 class SwitchCircuitTask(TaskSpec):
-    """Room-based switch puzzle with forced toggle cycles.
+    """Room-based switch puzzle with spatial dependency chains.
 
-    Rooms connected by single-cell doors. Each switch opens the next door;
-    dual switches (medium+) also close the previous door, forcing the agent
-    to toggle switches ON->OFF->ON to navigate back and reach the goal.
+    Rooms connected by single-cell doors. Each switch opens exactly one door
+    and never closes anything. Puzzle complexity comes from spatial layout:
+    switches are placed behind locked doors, creating a chain of dependencies
+    that requires back-and-forth navigation.
     """
 
     name = "SwitchCircuit-v0"
@@ -137,7 +143,6 @@ class SwitchCircuitTask(TaskSpec):
         rng = np.random.default_rng(seed)
         size = self.difficulty_config.grid_size
         n = self.difficulty_config.params.get("n_switches", 2)
-        has_dual = n >= 3
 
         grid = Grid(size, size)
         grid.terrain[:, :] = CellType.WALL
@@ -146,7 +151,7 @@ class SwitchCircuitTask(TaskSpec):
             rooms, barriers, goal_room = self._layout_grid_2x3(grid, n, size, rng)
         elif n == 4:
             rooms, barriers, goal_room = self._layout_hub_spoke(grid, n, size, rng)
-        elif has_dual:
+        elif n == 3:
             rooms, barriers, goal_room = self._layout_dual(grid, n, size, rng)
         else:
             rooms, barriers, goal_room = self._layout_easy(grid, n, size, rng)
@@ -154,7 +159,7 @@ class SwitchCircuitTask(TaskSpec):
         # Place switches: Si in Ri (one switch per chain room)
         used_positions: set[tuple[int, int]] = set()
         switch_positions = []
-        chain_rooms = rooms if has_dual else rooms[:n]
+        chain_rooms = rooms[:n]
 
         for i in range(n):
             x_s, x_e, y_s, y_e = chain_rooms[i]
@@ -266,7 +271,7 @@ class SwitchCircuitTask(TaskSpec):
         return rooms, barriers, goal_room
 
     def _layout_dual(self, grid, n, size, rng):
-        """Medium+: N chain rooms on top, GoalRoom below R0."""
+        """Medium (n=3): N chain rooms on top, GoalRoom below R0."""
         n_chain = n
 
         # Vertical split: top ~70%, bottom ~30%
@@ -378,13 +383,17 @@ class SwitchCircuitTask(TaskSpec):
     def _layout_grid_2x3(self, grid, n, size, rng):
         """Expert: 2x3 grid layout with n switches and n doors.
 
-        6 rooms in 2 rows × 3 columns.  Only n connections are gated
-        (barriers); the remaining 2 connections are open passages.
+        6 rooms in 2 rows x 3 columns. ALL connections are gated (no open
+        passages). Only 5 of the 7 possible connections exist, chosen to
+        create a sequential chain requiring back-and-forth navigation.
 
         Gated (barriers 0..4):
-          B0: R0→R1, B1: R1→R2, B2: R0→R3, B3: R1→R4, B4: R4→R5
-        Open passages (always passable):
-          R3→R4, R2→R5
+          B0: R0->R1, B1: R1->R2, B2: R0->R3, B3: R3->R4, B4: R4->R5
+
+        No connection: R1->R4, R2->R5 (solid walls, no passage).
+
+        Chain: S0(R0)->B0->R1, S1(R1)->B1->R2 (dead end), S2(R2)->B2
+        -> backtrack to R0->R3, S3(R3)->B3->R4, S4(R4)->B4->R5(goal).
         """
         n_cols = 3
         n_rows = 2
@@ -419,48 +428,37 @@ class SwitchCircuitTask(TaskSpec):
 
         barriers = []
 
-        # B0: R0→R1 (top row, horizontal)
+        # B0: R0->R1 (top row, horizontal)
         left = rooms_grid[0][0]
         wall_x = left[1] + 1
         door_y = int(rng.integers(left[2], left[3] + 1))
         barriers.append({"cells": [[wall_x, door_y]], "open": False})
 
-        # B1: R1→R2 (top row, horizontal)
+        # B1: R1->R2 (top row, horizontal)
         left = rooms_grid[0][1]
         wall_x = left[1] + 1
         door_y = int(rng.integers(left[2], left[3] + 1))
         barriers.append({"cells": [[wall_x, door_y]], "open": False})
 
-        # B2: R0→R3 (vertical, left column)
+        # B2: R0->R3 (vertical, left column)
         top = rooms_grid[0][0]
         wall_y = top[3] + 1
         door_x = int(rng.integers(top[0], top[1] + 1))
         barriers.append({"cells": [[door_x, wall_y]], "open": False})
 
-        # B3: R1→R4 (vertical, middle column)
-        top = rooms_grid[0][1]
-        wall_y = top[3] + 1
-        door_x = int(rng.integers(top[0], top[1] + 1))
-        barriers.append({"cells": [[door_x, wall_y]], "open": False})
-
-        # B4: R4→R5 (bottom row, horizontal)
-        left = rooms_grid[1][1]
-        wall_x = left[1] + 1
-        door_y = int(rng.integers(left[2], left[3] + 1))
+        # B3: R3->R4 (bottom row, left-to-middle)
+        left_bot = rooms_grid[1][0]
+        wall_x = left_bot[1] + 1
+        door_y = int(rng.integers(left_bot[2], left_bot[3] + 1))
         barriers.append({"cells": [[wall_x, door_y]], "open": False})
 
-        # Open passages (permanently carved, no barrier):
-        # R3→R4 (bottom row, left-to-middle)
-        left_bot = rooms_grid[1][0]
-        wall_x_open = left_bot[1] + 1
-        open_y = (left_bot[2] + left_bot[3]) // 2
-        grid.terrain[open_y, wall_x_open] = CellType.EMPTY
+        # B4: R4->R5 (bottom row, middle-to-right)
+        mid_bot = rooms_grid[1][1]
+        wall_x = mid_bot[1] + 1
+        door_y = int(rng.integers(mid_bot[2], mid_bot[3] + 1))
+        barriers.append({"cells": [[wall_x, door_y]], "open": False})
 
-        # R2→R5 (vertical, right column)
-        top_right = rooms_grid[0][2]
-        wall_y_open = top_right[3] + 1
-        open_x = (top_right[0] + top_right[1]) // 2
-        grid.terrain[wall_y_open, open_x] = CellType.EMPTY
+        # No open passages — R1->R4 and R2->R5 remain solid walls
 
         # Flatten rooms: R0, R1, R2, R3, R4 (5 rooms for 5 switches)
         rooms = [
@@ -477,87 +475,13 @@ class SwitchCircuitTask(TaskSpec):
     # ------------------------------------------------------------------
 
     def _build_dependency_graph(self, n_switches, n_barriers, rng=None):
-        """Build switch effects with difficulty-dependent complexity.
+        """Simple chain: switch i opens barrier i, no closes.
 
-        Easy (n<=2): simple chain, no closes.
-        Medium (n==3): linear dual (opens next, closes previous).
-        Hard (n==4): cross-dependencies with non-adjacent closures.
-        Expert (n>=5): mutual exclusion + cascading closures.
+        All difficulties use the same simple dependency logic. Puzzle
+        complexity comes from the spatial layout (switches behind locked
+        doors), not from switches having dual open/close effects.
         """
-        if n_switches == 0 or n_barriers == 0:
-            return []
-
-        if n_switches <= 2:
-            return self._build_simple_chain(n_switches, n_barriers)
-
-        if n_switches == 3:
-            # Current dual behaviour: S0 opens D0; S1 opens D1, closes D0;
-            # S2 opens D_goal (last barrier).
-            effects = []
-            for i in range(n_switches):
-                opens = [min(i, n_barriers - 1)]
-                closes = []
-                if 0 < i < n_switches - 1:
-                    closes = [i - 1]
-                effects.append({"opens": opens, "closes": closes})
-            return effects
-
-        # Hard/Expert: complex cross-dependencies require rng.
-        if rng is None:
-            rng = np.random.default_rng(42)
-
-        if n_switches == 4:
-            # Hard: cross-dependencies verified to be solvable in the dual layout.
-            #
-            # Layout: R0->B0->R1->B1->R2->B2->R3; R0->B3(goal)->GoalRoom.
-            # S3 opens B3(goal) and must NOT close anything (closing chain barriers
-            # when the goal door opens creates unreachable deadlocks).
-            #
-            # Template pool: (c1, c2) — close target for S1 and S2.
-            # S0 and S3 always have empty closes. All 6 patterns confirmed solvable
-            # by exhaustive BFS over the abstract room graph.
-            hard_templates = [
-                (0, 0),  # S1 closes B0, S2 closes B0
-                (0, 1),  # S1 closes B0, S2 closes B1 (classic dual-style)
-                (0, 3),  # S1 closes B0, S2 closes B3(goal) — must toggle S2 off
-                (3, 0),  # S1 closes B3(goal), S2 closes B0
-                (3, 1),  # S1 closes B3(goal), S2 closes B1
-                (3, 3),  # S1 and S2 both close goal barrier (any one blocks goal)
-            ]
-            c1, c2 = hard_templates[int(rng.integers(len(hard_templates)))]
-            effects = [
-                {"opens": [0], "closes": []},
-                {"opens": [1], "closes": [c1]},
-                {"opens": [2], "closes": [c2]},
-                {"opens": [3], "closes": []},
-            ]
-            return effects
-
-        # Expert (n>=5): cascading closures.
-        #
-        # Layout: R0->B0->R1->B1->R2->B2->R3->B3->R4; R0->B4(goal)->GoalRoom.
-        # S4 opens B4(goal) and must NOT close anything (same deadlock constraint).
-        # S1, S2, S3 each close one barrier; S0 and S4 have empty closes.
-        # All 24 patterns confirmed solvable by exhaustive BFS.
-        #
-        # Template pool: (c1, c2, c3) — close targets for S1, S2, S3.
-        expert_templates = [
-            (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, 4),
-            (0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 1, 4),
-            (0, 4, 0), (0, 4, 1), (0, 4, 2), (0, 4, 4),
-            (4, 0, 0), (4, 0, 1), (4, 0, 2), (4, 0, 4),
-            (4, 1, 0), (4, 1, 1), (4, 1, 2), (4, 1, 4),
-            (4, 4, 0), (4, 4, 1), (4, 4, 2), (4, 4, 4),
-        ]
-        c1, c2, c3 = expert_templates[int(rng.integers(len(expert_templates)))]
-        effects = [
-            {"opens": [0], "closes": []},
-            {"opens": [1], "closes": [c1]},
-            {"opens": [2], "closes": [c2]},
-            {"opens": [3], "closes": [c3]},
-            {"opens": [4], "closes": []},
-        ]
-        return effects
+        return self._build_simple_chain(n_switches, n_barriers)
 
     def _build_simple_chain(self, n_switches, n_barriers):
         """Simple chain: switch i opens barrier i, no closes."""

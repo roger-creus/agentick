@@ -65,8 +65,7 @@ TASK_CAPABILITY_MAP = {
     "RecipeAssembly-v0": "planning",
     "ToolUse-v0": "planning",
     "ResourceManagement-v0": "planning",
-    # Reasoning (9)
-    "CausalChain-v0": "reasoning",
+    # Reasoning (8)
     "SwitchCircuit-v0": "reasoning",
     "RuleInduction-v0": "reasoning",
     "LightsOut-v0": "reasoning",

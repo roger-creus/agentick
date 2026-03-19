@@ -15,10 +15,10 @@ MECHANICS:
     counter increments. Agent retains knowledge across trials but not inventory.
 
 DIFFICULTY:
-  - easy:   9x9,  6 objects,  2 valid combos, 5 trials, max_steps=150
-  - medium: 11x11, 8 objects, 3 valid combos, 4 trials, max_steps=250
-  - hard:   13x13, 10 objects, 4 valid combos, 3 trials, max_steps=400
-  - expert: 15x15, 12 objects, 5 valid combos, 2 trials, max_steps=550
+  - easy:   9x9,  4 objects,  2 valid combos, 5 trials, max_steps=150
+  - medium: 11x11, 5 objects, 3 valid combos, 4 trials, max_steps=250
+  - hard:   13x13, 5 objects, 4 valid combos, 3 trials, max_steps=400
+  - expert: 15x15, 5 objects, 5 valid combos, 2 trials, max_steps=550
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ class RuleInductionTask(TaskSpec):
             grid_size=9,
             max_steps=150,
             params={
-                "n_objects": 6,
+                "n_objects": 4,
                 "n_valid_combos": 2,
                 "n_trials": 5,
             },
@@ -74,7 +74,7 @@ class RuleInductionTask(TaskSpec):
             grid_size=11,
             max_steps=250,
             params={
-                "n_objects": 8,
+                "n_objects": 5,
                 "n_valid_combos": 3,
                 "n_trials": 4,
             },
@@ -84,7 +84,7 @@ class RuleInductionTask(TaskSpec):
             grid_size=13,
             max_steps=400,
             params={
-                "n_objects": 10,
+                "n_objects": 5,
                 "n_valid_combos": 4,
                 "n_trials": 3,
             },
@@ -94,7 +94,7 @@ class RuleInductionTask(TaskSpec):
             grid_size=15,
             max_steps=550,
             params={
-                "n_objects": 12,
+                "n_objects": 5,
                 "n_valid_combos": 5,
                 "n_trials": 2,
             },
@@ -223,15 +223,24 @@ class RuleInductionTask(TaskSpec):
                 used_cells.add(pos)
                 obj_idx += 1
 
-        # Fill remaining object slots with random types
+        # Track which types are already on the grid (enforce 1 instance per type)
+        placed_types = {int(ot) for _, _, ot in placed_objects}
+
+        # Fill remaining object slots with random types (each type used at most once)
         while len(placed_objects) < n_objects and obj_idx < len(candidates):
+            remaining_types = [
+                t for t in _COMBO_TYPES
+                if t != target_type and int(t) not in placed_types
+            ]
+            if not remaining_types:
+                break
             pos = candidates[obj_idx]
             obj_idx += 1
             if pos in used_cells:
                 continue
             px, py = pos
-            available_types = [t for t in _COMBO_TYPES if t != target_type]
-            chosen_type = available_types[int(rng.integers(len(available_types)))]
+            chosen_type = remaining_types[int(rng.integers(len(remaining_types)))]
+            placed_types.add(int(chosen_type))
             grid.objects[py, px] = chosen_type
             placed_objects.append((px, py, chosen_type))
             used_cells.add(pos)
@@ -271,18 +280,30 @@ class RuleInductionTask(TaskSpec):
         """Build a combo chain whose last step produces target_type.
 
         Returns a list of (A, B, result) triples.
+        Each step's inputs are chosen so they haven't been used as inputs
+        in prior steps, ensuring no duplicate object types on the grid.
         """
         rules: list[tuple[ObjectType, ObjectType, ObjectType]] = []
         result = target_type
+        used_inputs: set[int] = set()  # types already used as inputs in prior steps
 
         for step in range(chain_length, 0, -1):
-            # Pick two inputs that produce result
-            available = [t for t in _COMBO_TYPES if t != result]
+            # Pick two inputs that produce result, preferring types not yet
+            # used as inputs in other chain steps
+            available = [
+                t for t in _COMBO_TYPES
+                if t != result and int(t) not in used_inputs
+            ]
+            if len(available) < 2:
+                # Fall back to all types != result if not enough fresh types
+                available = [t for t in _COMBO_TYPES if t != result]
             if len(available) < 2:
                 available = list(_COMBO_TYPES)
             rng.shuffle(available)
             a = available[0]
             b = available[1] if len(available) > 1 else available[0]
+            used_inputs.add(int(a))
+            used_inputs.add(int(b))
             rules.insert(0, (a, b, result))
             # For the next iteration, result becomes the output of the
             # previous step — use a fresh type as the new intermediate

@@ -377,33 +377,6 @@ _td(
 )
 
 _td(
-    "CausalChain-v0",
-    "reasoning",
-    "Open-arena lever combination puzzle. ALL levers reachable from the start. "
-    "Each lever toggles ON/OFF via INTERACT with complex effects: opens some "
-    "barriers, closes others. Find the correct combination that opens ALL barriers "
-    "simultaneously to reach the GOAL. Decoy levers toggle ICE patches but don't "
-    "affect barriers.",
-    "LEVER objects (toggleable ON/OFF, complex barrier effects), "
-    "WALL barriers (multiple segments blocking the goal), GOAL (behind all barriers), "
-    "ICE terrain (toggled by decoy levers).",
-    "Discover the correct lever combination to open all barriers, then reach GOAL.",
-    "Move in 4 directions (actions 1-4) and use INTERACT (action 5). Levers are solid "
-    "— move toward a LEVER to stand adjacent and face it (orientation updates even when "
-    "blocked), then INTERACT (action 5) to toggle it ON/OFF. Each lever has complex "
-    "effects: it may open some barriers while closing others. Experiment to find the "
-    "correct combination. Decoy levers toggle ICE terrain but don't affect barriers. "
-    "Only actions 1-4 (movement) and 5 (INTERACT) are useful in this task.",
-    [
-        ("easy", "9x9 grid, 2 levers, 2 barriers. No decoys."),
-        ("medium", "11x11 grid, 3 levers, 3 barriers, 1 decoy."),
-        ("hard", "13x13 grid, 4 levers, 4 barriers, 2 decoys. Cross-dependencies."),
-        ("expert", "15x15 grid, 5 levers, 5 barriers, 3 decoys. Complex dependencies."),
-    ],
-    tags=["reasoning", "causal_reasoning"],
-)
-
-_td(
     "SwitchCircuit-v0",
     "reasoning",
     "Non-linear switch dependency puzzle. An open arena has N switches toggled via "

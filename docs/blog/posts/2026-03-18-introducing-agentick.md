@@ -13,8 +13,6 @@ slug: introducing-agentick
 
 Agentick is an open-source benchmark for evaluating AI agents across the core challenges of sequential decision-making. It supports RL agents, LLM agents, VLM agents, hybrid systems, hand-written bots and planners and even human play - all through a standard Gymnasium interface.
 
-<!-- more -->
-
 <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 2em 0;">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/MazeNavigation-v0_easy.gif" width="200" alt="MazeNavigation" loading="lazy" style="border-radius: 8px;">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="200" alt="ProgramSynthesis" loading="lazy" style="border-radius: 8px;">
@@ -139,7 +137,7 @@ dataset.export_to_huggingface("data/sokoban_expert/", format="conversation")
 
 **Fine-tune LLMs on expert demonstrations:**
 
-Oracle policies are provided for all 38 tasks. Generate your own trajectories, or grab one of our pre-built datasets on HuggingFace:
+Oracle policies are provided for all 37 tasks. Generate your own trajectories, or grab one of our pre-built datasets on HuggingFace:
 
 | Dataset | Episodes | |
 |---|---|---|
@@ -147,7 +145,7 @@ Oracle policies are provided for all 38 tasks. Generate your own trajectories, o
 | [agentick-oracle-trajectories-250k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K | Broader coverage |
 | [agentick-oracle-trajectories-500k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K | Full scale |
 
-Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across all 38 tasks and difficulty levels. Load them directly with `datasets` and SFT your favorite open-source model.
+Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across all 37 tasks and difficulty levels. Load them directly with `datasets` and SFT your favorite open-source model.
 
 This training-first design means Agentick isn't just measuring where agents are today - it's infrastructure for making them better.
 
@@ -185,7 +183,7 @@ for action in actions:
 
 The API also exposes grid inspection (`get_cell`, `get_object`, `get_walls`, `get_walkable_cells`), inventory management (`has_in_inventory`), and interaction primitives (`interact_with`).
 
-This is how the **oracle policies** for all 38 tasks were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
+This is how the **oracle policies** for all 37 tasks were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
 
 ## LLM Agent Harnesses
 
@@ -272,7 +270,7 @@ For <a href="https://roger-creus.github.io/agentick/agents/rl_agents/" target="_
 
 ## The Tasks
 
-38 tasks, each procedurally generated with 4 difficulty levels (easy → expert). Every run produces a unique layout, so agents can't memorize solutions. Click a category and difficulty to explore.
+37 tasks, each procedurally generated with 4 difficulty levels (easy → expert). Every run produces a unique layout, so agents can't memorize solutions. Click a category and difficulty to explore.
 
 <style>
 .ag-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0.8em 0}
@@ -323,8 +321,7 @@ const CATS=[
 {n:"ToolUse-v0",d:"Discover scroll combinations to forge tools"},
 {n:"ResourceManagement-v0",d:"Keep energy stations alive under drain pressure"}
 ]},
-{id:"reasoning",label:"Reasoning (9)",tasks:[
-{n:"CausalChain-v0",d:"Activate levers in causal order, ignore decoys"},
+{id:"reasoning",label:"Reasoning (8)",tasks:[
 {n:"SwitchCircuit-v0",d:"Non-linear switch dependencies with mutual exclusion"},
 {n:"RuleInduction-v0",d:"Discover hidden rules from environmental cues"},
 {n:"LightsOut-v0",d:"Classic toggle puzzle with neighbor propagation"},
@@ -408,7 +405,7 @@ env.close()
 
 ```bash
 uv run agentick webapp          # Play tasks yourself in the browser
-uv run agentick list-tasks      # See all 38 tasks
+uv run agentick list-tasks      # See all 37 tasks
 ```
 
 Browse the [documentation](../../index.md), explore the [task catalog](../../tasks.md), or check out the [example configs](https://github.com/agentick/agentick/tree/main/examples) to get running.
