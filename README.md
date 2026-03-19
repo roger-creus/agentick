@@ -11,6 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
   <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-agentick.ai-4051b5" alt="Docs"></a>
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
+  <a href="https://doi.org/10.5281/zenodo.19104717"><img src="https://zenodo.org/badge/1155852082.svg" alt="DOI"></a>
 </p>
 
 Agentick provides 37 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
@@ -232,7 +233,8 @@ Features on the `dev` branch for future releases:
   title={Agentick: Universal Benchmark for AI Agents},
   author={Agentick Team},
   year={2025},
-  url={https://github.com/roger-creus/agentick}
+  url={https://github.com/roger-creus/agentick},
+  doi={10.5281/zenodo.19104717}
 }
 ```
 
