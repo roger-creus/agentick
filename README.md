@@ -9,14 +9,16 @@
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-agentick.ai-4051b5" alt="Docs"></a>
+  <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
 </p>
 
 Agentick provides 38 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
 
 <p align="center">
-  <img src="docs/showcase/videos/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">
-  <img src="docs/showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle">
-  <img src="docs/showcase/videos/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle">
+  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">
+  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle">
+  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle">
 </p>
 
 ## Key Features

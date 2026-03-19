@@ -67,6 +67,8 @@ Thumbs.db
 uv.lock
 
 .claude
+.config/
+.triton/
 
 # Generated artifacts
 models/
@@ -82,13 +84,10 @@ scripts/__pycache__/
 examples/debug_results.ipynb
 examples/human_results.ipynb
 
-# Generated gallery videos (regenerate with scripts/record_oracle_gallery.py)
-docs/showcase/videos/*
-!docs/showcase/videos/iso/
-docs/showcase/videos/iso/*
-!docs/showcase/videos/iso/ProgramSynthesis-v0_easy.gif
-!docs/showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif
-!docs/showcase/videos/iso/PackingPuzzle-v0_medium.gif
+# Generated gallery videos — hosted on HuggingFace (rogercc/agentick-gallery)
+# Regenerate locally with: scripts/record_oracle_gallery.py
+# Upload with: huggingface-cli upload rogercc/agentick-gallery docs/showcase/videos/iso/ iso/
+docs/showcase/videos/
 
 # Logs
 logs/
