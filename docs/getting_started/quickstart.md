@@ -4,7 +4,7 @@
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv (if needed)
-git clone https://github.com/agentick/agentick.git
+git clone https://github.com/roger-creus/agentick.git
 cd agentick
 uv sync --extra all                                  # All dependencies
 ```

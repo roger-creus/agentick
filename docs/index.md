@@ -13,7 +13,7 @@ Agentick provides 37 procedurally generated gridworld tasks spanning navigation,
 The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
-git clone https://github.com/agentick/agentick.git && cd agentick
+git clone https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra all
 uv run agentick webapp          # Opens http://localhost:5000
 ```

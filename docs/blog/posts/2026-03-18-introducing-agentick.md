@@ -385,7 +385,7 @@ Per-category scores break down into the six capability axes. Submit your results
 ## Get Started
 
 ```bash
-git clone https://github.com/agentick/agentick.git && cd agentick
+git clone https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra all
 ```
 
@@ -408,7 +408,7 @@ uv run agentick webapp          # Play tasks yourself in the browser
 uv run agentick list-tasks      # See all 37 tasks
 ```
 
-Browse the [documentation](../../index.md), explore the [task catalog](../../tasks.md), or check out the [example configs](https://github.com/agentick/agentick/tree/main/examples) to get running.
+Browse the [documentation](../../index.md), explore the [task catalog](../../tasks.md), or check out the [example configs](https://github.com/roger-creus/agentick/tree/main/examples) to get running.
 
 ## Built for the Research Community
 
@@ -424,5 +424,5 @@ We'd love to see:
 The benchmark, documentation, examples, and leaderboard are all live. Give it a try and let us know what you find.
 
 <div style="text-align: center; margin: 2em 0;">
-  <a href="https://github.com/agentick/agentick" target="_blank" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View on GitHub</a>
+  <a href="https://github.com/roger-creus/agentick" target="_blank" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View on GitHub</a>
 </div>

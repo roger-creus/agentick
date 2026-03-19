@@ -79,6 +79,9 @@ ENV UV_SYSTEM_PYTHON=1
 # Sync all extras (rl, llm, vllm, finetune, tracking, viz, webapp, docs) + dev
 RUN uv sync --extra all --group dev --no-progress
 
+
+
+
 # --- Verify installation ---
 RUN uv run python -c "\
 import agentick; \

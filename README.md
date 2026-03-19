@@ -35,7 +35,7 @@ Agentick provides 37 procedurally generated tasks for evaluating AI agents. Trai
 The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
-git clone https://github.com/agentick/agentick.git && cd agentick
+git clone https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra all
 uv run python -m agentick.human.webapp   # Opens http://localhost:5000
 ```
@@ -61,7 +61,7 @@ env.close()
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv
-git clone https://github.com/agentick/agentick.git
+git clone https://github.com/roger-creus/agentick.git
 cd agentick
 uv sync --extra all
 uv run agentick --version
@@ -232,7 +232,7 @@ Features on the `dev` branch for future releases:
   title={Agentick: Universal Benchmark for AI Agents},
   author={Agentick Team},
   year={2025},
-  url={https://github.com/agentick/agentick}
+  url={https://github.com/roger-creus/agentick}
 }
 ```
 

@@ -36,6 +36,7 @@ plugins:
       blog_dir: blog
       post_date_format: long
       post_url_format: "{slug}"
+      post_excerpt: optional
       archive: false
       categories: false
   - mkdocstrings:
