@@ -168,13 +168,13 @@ Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`,
 
 ## Leaderboard
 
-Submit your results for inclusion on the public leaderboard:
+Submit your results for inclusion on the [public leaderboard](https://roger-creus.github.io/agentick/board/):
 
 1. Run evaluation on all 38 tasks with official eval seeds
 2. Validate: `uv run python scripts/validate_submission.py results/<run>/`
 3. Email the generated zip to `roger.creus-castanyer@mila.quebec`
 
-See [docs/leaderboard.md](docs/leaderboard.md) for details.
+See [docs/leaderboard.md](docs/leaderboard.md) for details and check out the [public leaderboard](https://roger-creus.github.io/agentick/board/).
 
 ## CLI
 
@@ -222,7 +222,7 @@ Features on the `dev` branch for future releases:
 - Behaviour cloning from pixels
 - Curriculum learning
 - Vector environments for parallel training
-- Docker/git-repo leaderboard submission types
+- Docker/git-repo [leaderboard](https://roger-creus.github.io/agentick/board/) submission types
 - SFT model evaluation pipeline
 
 ## Citation
