@@ -217,30 +217,29 @@
         .cattab-content { display: none; }
         .cattab-content.active { display: block; }
 
-        /* Task dropdown */
-        .task-filter { margin: 16px 0; }
-        .task-filter label {
-            color: var(--text-muted);
-            font-weight: 600;
-            margin-right: 8px;
-        }
-        .task-filter select {
-            background: var(--surface);
-            color: var(--text);
+        /* Task category tabs */
+        .taskcattab-content { display: none; }
+        .taskcattab-content.active { display: block; }
+
+        /* Task cards (per-task mini-tables) */
+        .task-card {
+            margin: 20px 0;
             border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px 12px;
-            font-size: 14px;
-            min-width: 300px;
-            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
         }
-        .task-filter select:focus { border-color: var(--accent); outline: none; }
-        .category-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            font-weight: 400;
-            margin-left: 8px;
+        .task-card-title {
+            padding: 10px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
         }
+        .task-table { margin: 0; }
+        .task-table th { font-size: 11px; padding: 8px 10px; }
+        .task-table td { padding: 6px 10px; font-size: 13px; }
 
         /* Dim cells (modality, harness, date) */
         .dim-cell { color: var(--text-muted); font-size: 13px; }

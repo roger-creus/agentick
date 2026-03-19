@@ -117,58 +117,57 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- VIEW 3: PER-TASK                                               -->
+<!-- VIEW 3: PER-TASK (category tabs → all tasks in category)       -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <div id="view-tasks" class="view-content">
-<div class="task-filter">
-    <label for="task-select">Task:</label>
-    <select id="task-select" onchange="showTaskTable()">
-    {% for task_name in task_names %}
-        <option value="{{ task_name }}">{{ task_name }}  ({{ task_categories[task_name] }})</option>
+<div class="tabs">
+    {% for cat in categories %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showTaskCatTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
     {% endfor %}
-    </select>
 </div>
 
-{% for task_name in task_names %}
-<div id="tasktab-{{ task_name }}" class="tasktab-content" {% if not loop.first %}style="display:none"{% endif %}>
-<h3>{{ task_name }} <span class="category-label">{{ task_categories[task_name] }}</span></h3>
-<table class="leaderboard-table">
-    <thead>
-        <tr>
-            <th>Agent</th>
-            <th>Type</th>
-            <th>Modality</th>
-            <th>Harness</th>
-            <th>Easy</th>
-            <th>Medium</th>
-            <th>Hard</th>
-            <th>Expert</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for entry in rankings %}
-        {% set task_data = entry.per_task.get(task_name, {}) %}
-        {% if task_data %}
-        <tr>
-            <td class="agent-name">{{ entry.agent_name }}</td>
-            <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
-            <td class="dim-cell">{{ entry.modality }}</td>
-            <td class="dim-cell">{{ entry.harness }}</td>
-            {% for diff in ["easy", "medium", "hard", "expert"] %}
-            {% set d = task_data.get(diff, {}) %}
-            {% if d %}
-            <td class="score-cell {% if d.get('success_rate', 0) >= 0.8 %}score-high{% elif d.get('success_rate', 0) >= 0.3 %}score-mid{% elif d.get('success_rate', 0) > 0 %}score-low{% endif %}">
-                {{ "%.0f"|format(d.get('success_rate', 0) * 100) }}%
-            </td>
-            {% else %}
-            <td class="dim-cell">&ndash;</td>
-            {% endif %}
-            {% endfor %}
-        </tr>
-        {% endif %}
-        {% endfor %}
-    </tbody>
-</table>
+{% for cat in categories %}
+<div id="taskcattab-{{ cat }}" class="taskcattab-content {% if loop.first %}active{% endif %}">
+    {% for task_name in task_names %}
+    {% if task_categories[task_name] == cat %}
+    <div class="task-card">
+        <h3 class="task-card-title">{{ task_name }}</h3>
+        <table class="leaderboard-table task-table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Easy</th>
+                    <th>Medium</th>
+                    <th>Hard</th>
+                    <th>Expert</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in rankings %}
+                {% set task_data = entry.per_task.get(task_name, {}) %}
+                {% if task_data %}
+                <tr>
+                    <td class="agent-name">{{ entry.agent_name }}</td>
+                    <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
+                    {% for diff in ["easy", "medium", "hard", "expert"] %}
+                    {% set d = task_data.get(diff, {}) %}
+                    {% if d %}
+                    <td class="score-cell {% if d.get('success_rate', 0) >= 0.8 %}score-high{% elif d.get('success_rate', 0) >= 0.3 %}score-mid{% elif d.get('success_rate', 0) > 0 %}score-low{% endif %}">
+                        {{ "%.0f"|format(d.get('success_rate', 0) * 100) }}%
+                    </td>
+                    {% else %}
+                    <td class="dim-cell">&ndash;</td>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% endfor %}
 </div>
 {% endfor %}
 </div>
@@ -197,11 +196,12 @@ function showCatTab(name) {
     event.target.classList.add('active');
 }
 
-/* ── Task dropdown ── */
-function showTaskTable() {
-    const sel = document.getElementById('task-select').value;
-    document.querySelectorAll('.tasktab-content').forEach(el => el.style.display = 'none');
-    document.getElementById('tasktab-' + sel).style.display = 'block';
+/* ── Task category tabs ── */
+function showTaskCatTab(name) {
+    document.querySelectorAll('.taskcattab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#view-tasks .tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('taskcattab-' + name).classList.add('active');
+    event.target.classList.add('active');
 }
 
 /* ── Sort ── */
