@@ -84,7 +84,7 @@ scripts/__pycache__/
 examples/debug_results.ipynb
 examples/human_results.ipynb
 
-# Generated gallery videos — hosted on HuggingFace (rogercc/agentick-gallery)
+# Generated gallery videos — hosted on HuggingFace (huggingface.co/rogercc/agentick-gallery)
 # Regenerate locally with: scripts/record_oracle_gallery.py
 # Upload with: huggingface-cli upload rogercc/agentick-gallery docs/showcase/videos/iso/ iso/
 docs/showcase/videos/

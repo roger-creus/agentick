@@ -16,10 +16,10 @@ Agentick is an open-source benchmark for evaluating AI agents across the core ch
 <!-- more -->
 
 <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 2em 0;">
-  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/MazeNavigation-v0_easy.gif" width="200" alt="MazeNavigation" loading="lazy" style="border-radius: 8px;">
-  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="200" alt="ProgramSynthesis" loading="lazy" style="border-radius: 8px;">
-  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/ChaseEvade-v0_easy.gif" width="200" alt="ChaseEvade" loading="lazy" style="border-radius: 8px;">
-  <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="200" alt="KeyDoorPuzzle" loading="lazy" style="border-radius: 8px;">
+  <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/MazeNavigation-v0_easy.gif" width="200" alt="MazeNavigation" loading="lazy" style="border-radius: 8px;">
+  <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="200" alt="ProgramSynthesis" loading="lazy" style="border-radius: 8px;">
+  <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ChaseEvade-v0_easy.gif" width="200" alt="ChaseEvade" loading="lazy" style="border-radius: 8px;">
+  <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="200" alt="KeyDoorPuzzle" loading="lazy" style="border-radius: 8px;">
 </div>
 
 ## The Gap
@@ -81,7 +81,7 @@ The key design choice that makes this work: **multiple observation modes** for e
 
     512x512 sprite-based isometric rendering. Rich visual observations for VLM agents and human evaluation.
 
-    <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/SokobanPush-v0_easy.gif" width="300" alt="SokobanPush isometric" loading="lazy" style="border-radius: 8px;">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/SokobanPush-v0_easy.gif" width="300" alt="SokobanPush isometric" loading="lazy" style="border-radius: 8px;">
 
 === "Structured Dict (for LLM agents)"
 
@@ -180,7 +180,7 @@ This training-first design means Agentick isn't just measuring where agents are 
 
 <script>
 (function(){
-const HF="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/";
+const HF="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/";
 const DIFFS=["easy","medium","hard","expert"];
 const CATS=[
 {id:"navigation",label:"Navigation (8)",tasks:[

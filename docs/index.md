@@ -22,15 +22,15 @@ uv run agentick webapp          # Opens http://localhost:5000
 
 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
   <div style="text-align: center;">
-    <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis (isometric)">
     <br><em>ProgramSynthesis</em>
   </div>
   <div style="text-align: center;">
-    <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle (isometric)">
     <br><em>KeyDoorPuzzle</em>
   </div>
   <div style="text-align: center;">
-    <img src="https://huggingface.co/datasets/rogercc/agentick-gallery/resolve/main/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle (isometric)">
     <br><em>PackingPuzzle</em>
   </div>
 </div>
