@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -121,6 +122,25 @@ class SiteGenerator:
         task_names = sorted(TASK_CAPABILITY_MAP.keys())
         task_categories = dict(TASK_CAPABILITY_MAP)
 
+        # Load task descriptions from showcase JSON
+        task_descriptions = {}
+        desc_path = Path("docs/showcase/task_descriptions.json")
+        if desc_path.exists():
+            with open(desc_path) as f:
+                for td in json.load(f):
+                    task_descriptions[td["name"]] = td.get("summary", "")
+
+        # Build chart data as JSON for Chart.js
+        chart_data = {
+            "agent_names": [r["agent_name"] for r in rankings],
+            "overall_scores": [round(r["score"], 3) for r in rankings],
+            "categories": categories,
+            "per_category": {
+                cat: [round(r["per_category"].get(cat, 0), 3) for r in rankings]
+                for cat in categories
+            },
+        }
+
         template = self.env.get_template("index.html")
         html = template.render(
             title="Agentick Leaderboard",
@@ -128,6 +148,8 @@ class SiteGenerator:
             categories=categories,
             task_names=task_names,
             task_categories=task_categories,
+            task_descriptions=task_descriptions,
+            chart_data_json=json.dumps(chart_data),
         )
 
         (self.output_dir / "index.html").write_text(html)
