@@ -61,6 +61,23 @@ class SiteGenerator:
         if assets_src.exists():
             shutil.copytree(assets_src, assets_dst, dirs_exist_ok=True)
 
+    @staticmethod
+    def _display_field(agent_type: str, raw_value: str, field: str) -> str:
+        """Return display value for modality/harness columns.
+
+        Non-applicable combinations show '-' instead of the raw value.
+        """
+        is_baseline = agent_type in ("other",)
+        if field == "modality":
+            if is_baseline:
+                return "\u2013"
+            return raw_value or "\u2013"
+        if field == "harness":
+            if is_baseline or agent_type == "rl":
+                return "\u2013"
+            return raw_value or "\u2013"
+        return raw_value
+
     def _generate_index(self) -> None:
         """Generate main leaderboard page."""
         entries = load_entries(self.entries_path)
@@ -70,12 +87,19 @@ class SiteGenerator:
         for entry in entries:
             scores = entry.get("scores", {})
             ci = scores.get("agentick_score_ci", [0.0, 0.0])
+            agent_type = entry.get("agent_type", "")
             rankings.append({
                 "rank": 0,
                 "agent_name": entry.get("agent_name", ""),
                 "author": entry.get("author", ""),
-                "agent_type": entry.get("agent_type", ""),
+                "agent_type": agent_type,
                 "observation_mode": entry.get("observation_mode", ""),
+                "modality": self._display_field(
+                    agent_type, entry.get("observation_mode", ""), "modality",
+                ),
+                "harness": self._display_field(
+                    agent_type, entry.get("harness", ""), "harness",
+                ),
                 "model": entry.get("model", ""),
                 "score": scores.get("agentick_score", 0.0),
                 "score_ci_lower": ci[0] if len(ci) >= 2 else 0.0,
@@ -83,7 +107,6 @@ class SiteGenerator:
                 "per_category": scores.get("per_category", {}),
                 "per_task": scores.get("per_task", {}),
                 "open_weights": entry.get("open_weights", False),
-                "harness": entry.get("harness", ""),
                 "date": entry.get("date", ""),
             })
 
@@ -91,14 +114,20 @@ class SiteGenerator:
         for i, r in enumerate(rankings):
             r["rank"] = i + 1
 
-        # Capability list for tabs
+        # Capability list for category tabs
         categories = sorted(set(TASK_CAPABILITY_MAP.values()))
+
+        # Task list sorted alphabetically, grouped by category
+        task_names = sorted(TASK_CAPABILITY_MAP.keys())
+        task_categories = dict(TASK_CAPABILITY_MAP)
 
         template = self.env.get_template("index.html")
         html = template.render(
             title="Agentick Leaderboard",
             rankings=rankings,
             categories=categories,
+            task_names=task_names,
+            task_categories=task_categories,
         )
 
         (self.output_dir / "index.html").write_text(html)

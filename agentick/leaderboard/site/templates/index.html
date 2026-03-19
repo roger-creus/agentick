@@ -2,27 +2,29 @@
 
 {% block content %}
 <h1>Agentick Leaderboard</h1>
-<p>Universal benchmark for evaluating AI agents across 38 procedurally generated gridworld tasks.</p>
+<p>Universal benchmark for evaluating AI agents across 37 procedurally generated gridworld tasks.</p>
 
 {% if rankings %}
-<!-- Category Tabs -->
-<div class="tabs">
-    <button class="tab-btn active" onclick="showTab('overall')">Overall</button>
-    {% for cat in categories %}
-    <button class="tab-btn" onclick="showTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
-    {% endfor %}
+
+<!-- View selector: Overall / Categories / Per-Task -->
+<div class="view-selector">
+    <button class="view-btn active" onclick="switchView('overview')">Full Benchmark</button>
+    <button class="view-btn" onclick="switchView('categories')">By Category</button>
+    <button class="view-btn" onclick="switchView('tasks')">By Task</button>
 </div>
 
-<!-- Overall ranking table -->
-<div id="tab-overall" class="tab-content active">
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 1: OVERALL                                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-overview" class="view-content active">
 <table class="leaderboard-table" id="table-overall">
     <thead>
         <tr>
             <th onclick="sortTable('table-overall', 0, 'num')">Rank <span class="sort-arrow"></span></th>
             <th onclick="sortTable('table-overall', 1, 'str')">Agent <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 2, 'str')">Author <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 3, 'str')">Type <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 4, 'str')">Obs. Mode <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 2, 'str')">Type <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 3, 'str')">Modality <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 4, 'str')">Harness <span class="sort-arrow"></span></th>
             <th onclick="sortTable('table-overall', 5, 'num')">Score <span class="sort-arrow"></span></th>
             <th>95% CI</th>
             <th onclick="sortTable('table-overall', 7, 'str')">Open <span class="sort-arrow"></span></th>
@@ -36,9 +38,9 @@
                 {{ entry.rank }}
             </td>
             <td class="agent-name">{{ entry.agent_name }}</td>
-            <td>{{ entry.author }}</td>
             <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
-            <td>{{ entry.observation_mode }}</td>
+            <td class="dim-cell">{{ entry.modality }}</td>
+            <td class="dim-cell">{{ entry.harness }}</td>
             <td class="score-cell">
                 <div class="score-bar-container">
                     <span class="score-value">{{ "%.3f"|format(entry.score) }}</span>
@@ -47,7 +49,7 @@
                     </div>
                 </div>
             </td>
-            <td class="score-cell" style="color: var(--text-muted); font-size: 12px;">
+            <td class="ci-cell">
                 {{ "%.3f"|format(entry.score_ci_lower) }}&ndash;{{ "%.3f"|format(entry.score_ci_upper) }}
             </td>
             <td>
@@ -57,36 +59,51 @@
                 <span class="closed-weights">No</span>
                 {% endif %}
             </td>
-            <td style="color: var(--text-muted); font-size: 12px;">{{ entry.date }}</td>
+            <td class="dim-cell">{{ entry.date }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 </div>
 
-<!-- Per-category tabs -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 2: BY CATEGORY                                            -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-categories" class="view-content">
+<div class="tabs">
+    {% for cat in categories %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showCatTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
+    {% endfor %}
+</div>
+
 {% for cat in categories %}
-<div id="tab-{{ cat }}" class="tab-content">
-<h2>{{ cat | replace('_', ' ') | title }}</h2>
-<table class="leaderboard-table" id="table-{{ cat }}">
+<div id="cattab-{{ cat }}" class="cattab-content {% if loop.first %}active{% endif %}">
+<table class="leaderboard-table" id="table-cat-{{ cat }}">
     <thead>
         <tr>
-            <th>Rank</th>
-            <th>Agent</th>
-            <th>Score ({{ cat | replace('_', ' ') | title }})</th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 0, 'num')">Rank <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 1, 'str')">Agent <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 2, 'str')">Type <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 3, 'str')">Modality <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 4, 'str')">Harness <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 5, 'num')">Score ({{ cat | replace('_', ' ') | title }}) <span class="sort-arrow"></span></th>
         </tr>
     </thead>
     <tbody>
         {% for entry in rankings %}
-        {% if entry.per_category and entry.per_category[cat] is defined %}
+        {% set cat_score = entry.per_category.get(cat, None) %}
+        {% if cat_score is not none %}
         <tr>
             <td class="rank-cell">{{ loop.index }}</td>
             <td class="agent-name">{{ entry.agent_name }}</td>
+            <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
+            <td class="dim-cell">{{ entry.modality }}</td>
+            <td class="dim-cell">{{ entry.harness }}</td>
             <td class="score-cell">
                 <div class="score-bar-container">
-                    <span class="score-value">{{ "%.3f"|format(entry.per_category[cat]) }}</span>
+                    <span class="score-value">{{ "%.3f"|format(cat_score) }}</span>
                     <div class="score-bar">
-                        <div class="score-bar-fill" style="width: {{ (entry.per_category[cat] * 100)|int }}%"></div>
+                        <div class="score-bar-fill" style="width: {{ (cat_score * 100)|int }}%"></div>
                     </div>
                 </div>
             </td>
@@ -97,6 +114,64 @@
 </table>
 </div>
 {% endfor %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 3: PER-TASK                                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-tasks" class="view-content">
+<div class="task-filter">
+    <label for="task-select">Task:</label>
+    <select id="task-select" onchange="showTaskTable()">
+    {% for task_name in task_names %}
+        <option value="{{ task_name }}">{{ task_name }}  ({{ task_categories[task_name] }})</option>
+    {% endfor %}
+    </select>
+</div>
+
+{% for task_name in task_names %}
+<div id="tasktab-{{ task_name }}" class="tasktab-content" {% if not loop.first %}style="display:none"{% endif %}>
+<h3>{{ task_name }} <span class="category-label">{{ task_categories[task_name] }}</span></h3>
+<table class="leaderboard-table">
+    <thead>
+        <tr>
+            <th>Agent</th>
+            <th>Type</th>
+            <th>Modality</th>
+            <th>Harness</th>
+            <th>Easy</th>
+            <th>Medium</th>
+            <th>Hard</th>
+            <th>Expert</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in rankings %}
+        {% set task_data = entry.per_task.get(task_name, {}) %}
+        {% if task_data %}
+        <tr>
+            <td class="agent-name">{{ entry.agent_name }}</td>
+            <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
+            <td class="dim-cell">{{ entry.modality }}</td>
+            <td class="dim-cell">{{ entry.harness }}</td>
+            {% for diff in ["easy", "medium", "hard", "expert"] %}
+            {% set d = task_data.get(diff, {}) %}
+            {% if d %}
+            <td class="score-cell {% if d.get('success_rate', 0) >= 0.8 %}score-high{% elif d.get('success_rate', 0) >= 0.3 %}score-mid{% elif d.get('success_rate', 0) > 0 %}score-low{% endif %}">
+                {{ "%.0f"|format(d.get('success_rate', 0) * 100) }}%
+            </td>
+            {% else %}
+            <td class="dim-cell">&ndash;</td>
+            {% endif %}
+            {% endfor %}
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endfor %}
+</div>
 
 {% else %}
 <div class="empty-state">
@@ -106,22 +181,36 @@
 {% endif %}
 
 <script>
-function showTab(name) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
+/* ── View switching (Full Benchmark / By Category / By Task) ── */
+function switchView(name) {
+    document.querySelectorAll('.view-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
     event.target.classList.add('active');
 }
 
+/* ── Category tabs ── */
+function showCatTab(name) {
+    document.querySelectorAll('.cattab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#view-categories .tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('cattab-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
+
+/* ── Task dropdown ── */
+function showTaskTable() {
+    const sel = document.getElementById('task-select').value;
+    document.querySelectorAll('.tasktab-content').forEach(el => el.style.display = 'none');
+    document.getElementById('tasktab-' + sel).style.display = 'block';
+}
+
+/* ── Sort ── */
 function sortTable(tableId, colIdx, type) {
     const table = document.getElementById(tableId);
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    // Determine current sort direction
     const th = table.querySelectorAll('th')[colIdx];
     const ascending = th.dataset.sortDir !== 'asc';
-    // Reset all arrows
     table.querySelectorAll('th').forEach(h => {
         h.dataset.sortDir = '';
         const arrow = h.querySelector('.sort-arrow');
@@ -130,19 +219,14 @@ function sortTable(tableId, colIdx, type) {
     th.dataset.sortDir = ascending ? 'asc' : 'desc';
     const arrow = th.querySelector('.sort-arrow');
     if (arrow) arrow.textContent = ascending ? '\u25B2' : '\u25BC';
-
     rows.sort((a, b) => {
         let aVal = a.cells[colIdx].textContent.trim();
         let bVal = b.cells[colIdx].textContent.trim();
-        if (type === 'num') {
-            aVal = parseFloat(aVal) || 0;
-            bVal = parseFloat(bVal) || 0;
-        }
+        if (type === 'num') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
         if (aVal < bVal) return ascending ? -1 : 1;
         if (aVal > bVal) return ascending ? 1 : -1;
         return 0;
     });
-
     rows.forEach(row => tbody.appendChild(row));
 }
 </script>
