@@ -197,11 +197,11 @@ class RuleInductionTask(TaskSpec):
                 if int(t) not in prior_results:
                     must_place.append(t)
             prior_results.add(int(result_type))
-        # Deduplicate while preserving order
+        # Deduplicate while preserving order; exclude target_type
         seen: set[int] = set()
         deduped: list[ObjectType] = []
         for t in must_place:
-            if int(t) not in seen:
+            if int(t) not in seen and t != target_type:
                 seen.add(int(t))
                 deduped.append(t)
         must_place = deduped
@@ -288,15 +288,18 @@ class RuleInductionTask(TaskSpec):
         used_inputs: set[int] = set()  # types already used as inputs in prior steps
 
         for step in range(chain_length, 0, -1):
-            # Pick two inputs that produce result, preferring types not yet
-            # used as inputs in other chain steps
+            # Pick two inputs that produce result, excluding the target type
+            # (it must NEVER appear as an initial object) and preferring types
+            # not yet used as inputs in other chain steps
             available = [
                 t for t in _COMBO_TYPES
-                if t != result and int(t) not in used_inputs
+                if t != result and t != target_type and int(t) not in used_inputs
             ]
             if len(available) < 2:
-                # Fall back to all types != result if not enough fresh types
-                available = [t for t in _COMBO_TYPES if t != result]
+                # Fall back: still exclude target_type but allow reused inputs
+                available = [
+                    t for t in _COMBO_TYPES if t != result and t != target_type
+                ]
             if len(available) < 2:
                 available = list(_COMBO_TYPES)
             rng.shuffle(available)
@@ -308,7 +311,10 @@ class RuleInductionTask(TaskSpec):
             # For the next iteration, result becomes the output of the
             # previous step — use a fresh type as the new intermediate
             if step > 1:
-                others = [t for t in _COMBO_TYPES if t not in (a, b, result)]
+                others = [
+                    t for t in _COMBO_TYPES
+                    if t not in (a, b, result, target_type)
+                ]
                 if others:
                     rng.shuffle(others)
                     result = others[0]
