@@ -208,94 +208,80 @@ class CausalChainTask(TaskSpec):
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        # Agent spawns in one of the four corners of the arena (far from goal)
-        corners = [(1, 1), (size - 2, 1), (1, size - 2), (size - 2, size - 2)]
-        agent_corner_idx = int(rng.integers(0, 4))
-        agent_pos: tuple[int, int] = corners[agent_corner_idx]
+        # N horizontal barrier rows partition the grid into N+1 zones.
+        # Zone 0 (top) holds agent + levers, zone N (bottom) holds goal.
+        # Each barrier row spans x=1..size-2 with ONE gap cell (starts WALL).
+        interior_height = size - 2
+        # Evenly space N barriers across the interior height, leaving at
+        # least 2 rows for zone 0 (lever area) and 1 for goal zone.
+        min_zone0 = max(3, (n + n_decoys + 2) // (size - 2) + 2)
+        barrier_ys: list[int] = []
+        usable = interior_height - min_zone0
+        for i in range(n_barriers):
+            by = min_zone0 + 1 + i * max(1, usable // max(n_barriers, 1))
+            if by < size - 2:
+                barrier_ys.append(by)
+        if len(barrier_ys) < n_barriers:
+            return None
 
-        # Goal zone is roughly at the opposite side from the agent.
-        # A barrier row (horizontal wall segment) separates arena from goal zone.
-        # The barrier row is placed at roughly 2/3 of the grid height from the top.
-        barrier_row = max(3, min(size - 4, (size * 2) // 3))
-
-        # Agent area: rows 1..barrier_row-1
-        # Goal zone: rows barrier_row+1..size-2
-        # Barrier: row barrier_row, cols 1..size-2, with n gaps (each starts as WALL)
-
-        # If agent spawns in lower half, flip the layout so the barrier is
-        # between the agent and goal.
-        if agent_pos[1] > size // 2:
-            barrier_row = max(3, min(size - 4, size // 3))
-            # Agent area: rows barrier_row+1..size-2
-            # Goal zone: rows 1..barrier_row-1
-
-        agent_in_top = agent_pos[1] < size // 2
-        if agent_in_top:
-            arena_y_range = range(1, barrier_row)
-            goal_y_range = range(barrier_row + 1, size - 1)
-        else:
-            arena_y_range = range(barrier_row + 1, size - 1)
-            goal_y_range = range(1, barrier_row)
-
-        # Build the wall at barrier_row (only interior columns)
-        for x in range(1, size - 1):
-            grid.terrain[barrier_row, x] = CellType.WALL
-
-        # Punch n gaps in the barrier (these start closed as WALL in the config,
-        # and are opened/closed dynamically during play).
-        gap_xs = sorted(
-            rng.choice(range(1, size - 1), size=n_barriers, replace=False).tolist()
-        )
-        # Each gap is a single cell in the barrier row; starts as WALL (blocked)
         barriers: list[dict] = []
-        for gx in gap_xs:
-            barriers.append({"cells": [[int(gx), int(barrier_row)]], "open": False})
+        for by in barrier_ys:
+            for x in range(1, size - 1):
+                grid.terrain[by, x] = CellType.WALL
+            gap_x = int(rng.integers(1, size - 1))
+            barriers.append({"cells": [[int(gap_x), int(by)]], "open": False})
 
-        # Build lever effects and derive the true solution mask.
-        # The rng seed passed in is used for opener assignment; the initial
-        # solution_mask hint is discarded since _build_effects generates its own.
-        _hint_mask = int(rng.integers(0, 2**n))  # consumed to advance rng state
+        # Agent start — random position in zone 0 (rows 1..barrier_ys[0]-1)
+        zone0_y_max = barrier_ys[0] - 1
+        agent_x = int(rng.integers(1, size - 1))
+        agent_y = int(rng.integers(1, zone0_y_max + 1))
+        agent_pos: tuple[int, int] = (agent_x, agent_y)
+
+        # Goal — random position in zone N (rows below last barrier)
+        last_barrier_y = barrier_ys[-1]
+        goal_y = int(rng.integers(last_barrier_y + 1, size - 1))
+        goal_x = int(rng.integers(1, size - 1))
+        goal_pos: tuple[int, int] = (goal_x, goal_y)
+        grid.objects[goal_y, goal_x] = ObjectType.GOAL
+
+        # Lever effects
+        _hint_mask = int(rng.integers(0, 2**n))
         switch_effects, solution_mask = self._build_effects(n, n_barriers, _hint_mask, rng)
 
-        # Place levers in arena (must all be reachable from agent)
+        # Place levers in zone 0
         arena_cells = [
             (x, y)
             for x in range(1, size - 1)
-            for y in arena_y_range
-            if (x, y) != agent_pos
-            and grid.terrain[y, x] == CellType.EMPTY
+            for y in range(1, zone0_y_max + 1)
+            if (x, y) != agent_pos and grid.terrain[y, x] == CellType.EMPTY
         ]
         if len(arena_cells) < n + n_decoys + 1:
             return None
-
         rng.shuffle(arena_cells)
 
-        # Place real levers with minimum spacing of 2 to allow agent to stand adjacent
         lever_positions: list[tuple[int, int]] = []
-        used: set[tuple[int, int]] = {agent_pos}
+        used: set[tuple[int, int]] = {agent_pos, goal_pos}
         for cell in arena_cells:
             if len(lever_positions) >= n:
                 break
+            if cell in used:
+                continue
             cx, cy = cell
-            # Need at least one free adjacent cell for the agent to stand in
             adj_free = [
                 (cx + dx, cy + dy)
                 for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]
                 if 1 <= cx + dx <= size - 2
-                and 1 <= cy + dy <= size - 2
+                and 1 <= cy + dy <= zone0_y_max
                 and (cx + dx, cy + dy) not in used
                 and grid.terrain[cy + dy, cx + dx] == CellType.EMPTY
-                and (cy + dy) in [y for y in arena_y_range]
             ]
             if not adj_free:
                 continue
             lever_positions.append(cell)
             used.add(cell)
-
         if len(lever_positions) < n:
             return None
 
-        # Place decoy levers
         decoy_positions: list[tuple[int, int]] = []
         for cell in arena_cells:
             if len(decoy_positions) >= n_decoys:
@@ -307,46 +293,57 @@ class CausalChainTask(TaskSpec):
                 (cx + dx, cy + dy)
                 for dx, dy in [(0, -1), (1, 0), (0, 1), (-1, 0)]
                 if 1 <= cx + dx <= size - 2
-                and 1 <= cy + dy <= size - 2
+                and 1 <= cy + dy <= zone0_y_max
                 and (cx + dx, cy + dy) not in used
                 and grid.terrain[cy + dy, cx + dx] == CellType.EMPTY
-                and (cy + dy) in [y for y in arena_y_range]
             ]
             if not adj_free:
                 continue
             decoy_positions.append(cell)
             used.add(cell)
 
-        # Place goal in goal zone
-        goal_cells = [
-            (x, y)
-            for x in range(1, size - 1)
-            for y in goal_y_range
-            if grid.terrain[y, x] == CellType.EMPTY and (x, y) not in used
-        ]
-        if not goal_cells:
-            return None
-        rng.shuffle(goal_cells)
-        goal_pos: tuple[int, int] = goal_cells[0]
-
-        # Place objects on grid
+        # Place lever objects
         for lx, ly in lever_positions:
             grid.objects[ly, lx] = ObjectType.LEVER
         for dx, dy in decoy_positions:
             grid.objects[dy, dx] = ObjectType.LEVER
-        # Goal placed at reset, not generation time (dynamic reveal)
-        # But we write it now; on_env_reset will rewrite it
-        grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        # Assign decoy ICE patches (3x1 horizontal strip in arena)
+        # Verify all levers reachable from agent (BFS around solid levers)
+        all_levers = set(lever_positions) | set(decoy_positions)
+        reachable: set[tuple[int, int]] = {agent_pos}
+        bfs_q: deque[tuple[int, int]] = deque([agent_pos])
+        while bfs_q:
+            cx, cy = bfs_q.popleft()
+            for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
+                nxx, nyy = cx + ddx, cy + ddy
+                if (nxx, nyy) not in reachable and 0 <= nxx < size and 0 <= nyy < size:
+                    if int(grid.terrain[nyy, nxx]) not in (
+                        int(CellType.WALL), int(CellType.HAZARD)
+                    ) and not grid.is_object_blocking((nxx, nyy)):
+                        reachable.add((nxx, nyy))
+                        bfs_q.append((nxx, nyy))
+        for lp in all_levers:
+            lx, ly = lp
+            if not any(
+                (lx + ddx, ly + ddy) in reachable
+                for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]
+            ):
+                for px, py in all_levers:
+                    grid.objects[py, px] = ObjectType.NONE
+                return None
+
+        # Decoy ICE patches — exclude barrier rows
+        arena_y_range = range(1, zone0_y_max + 1)
         decoy_ice_patches: list[list[int]] = []
-        ice_used: set[tuple[int, int]] = set(used) | {goal_pos}
+        ice_used: set[tuple[int, int]] = set(used)
+        for by in barrier_ys:
+            for x in range(1, size - 1):
+                ice_used.add((x, by))
         for _ in decoy_positions:
             patch = self._find_ice_patch(rng, size, arena_y_range, ice_used)
-            decoy_ice_patches.append(patch)  # [x, y] of center cell
+            decoy_ice_patches.append(patch)
 
-        # Validate solvability via BFS over lever bitmask state space
-        # The terrain passed to BFS has all gap cells as WALL (closed initial state)
+        # Validate solvability
         terrain_base = grid.terrain.copy()
         for barrier in barriers:
             for cell in barrier["cells"]:
@@ -354,51 +351,29 @@ class CausalChainTask(TaskSpec):
                 terrain_base[cy, cx] = int(CellType.WALL)
 
         solvable = _bfs_solvable(
-            terrain_base,
-            agent_pos,
-            goal_pos,
-            lever_positions,
-            switch_effects,
-            barriers,
-            solution_mask,
-            size,
+            terrain_base, agent_pos, goal_pos,
+            lever_positions, switch_effects, barriers, solution_mask, size,
         )
         if not solvable:
             return None
 
-        # Verify that initially (all levers OFF) the goal zone is not reachable
-        # (at least one barrier must start closed and block passage)
-        initial_states = self._compute_barrier_states(
-            [False] * n, switch_effects, n_barriers
-        )
-        initial_terrain = terrain_base.copy()
-        for b_idx, barrier in enumerate(barriers):
-            if not initial_states[b_idx]:
-                for cell in barrier["cells"]:
-                    cx, cy = cell[0], cell[1]
-                    initial_terrain[cy, cx] = int(CellType.WALL)
-
-        reachable_initially: set[tuple[int, int]] = set()
-        q: deque[tuple[int, int]] = deque([agent_pos])
-        reachable_initially.add(agent_pos)
-        while q:
-            cx, cy = q.popleft()
+        # Verify goal unreachable with all barriers closed
+        initial_reachable: set[tuple[int, int]] = {agent_pos}
+        bfs_q2: deque[tuple[int, int]] = deque([agent_pos])
+        while bfs_q2:
+            cx, cy = bfs_q2.popleft()
             for ddx, ddy in [(0, -1), (1, 0), (0, 1), (-1, 0)]:
                 nxx, nyy = cx + ddx, cy + ddy
-                if (nxx, nyy) not in reachable_initially and 0 <= nxx < size and 0 <= nyy < size:
-                    if int(initial_terrain[nyy, nxx]) not in (
+                if (nxx, nyy) not in initial_reachable and 0 <= nxx < size and 0 <= nyy < size:
+                    if int(terrain_base[nyy, nxx]) not in (
                         int(CellType.WALL), int(CellType.HAZARD)
                     ):
-                        reachable_initially.add((nxx, nyy))
-                        q.append((nxx, nyy))
-
-        # If goal is reachable without any toggles, the puzzle is trivially solved
-        if goal_pos in reachable_initially and solution_mask == 0:
+                        initial_reachable.add((nxx, nyy))
+                        bfs_q2.append((nxx, nyy))
+        if goal_pos in initial_reachable:
             return None
 
-        # All levers (real + decoy) together
         all_lever_positions = lever_positions + decoy_positions
-
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [goal_pos],
@@ -425,56 +400,63 @@ class CausalChainTask(TaskSpec):
         n_decoys: int,
         n_barriers: int,
     ):
-        """Simple guaranteed fallback: horizontal row of levers, single barrier."""
+        """Simple guaranteed fallback: horizontal barrier rows."""
         grid = Grid(size, size)
         grid.terrain[0, :] = CellType.WALL
         grid.terrain[-1, :] = CellType.WALL
         grid.terrain[:, 0] = CellType.WALL
         grid.terrain[:, -1] = CellType.WALL
 
-        agent_pos = (1, 1)
-        barrier_row = size // 2
+        agent_pos: tuple[int, int] = (1, 1)
 
-        # Build barrier wall
-        for x in range(1, size - 1):
-            grid.terrain[barrier_row, x] = CellType.WALL
+        # Place N horizontal barrier rows
+        barrier_ys: list[int] = []
+        spacing = max(2, (size - 4) // (n_barriers + 1))
+        for i in range(n_barriers):
+            by = 3 + i * spacing
+            if by < size - 2:
+                barrier_ys.append(by)
 
-        # Place barriers (gaps in wall)
-        gap_xs = list(range(2, 2 + n_barriers))
         barriers: list[dict] = []
-        for gx in gap_xs:
-            if gx < size - 1:
-                barriers.append({"cells": [[gx, barrier_row]], "open": False})
+        for by in barrier_ys:
+            for x in range(1, size - 1):
+                grid.terrain[by, x] = CellType.WALL
+            gap_x = size // 2
+            barriers.append({"cells": [[gap_x, by]], "open": False})
 
         _hint_mask = int(rng.integers(1, 2**n))
         switch_effects, solution_mask = self._build_effects(n, n_barriers, _hint_mask, rng)
 
-        # Place levers in a row above barrier
+        # Place levers in zone 0 (rows 1..barrier_ys[0]-1)
+        zone0_y_max = barrier_ys[0] - 1 if barrier_ys else size - 2
         lever_positions: list[tuple[int, int]] = []
         for i in range(n):
             lx = 2 + i * 2
-            ly = barrier_row - 2
-            if lx < size - 1 and ly >= 1:
+            ly = 2
+            if lx < size - 1 and ly <= zone0_y_max:
                 lever_positions.append((lx, ly))
                 grid.objects[ly, lx] = ObjectType.LEVER
 
-        # Decoys below agent
         decoy_positions: list[tuple[int, int]] = []
         for i in range(n_decoys):
-            dx = size - 2 - i * 2
-            dy = barrier_row - 2
-            if dx > 0 and (dx, dy) not in lever_positions:
-                decoy_positions.append((dx, dy))
-                grid.objects[dy, dx] = ObjectType.LEVER
+            dx_pos = size - 2 - i * 2
+            dy_pos = 2
+            if dx_pos > 0 and (dx_pos, dy_pos) not in lever_positions and dy_pos <= zone0_y_max:
+                decoy_positions.append((dx_pos, dy_pos))
+                grid.objects[dy_pos, dx_pos] = ObjectType.LEVER
 
-        goal_pos = (size // 2, size - 2)
+        last_by = barrier_ys[-1] if barrier_ys else size // 2
+        goal_pos: tuple[int, int] = (size // 2, min(last_by + 2, size - 2))
         grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
+        arena_y_range = range(1, zone0_y_max + 1)
         decoy_ice_patches: list[list[int]] = []
         ice_used: set[tuple[int, int]] = set(lever_positions + decoy_positions)
         ice_used.add(agent_pos)
         ice_used.add(goal_pos)
-        arena_y_range = range(1, barrier_row)
+        for by in barrier_ys:
+            for x in range(1, size - 1):
+                ice_used.add((x, by))
         for _ in decoy_positions:
             patch = self._find_ice_patch(rng, size, arena_y_range, ice_used)
             decoy_ice_patches.append(patch)

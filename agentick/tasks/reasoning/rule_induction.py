@@ -230,7 +230,8 @@ class RuleInductionTask(TaskSpec):
             if pos in used_cells:
                 continue
             px, py = pos
-            chosen_type = _COMBO_TYPES[int(rng.integers(len(_COMBO_TYPES)))]
+            available_types = [t for t in _COMBO_TYPES if t != target_type]
+            chosen_type = available_types[int(rng.integers(len(available_types)))]
             grid.objects[py, px] = chosen_type
             placed_objects.append((px, py, chosen_type))
             used_cells.add(pos)

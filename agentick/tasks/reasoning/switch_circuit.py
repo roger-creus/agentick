@@ -142,7 +142,11 @@ class SwitchCircuitTask(TaskSpec):
         grid = Grid(size, size)
         grid.terrain[:, :] = CellType.WALL
 
-        if has_dual:
+        if n >= 5:
+            rooms, barriers, goal_room = self._layout_grid_2x3(grid, n, size, rng)
+        elif n == 4:
+            rooms, barriers, goal_room = self._layout_hub_spoke(grid, n, size, rng)
+        elif has_dual:
             rooms, barriers, goal_room = self._layout_dual(grid, n, size, rng)
         else:
             rooms, barriers, goal_room = self._layout_easy(grid, n, size, rng)
@@ -316,6 +320,155 @@ class SwitchCircuitTask(TaskSpec):
         # D_goal: door in separator wall connecting R0 to GoalRoom
         door_x = int(rng.integers(r0_x_s, r0_x_e + 1))
         barriers.append({"cells": [[door_x, sep_row]], "open": False})
+
+        return rooms, barriers, goal_room
+
+    def _layout_hub_spoke(self, grid, n, size, rng):
+        """Hard: hub-and-spoke layout with 4 switches."""
+        # Define regions
+        third = size // 3
+
+        # Hub room: center
+        hub = (third, 2 * third - 1, third, 2 * third - 1)
+
+        # Spoke 0: top (above hub)
+        spoke0 = (third, 2 * third - 1, 1, third - 2)
+
+        # Spoke 1: right (right of hub)
+        spoke1 = (2 * third + 1, size - 2, third, 2 * third - 1)
+
+        # Spoke 2: left (left of hub)
+        spoke2 = (1, third - 2, third, 2 * third - 1)
+
+        # Goal room: bottom (below hub)
+        goal_room = (third, 2 * third - 1, 2 * third + 1, size - 2)
+
+        # Carve all rooms
+        rooms = [hub, spoke0, spoke1, spoke2]
+        for x_s, x_e, y_s, y_e in rooms + [goal_room]:
+            for y in range(y_s, y_e + 1):
+                for x in range(x_s, x_e + 1):
+                    grid.terrain[y, x] = CellType.EMPTY
+
+        # Place doors (barriers)
+        barriers = []
+
+        # D0: hub to spoke0 (top wall of hub)
+        d0_x = int(rng.integers(hub[0], hub[1] + 1))
+        d0_y = third - 1  # wall row between spoke0 and hub
+        barriers.append({"cells": [[d0_x, d0_y]], "open": False})
+
+        # D1: hub to spoke1 (right wall of hub)
+        d1_x = 2 * third  # wall column between hub and spoke1
+        d1_y = int(rng.integers(hub[2], hub[3] + 1))
+        barriers.append({"cells": [[d1_x, d1_y]], "open": False})
+
+        # D2: hub to spoke2 (left wall of hub)
+        d2_x = third - 1  # wall column between spoke2 and hub
+        d2_y = int(rng.integers(hub[2], hub[3] + 1))
+        barriers.append({"cells": [[d2_x, d2_y]], "open": False})
+
+        # D_goal: hub to goal room (bottom wall of hub)
+        dg_x = int(rng.integers(hub[0], hub[1] + 1))
+        dg_y = 2 * third  # wall row between hub and goal room
+        barriers.append({"cells": [[dg_x, dg_y]], "open": False})
+
+        return rooms, barriers, goal_room
+
+    def _layout_grid_2x3(self, grid, n, size, rng):
+        """Expert: 2x3 grid layout with n switches and n doors.
+
+        6 rooms in 2 rows × 3 columns.  Only n connections are gated
+        (barriers); the remaining 2 connections are open passages.
+
+        Gated (barriers 0..4):
+          B0: R0→R1, B1: R1→R2, B2: R0→R3, B3: R1→R4, B4: R4→R5
+        Open passages (always passable):
+          R3→R4, R2→R5
+        """
+        n_cols = 3
+        n_rows = 2
+        interior_w = size - 2
+        interior_h = size - 2
+
+        col_walls = n_cols - 1
+        row_walls = n_rows - 1
+        col_space = interior_w - col_walls
+        row_space = interior_h - row_walls
+        col_w = col_space // n_cols
+        row_h = row_space // n_rows
+
+        rooms_grid = []
+        for r in range(n_rows):
+            row_rooms = []
+            for c in range(n_cols):
+                x_s = 1 + c * (col_w + 1)
+                x_e = x_s + col_w - 1
+                y_s = 1 + r * (row_h + 1)
+                y_e = y_s + row_h - 1
+                row_rooms.append((x_s, x_e, y_s, y_e))
+            rooms_grid.append(row_rooms)
+
+        # Carve rooms
+        for r in range(n_rows):
+            for c in range(n_cols):
+                x_s, x_e, y_s, y_e = rooms_grid[r][c]
+                for y in range(y_s, y_e + 1):
+                    for x in range(x_s, x_e + 1):
+                        grid.terrain[y, x] = CellType.EMPTY
+
+        barriers = []
+
+        # B0: R0→R1 (top row, horizontal)
+        left = rooms_grid[0][0]
+        wall_x = left[1] + 1
+        door_y = int(rng.integers(left[2], left[3] + 1))
+        barriers.append({"cells": [[wall_x, door_y]], "open": False})
+
+        # B1: R1→R2 (top row, horizontal)
+        left = rooms_grid[0][1]
+        wall_x = left[1] + 1
+        door_y = int(rng.integers(left[2], left[3] + 1))
+        barriers.append({"cells": [[wall_x, door_y]], "open": False})
+
+        # B2: R0→R3 (vertical, left column)
+        top = rooms_grid[0][0]
+        wall_y = top[3] + 1
+        door_x = int(rng.integers(top[0], top[1] + 1))
+        barriers.append({"cells": [[door_x, wall_y]], "open": False})
+
+        # B3: R1→R4 (vertical, middle column)
+        top = rooms_grid[0][1]
+        wall_y = top[3] + 1
+        door_x = int(rng.integers(top[0], top[1] + 1))
+        barriers.append({"cells": [[door_x, wall_y]], "open": False})
+
+        # B4: R4→R5 (bottom row, horizontal)
+        left = rooms_grid[1][1]
+        wall_x = left[1] + 1
+        door_y = int(rng.integers(left[2], left[3] + 1))
+        barriers.append({"cells": [[wall_x, door_y]], "open": False})
+
+        # Open passages (permanently carved, no barrier):
+        # R3→R4 (bottom row, left-to-middle)
+        left_bot = rooms_grid[1][0]
+        wall_x_open = left_bot[1] + 1
+        open_y = (left_bot[2] + left_bot[3]) // 2
+        grid.terrain[open_y, wall_x_open] = CellType.EMPTY
+
+        # R2→R5 (vertical, right column)
+        top_right = rooms_grid[0][2]
+        wall_y_open = top_right[3] + 1
+        open_x = (top_right[0] + top_right[1]) // 2
+        grid.terrain[wall_y_open, open_x] = CellType.EMPTY
+
+        # Flatten rooms: R0, R1, R2, R3, R4 (5 rooms for 5 switches)
+        rooms = [
+            rooms_grid[0][0], rooms_grid[0][1], rooms_grid[0][2],
+            rooms_grid[1][0], rooms_grid[1][1],
+        ]
+
+        goal_room = rooms_grid[1][2]  # R5 = bottom-right
 
         return rooms, barriers, goal_room
 

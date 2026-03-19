@@ -1062,7 +1062,16 @@ def test_rule_induction_can_succeed():
                 if result_pos:
                     break
             if result_pos:
-                obs, rew, term, trunc, info = _walk_to(env, result_pos[0], result_pos[1])
+                # If agent is already on the result, step away first then return
+                if tuple(agent.position) == result_pos:
+                    for step_action in [1, 2, 3, 4]:
+                        obs, rew, term, trunc, info = env.step(step_action)
+                        if agent.position != result_pos:
+                            break
+                        if term or trunc:
+                            break
+                if not (term or trunc):
+                    obs, rew, term, trunc, info = _walk_to(env, result_pos[0], result_pos[1])
                 if info.get("success"):
                     succeeded = True
         env.close()
