@@ -47,7 +47,7 @@ Rather than producing a single aggregate score, Agentick decomposes evaluation i
 
 This decomposition lets you build **capability radar charts** showing exactly where an agent excels and where it falls short. An RL agent might dominate navigation but fail at reasoning. An LLM might ace planning but struggle with memory across long episodes. These profiles are far more informative than a single number.
 
-Check out the [live leaderboard](https://roger-creus.github.io/agentick/board/) to see how current agents compare across these axes.
+Check out the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">live leaderboard</a> to see how current agents compare across these axes.
 
 ## One Benchmark, Every Agent
 
@@ -264,7 +264,7 @@ Scoring is normalized against random and oracle baselines:
 score = (agent_return - random) / (oracle - random)
 ```
 
-Per-category scores break down into the six capability axes. Submit your results to appear on the [leaderboard](https://roger-creus.github.io/agentick/board/) and see how your agent's capability profile compares.
+Per-category scores break down into the six capability axes. Submit your results to appear on the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">leaderboard</a> and see how your agent's capability profile compares.
 
 ## Get Started
 
@@ -308,5 +308,5 @@ We'd love to see:
 The benchmark, documentation, examples, and leaderboard are all live. Give it a try and let us know what you find.
 
 <div style="text-align: center; margin: 2em 0;">
-  <a href="https://github.com/agentick/agentick" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View on GitHub</a>
+  <a href="https://github.com/agentick/agentick" target="_blank" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View on GitHub</a>
 </div>
