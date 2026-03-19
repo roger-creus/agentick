@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Record oracle trajectory GIFs for all tasks at all difficulties.
 
-Concatenates episodes from multiple eval seeds into a single GIF per
-(task, difficulty), with black separator frames between episodes.
+Records a single oracle episode per (task, difficulty) as a looping GIF.
 
 Output naming convention: ``{output_dir}/{task_name}_{difficulty}.gif``
 
@@ -16,6 +15,7 @@ Usage:
         --output docs/showcase/videos/flat
     uv run python scripts/record_oracle_gallery.py --difficulties easy medium
     uv run python scripts/record_oracle_gallery.py --tasks GoToGoal-v0 MazeNavigation-v0
+    uv run python scripts/record_oracle_gallery.py --n-episodes 3
 """
 
 from __future__ import annotations
@@ -75,29 +75,24 @@ def save_gif(
     )
 
 
-def _make_separator_frames(
-    height: int, width: int, n_frames: int = 3
-) -> list[np.ndarray]:
-    """Create black separator frames between episodes."""
-    return [np.zeros((height, width, 3), dtype=np.uint8) for _ in range(n_frames)]
-
-
 def record_task(
     task_name: str,
     difficulty: str,
     output_dir: Path,
     render_mode: str = "rgb_array",
-    n_concat: int = 5,
+    n_episodes: int = 1,
     fps: int = 5,
     size: int | None = None,
     colors: int = 64,
 ) -> bool:
-    """Record oracle GIF with concatenated eval-seed episodes. Returns True on success."""
-    # Use the first n_concat eval seeds
-    seeds = generate_task_seeds(task_name, difficulty, "eval", n_concat)
+    """Record oracle GIF from eval-seed episodes. Returns True on success.
 
-    all_frames: list[np.ndarray] = []
-    frame_shape = None
+    Tries ``n_episodes`` eval seeds and picks the first successful one.
+    If no episode succeeds, falls back to the longest recorded episode.
+    """
+    seeds = generate_task_seeds(task_name, difficulty, "eval", max(n_episodes, 5))
+
+    best_frames: list[np.ndarray] = []
 
     for seed in seeds:
         try:
@@ -113,11 +108,10 @@ def record_task(
             frame = env.render()
             if isinstance(frame, np.ndarray):
                 frames.append(frame)
-                if frame_shape is None:
-                    frame_shape = frame.shape
 
             done = False
             steps = 0
+            success = False
             while not done and steps < 500:
                 action = oracle.act(obs, info)
                 obs, reward, terminated, truncated, info = env.step(action)
@@ -128,23 +122,27 @@ def record_task(
                     frames.append(frame)
 
                 done = terminated or truncated
+                success = info.get("success", False)
                 steps += 1
 
             env.close()
 
-            # Add separator between episodes (not after last)
-            if all_frames and frames and frame_shape is not None:
-                all_frames.extend(_make_separator_frames(frame_shape[0], frame_shape[1]))
+            # Prefer successful episodes
+            if success and frames:
+                best_frames = frames
+                break
 
-            all_frames.extend(frames)
+            # Keep longest as fallback
+            if len(frames) > len(best_frames):
+                best_frames = frames
 
         except Exception as e:
             print(f"    seed {seed} failed: {e}")
             continue
 
-    if all_frames:
+    if best_frames:
         gif_path = output_dir / f"{task_name}_{difficulty}.gif"
-        save_gif(all_frames, gif_path, fps=fps, size=size, colors=colors)
+        save_gif(best_frames, gif_path, fps=fps, size=size, colors=colors)
         return True
     return False
 
@@ -165,8 +163,8 @@ def main():
              "docs/showcase/videos/flat for rgb_array_flat)",
     )
     parser.add_argument(
-        "--n-concat", type=int, default=5,
-        help="Number of eval seeds to concatenate per GIF (default: 5)",
+        "--n-episodes", type=int, default=1,
+        help="Number of eval seeds to try per GIF; picks first success (default: 1)",
     )
     parser.add_argument("--fps", type=int, default=5, help="GIF framerate")
     parser.add_argument(
@@ -199,7 +197,7 @@ def main():
           f"{len(difficulties)} difficulties = {total_jobs} GIFs")
     print(f"  Render mode: {render_mode}  |  GIF size: {gif_size or 'native'}px"
           f"  |  Colors: {gif_colors}")
-    print(f"  Output: {root.resolve()}/  |  Seeds: {args.n_concat} concat  |  FPS: {args.fps}")
+    print(f"  Output: {root.resolve()}/  |  Episodes: {args.n_episodes}  |  FPS: {args.fps}")
     print()
 
     start = time.time()
@@ -217,7 +215,7 @@ def main():
                 ok = record_task(
                     task_name, diff, root,
                     render_mode=render_mode,
-                    n_concat=args.n_concat,
+                    n_episodes=args.n_episodes,
                     fps=args.fps,
                     size=gif_size,
                     colors=gif_colors,
