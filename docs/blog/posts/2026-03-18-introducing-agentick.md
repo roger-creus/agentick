@@ -187,6 +187,89 @@ The API also exposes grid inspection (`get_cell`, `get_object`, `get_walls`, `ge
 
 This is how the **oracle policies** for all 38 tasks were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
 
+## LLM Agent Harnesses
+
+When evaluating LLMs as agents, how you prompt matters as much as which model you use. Agentick ships with built-in **harness presets** that control the prompting strategy:
+
+=== "Zero-Shot (Markovian)"
+
+    Each step is independent — the model sees only the current observation with no history. Fast, token-efficient, and memoryless.
+
+    **System prompt:**
+    ```
+    You are an AI agent playing grid-world tasks in the Agentick benchmark.
+    Your goal is to navigate the grid and complete the task objective.
+
+    ## Action Space
+    0: NOOP  1: MOVE_UP  2: MOVE_DOWN  3: MOVE_LEFT  4: MOVE_RIGHT  5: INTERACT
+
+    ## Task Objective
+    Navigate the maze to reach the GOAL exit. Collect keys to open doors.
+
+    Respond with ONLY the action number, nothing else.
+    ```
+
+    **Observation → Model → Response:**
+    ```
+    User: You are at (3,2) facing south. Key visible to the east at distance 2.
+          Walls to the north and west. Valid actions: move_down, move_right
+
+    Model: 4
+    ```
+
+=== "Chain-of-Thought (Reasoner)"
+
+    Same single-step view, but the model reasons before acting. Trades tokens for better decisions on tasks that require planning or inference.
+
+    **System prompt** (appended):
+    ```
+    IMPORTANT: Before choosing an action, reason step-by-step but be
+    CONCISE (2-4 sentences max):
+    1. What do you observe? What is your goal?
+    2. Which action best advances you toward the goal?
+    3. Output your final answer on the LAST line as: ACTION: <number>
+    ```
+
+    **Observation → Model → Response:**
+    ```
+    User: You are at (3,2) facing south. Key visible to the east at distance 2.
+          Walls to the north and west. Valid actions: move_down, move_right
+
+    Model: I see a key to my east at distance 2. I need to collect it to unlock
+           the door blocking the maze exit. Moving right gets me closer.
+           ACTION: 4
+    ```
+
+Both harnesses support any observation mode (ASCII, language, pixels for VLMs) and any backend (OpenAI, Gemini, HuggingFace, vLLM). See the <a href="https://roger-creus.github.io/agentick/agents/llm_agents/" target="_blank">LLM/VLM agents docs</a> for the full setup.
+
+## Running Experiments
+
+Agentick includes an <a href="https://roger-creus.github.io/agentick/experiments/" target="_blank">experiment runner</a> for reproducible evaluation. Define your setup in YAML and run:
+
+```yaml
+# eval_gpt4_navigation.yaml
+name: gpt4-navigation-eval
+agent:
+  type: llm
+  hyperparameters:
+    backend: openai
+    model: gpt-4o
+    harness: markovian_reasoner
+    observation_modes: [ascii]
+tasks: navigation           # or "full", "planning", ["GoToGoal-v0", ...]
+difficulties: [easy, medium, hard, expert]
+n_seeds: 25
+split: eval
+```
+
+```bash
+uv run python -m agentick.experiments.run --config eval_gpt4_navigation.yaml
+```
+
+The runner handles seed generation, episode management, crash-safe checkpointing, metric computation, and cost tracking for API-based agents. Results include per-task success rates, normalized scores, and capability breakdowns.
+
+For <a href="https://roger-creus.github.io/agentick/agents/rl_agents/" target="_blank">RL training</a>, use standard libraries directly — Agentick environments are Gymnasium-compatible, so SB3, CleanRL, and any Gym-compatible framework work out of the box. For <a href="https://roger-creus.github.io/agentick/agents/finetuning/" target="_blank">fine-tuning</a> LLMs on oracle trajectories, see the SFT pipeline docs.
+
 ## The Tasks
 
 38 tasks, each procedurally generated with 4 difficulty levels (easy → expert). Every run produces a unique layout, so agents can't memorize solutions. Click a category and difficulty to explore.
