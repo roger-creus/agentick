@@ -11,7 +11,7 @@ slug: introducing-agentick
 
 ![Agentick Banner](../../assets/agentick_banner.png)
 
-Agentick is an open-source benchmark for evaluating AI agents across the core challenges of sequential decision-making. It supports RL agents, LLM agents, VLM agents, hybrid systems, and even human players - all through a standard Gymnasium interface.
+Agentick is an open-source benchmark for evaluating AI agents across the core challenges of sequential decision-making. It supports RL agents, LLM agents, VLM agents, hybrid systems, hand-written bots and planners and even human play - all through a standard Gymnasium interface.
 
 <!-- more -->
 
@@ -150,6 +150,42 @@ Oracle policies are provided for all 38 tasks. Generate your own trajectories, o
 Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across all 38 tasks and difficulty levels. Load them directly with `datasets` and SFT your favorite open-source model.
 
 This training-first design means Agentick isn't just measuring where agents are today - it's infrastructure for making them better.
+
+## Coding API: Write Agents in Python
+
+Every environment exposes a **Coding API** - a programmatic interface with spatial queries, pathfinding, entity lookups, and high-level action primitives. It's designed for hand-coded bots, code-generating LLMs, and anyone who wants to write agent logic in Python rather than training a model.
+
+```python
+from agentick.coding_api import AgentickAPI
+
+env = agentick.make("KeyDoorPuzzle-v0", difficulty="medium")
+api = AgentickAPI(env)
+obs, info = env.reset(seed=42)
+api.update(obs, info)
+
+# Spatial queries
+api.agent_position          # (3, 5)
+api.get_nearest("key")      # EntityInfo(type="key", position=(7, 2), distance=8)
+api.get_entities_of_type("door")  # [EntityInfo(...), ...]
+api.is_walkable(4, 3)       # True
+api.is_reachable(7, 2)      # True
+
+# BFS pathfinding — returns action sequences
+actions = api.path_to(7, 2)         # [1, 3, 3, 1, 3, ...]
+actions = api.go_to_nearest("key")  # pathfind to closest key
+actions = api.flee_from(5, 5)       # single action moving away
+
+# Execute
+for action in actions:
+    obs, reward, done, trunc, info = env.step(action)
+    api.update(obs, info)
+    if done or trunc:
+        break
+```
+
+The API also exposes grid inspection (`get_cell`, `get_object`, `get_walls`, `get_walkable_cells`), inventory management (`has_in_inventory`), and interaction primitives (`interact_with`).
+
+This is how the **oracle policies** for all 38 tasks were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
 
 ## The Tasks
 
