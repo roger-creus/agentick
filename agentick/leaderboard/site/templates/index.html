@@ -50,6 +50,7 @@
             <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
             <td class="dim-cell">{{ entry.modality }}</td>
             <td class="dim-cell">{{ entry.harness }}</td>
+            {% if entry.has_overall %}
             <td class="score-cell">
                 <div class="score-bar-container">
                     <span class="score-value">{{ "%.3f"|format(entry.score) }}</span>
@@ -57,6 +58,10 @@
                 </div>
             </td>
             <td class="ci-cell">{{ "%.3f"|format(entry.score_ci_lower) }}&ndash;{{ "%.3f"|format(entry.score_ci_upper) }}</td>
+            {% else %}
+            <td class="dim-cell" title="Partial results — not all tasks evaluated">&ndash;</td>
+            <td class="dim-cell">&ndash;</td>
+            {% endif %}
             <td>{% if entry.open_weights %}<span class="open-weights">Yes</span>{% else %}<span class="closed-weights">No</span>{% endif %}</td>
             <td class="dim-cell">{{ entry.date }}</td>
         </tr>

@@ -78,10 +78,10 @@ def add_entry(entry: dict[str, Any], path: str | Path | None = None) -> None:
     if missing:
         raise ValueError(f"Entry is missing required keys: {missing}")
 
-    score_keys = {"agentick_score", "agentick_score_ci", "per_category", "per_task"}
-    missing_scores = score_keys - set(entry.get("scores", {}).keys())
-    if missing_scores:
-        raise ValueError(f"Entry scores dict is missing required keys: {missing_scores}")
+    # per_task is the only strictly required score field; aggregates may be
+    # absent for partial entries (single task/difficulty submissions).
+    if "per_task" not in entry.get("scores", {}):
+        raise ValueError("Entry scores dict must contain 'per_task'")
 
     entries = load_entries(path)
     entries.append(entry)

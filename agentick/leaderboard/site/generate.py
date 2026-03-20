@@ -89,6 +89,8 @@ class SiteGenerator:
             scores = entry.get("scores", {})
             ci = scores.get("agentick_score_ci", [0.0, 0.0])
             agent_type = entry.get("agent_type", "")
+            overall = scores.get("agentick_score", 0.0)
+            has_overall = overall > 0 or len(scores.get("per_category", {})) == 6
             rankings.append({
                 "rank": 0,
                 "agent_name": entry.get("agent_name", ""),
@@ -102,7 +104,8 @@ class SiteGenerator:
                     agent_type, entry.get("harness", ""), "harness",
                 ),
                 "model": entry.get("model", ""),
-                "score": scores.get("agentick_score", 0.0),
+                "score": overall,
+                "has_overall": has_overall,
                 "score_ci_lower": ci[0] if len(ci) >= 2 else 0.0,
                 "score_ci_upper": ci[1] if len(ci) >= 2 else 0.0,
                 "per_category": scores.get("per_category", {}),
@@ -111,7 +114,8 @@ class SiteGenerator:
                 "date": entry.get("date", ""),
             })
 
-        rankings.sort(key=lambda x: x["score"], reverse=True)
+        # Entries with full results first (sorted by score), then partial entries
+        rankings.sort(key=lambda x: (x["has_overall"], x["score"]), reverse=True)
         for i, r in enumerate(rankings):
             r["rank"] = i + 1
 
