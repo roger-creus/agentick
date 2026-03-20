@@ -1,18 +1,22 @@
 #!/usr/bin/env python
-"""Publish agent results to the Agentick leaderboard.
+"""Admin tool: publish agent results to the Agentick leaderboard.
+
+This script is for the leaderboard admin only. Users should use
+scripts/validate_submission.py to validate and package their results,
+then email the zip to the admin for publication.
 
 Supports publishing results for a single task+difficulty, a full category,
-or a complete benchmark run. Partial results are shown in the per-task
-breakdown; aggregate scores are computed only when all data is present.
+or a complete benchmark run. Partial results appear only in the per-task
+breakdown. Full benchmark and category scores require complete data.
 
 Usage:
-    # Verify what will be published (dry-run, anyone can do this)
+    # Preview what will be published (dry-run)
     uv run python scripts/publish_results.py results.json
 
-    # Publish as admin (writes to leaderboard_data/entries.json)
+    # Publish (writes to leaderboard_data/entries.json)
     uv run python scripts/publish_results.py results.json --publish
 
-    # Merge into an existing agent's entry (add new task/difficulty data)
+    # Merge new task/difficulty data into an existing agent's entry
     uv run python scripts/publish_results.py results.json --publish --merge "Agent Name"
 
 Input JSON format:

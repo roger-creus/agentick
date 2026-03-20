@@ -4,7 +4,7 @@
 <h1>Agentick Leaderboard</h1>
 <p>Universal benchmark for evaluating AI agents across 37 procedurally generated gridworld tasks.</p>
 
-{% if rankings %}
+{% if rankings or all_rankings %}
 
 <!-- View selector -->
 <div class="view-selector">
@@ -152,7 +152,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for entry in rankings %}
+                        {% for entry in all_rankings %}
                         {% set task_data = entry.per_task.get(task_name, {}) %}
                         {% if task_data %}
                         <tr>

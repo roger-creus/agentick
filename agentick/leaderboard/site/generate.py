@@ -114,9 +114,12 @@ class SiteGenerator:
                 "date": entry.get("date", ""),
             })
 
-        # Entries with full results first (sorted by score), then partial entries
-        rankings.sort(key=lambda x: (x["has_overall"], x["score"]), reverse=True)
-        for i, r in enumerate(rankings):
+        # Sort by score descending
+        rankings.sort(key=lambda x: x["score"], reverse=True)
+
+        # Split: full-benchmark entries (shown everywhere) vs partial (per-task only)
+        full_rankings = [r for r in rankings if r["has_overall"]]
+        for i, r in enumerate(full_rankings):
             r["rank"] = i + 1
 
         # Capability list for category tabs
@@ -140,13 +143,15 @@ class SiteGenerator:
                         summary = summary[:117] + "..."
                     task_descriptions[td["name"]] = summary
 
-        # Build chart data as JSON for Chart.js
+        # Build chart data from full-benchmark entries only
         chart_data = {
-            "agent_names": [r["agent_name"] for r in rankings],
-            "overall_scores": [round(r["score"], 3) for r in rankings],
+            "agent_names": [r["agent_name"] for r in full_rankings],
+            "overall_scores": [round(r["score"], 3) for r in full_rankings],
             "categories": categories,
             "per_category": {
-                cat: [round(r["per_category"].get(cat, 0), 3) for r in rankings]
+                cat: [
+                    round(r["per_category"].get(cat, 0), 3) for r in full_rankings
+                ]
                 for cat in categories
             },
         }
@@ -154,7 +159,8 @@ class SiteGenerator:
         template = self.env.get_template("index.html")
         html = template.render(
             title="Agentick Leaderboard",
-            rankings=rankings,
+            rankings=full_rankings,
+            all_rankings=rankings,
             categories=categories,
             task_names=task_names,
             task_categories=task_categories,
