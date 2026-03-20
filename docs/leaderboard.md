@@ -1,8 +1,10 @@
 # Leaderboard
 
+**[View the live leaderboard](https://roger-creus.github.io/agentick/board/)**
+
 ## Submission Flow
 
-1. **Run evaluation** on all 38 tasks, all 4 difficulties, using the official eval seeds (25 per task-difficulty = 3800 total episodes):
+1. **Run evaluation** on all 37 tasks, all 4 difficulties, using the official eval seeds (25 per task-difficulty = 3800 total episodes):
 
 ```bash
 uv run python -m agentick.experiments.run --config your_config.yaml
@@ -24,7 +26,7 @@ Each task-difficulty pair gets a **normalized score**:
 score = (agent_return - random_baseline) / (oracle_return - random_baseline)
 ```
 
-Scores are clipped to [0, 1]. The **Agentick Score** is the mean across all 38 tasks x 4 difficulties = 152 task-difficulty pairs. 95% bootstrap confidence intervals are computed over the per-episode results.
+Scores are clipped to [0, 1]. The **Agentick Score** is the mean across all 37 tasks x 4 difficulties = 148 task-difficulty pairs. 95% bootstrap confidence intervals are computed over the per-episode results.
 
 ## Category Scores
 

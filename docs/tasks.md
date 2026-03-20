@@ -1,8 +1,8 @@
 # Tasks
 
-38 procedurally generated tasks across 6 categories. All tasks support 4 difficulty levels (easy/medium/hard/expert), multiple observation modes, and both sparse and dense rewards.
+37 procedurally generated tasks across 6 categories. All tasks support 4 difficulty levels (easy/medium/hard/expert), multiple observation modes, and both sparse and dense rewards.
 
-**Browse tasks interactively** — the best way to understand each task is to play it yourself and watch oracle demos in the webapp:
+**Browse tasks interactively** — the best way to understand each task is to play it yourself in the webapp:
 
 ```bash
 uv run python -m agentick.human.webapp   # Opens http://localhost:5000
@@ -44,11 +44,10 @@ env = agentick.make("GoToGoal-v0", difficulty="medium", render_mode="language", 
 | **ToolUse-v0** | Discover scroll combinations to create ORB and cross river |
 | **ResourceManagement-v0** | Collect resources while managing energy drain |
 
-### Reasoning (9 tasks)
+### Reasoning (8 tasks)
 
 | Task | Description |
 |---|---|
-| **CausalChain-v0** | Activate switches in correct causal order |
 | **SwitchCircuit-v0** | Activate color-coded switches to open barriers; cross-zone backtracking at hard+ |
 | **RuleInduction-v0** | Discover hidden rules from ICE-marked cues, then INTERACT |
 | **LightsOut-v0** | Turn all lights off (classic puzzle) |

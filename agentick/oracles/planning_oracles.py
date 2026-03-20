@@ -35,6 +35,18 @@ class SokobanPushOracle(OracleAgent):
                     hazards.add((x, y))
         return hazards
 
+    def _get_uncovered_holes(self, grid):
+        """Return set of HOLE positions not yet covered by a box (metadata < 100)."""
+        holes = set()
+        for y in range(grid.height):
+            for x in range(grid.width):
+                if (
+                    int(grid.terrain[y, x]) == int(CellType.HOLE)
+                    and int(grid.metadata[y, x]) < 100
+                ):
+                    holes.add((x, y))
+        return holes
+
     def _is_blocked(self, x, y, grid):
         """Check if position is impassable (wall, hazard, or border)."""
         if not (0 < x < grid.width - 1 and 0 < y < grid.height - 1):
@@ -194,7 +206,7 @@ class SokobanPushOracle(OracleAgent):
 
         return assignments
 
-    def _try_push(self, bx, by, tx, ty, ax, ay, grid, box_set, hazards, target_set):
+    def _try_push(self, bx, by, tx, ty, ax, ay, grid, box_set, hazards, target_set, holes=None):
         """Try to find a valid push for box at (bx,by) toward target (tx,ty).
 
         Tries direct pushes first, then perpendicular pushes as fallback.
@@ -276,8 +288,8 @@ class SokobanPushOracle(OracleAgent):
                 if step is not None:
                     return step
             else:
-                # Navigate to push position avoiding boxes AND hazards
-                avoid = box_set | hazards
+                # Navigate to push position avoiding boxes, hazards, and uncovered holes
+                avoid = box_set | hazards | (holes or set())
                 # HOLE terrain at target positions is passable
                 target_passable = set(
                     tuple(t)
@@ -301,11 +313,14 @@ class SokobanPushOracle(OracleAgent):
         config = self.api.task_config
         targets = config.get("target_positions", [])
 
-        # Find current box positions from grid
+        # Find current box positions from grid, skipping boxes already fixed
+        # on a target hole (metadata >= 100 means covered/locked in place).
         boxes = []
         for y in range(grid.height):
             for x in range(grid.width):
                 if grid.objects[y, x] == ObjectType.BOX:
+                    if int(grid.metadata[y, x]) >= 100:
+                        continue  # already fixed on target, nothing to do
                     boxes.append((x, y))
 
         if not boxes or not targets:
@@ -315,6 +330,7 @@ class SokobanPushOracle(OracleAgent):
         box_set = set(boxes)
         target_set = set(tuple(t) for t in targets)
         hazards = self._get_hazard_cells(grid)
+        holes = self._get_uncovered_holes(grid)
 
         # Assign boxes to targets, skipping deadlocked boxes
         assignments = self._assign_boxes_to_targets(
@@ -343,6 +359,7 @@ class SokobanPushOracle(OracleAgent):
                 box_set,
                 hazards,
                 target_set,
+                holes=holes,
             )
             if action is not None:
                 self.action_queue = [action]

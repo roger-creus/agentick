@@ -17,6 +17,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Blog: blog/index.md
   - Quickstart: getting_started/quickstart.md
   - Tasks: tasks.md
   - Observations: concepts/observations.md
@@ -31,6 +32,13 @@ nav:
 
 plugins:
   - search
+  - blog:
+      blog_dir: blog
+      post_date_format: long
+      post_url_format: "{slug}"
+      post_excerpt: optional
+      archive: false
+      categories: false
   - mkdocstrings:
       handlers:
         python:
@@ -40,7 +48,11 @@ plugins:
 markdown_extensions:
   - admonition
   - codehilite
+  - attr_list
+  - md_in_html
   - pymdownx.superfences
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
   - toc:
       permalink: true

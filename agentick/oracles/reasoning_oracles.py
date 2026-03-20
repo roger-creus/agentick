@@ -161,33 +161,6 @@ def _interact_with_target(api, target, extra_passable=None, avoid=None):
     return []
 
 
-@register_oracle("CausalChain-v0")
-class CausalChainOracle(OracleAgent):
-    """Activate levers in causal order, then reach goal.
-
-    Levers are solid (non-walkable). The agent must stand adjacent to a
-    lever, face it, then use INTERACT (action 5).
-    """
-
-    def plan(self):
-        config = self.api.task_config
-        all_activated = config.get("_all_activated", False)
-
-        if not all_activated:
-            levers = self.api.get_entities_of_type("lever")
-            if levers:
-                for lev in sorted(levers, key=lambda lv: lv.distance):
-                    actions = _interact_with_target(self.api, lev.position)
-                    if actions:
-                        self.action_queue = actions
-                        return
-            return
-
-        goal = self.api.get_nearest("goal")
-        if goal:
-            self.action_queue = self.api.move_to(*goal.position)
-
-
 @register_oracle("SwitchCircuit-v0")
 class SwitchCircuitOracle(OracleAgent):
     """Plan switch toggle sequence in room-based layout to reach the goal.
@@ -646,82 +619,212 @@ class SymbolMatchingOracle(OracleAgent):
 
 @register_oracle("RuleInduction-v0")
 class RuleInductionOracle(OracleAgent):
-    """INTERACT on real switches in order, then pass through barrier to goal.
+    """Combination-discovery oracle for RuleInduction-v0.
 
-    Strategy:
-    1. Find the next real switch in the activation chain (index 0, 1, 2, ...).
-    2. Navigate to an adjacent cell, face the switch, then INTERACT.
-    3. After all real switches are activated the barrier door opens.
-    4. Navigate through the door to the GOAL.
-
-    Switches are solid (non-walkable); the agent must stand adjacent and face.
+    Strategy (with full knowledge of the rule table):
+    1. If _target_crafted: walk onto the target object to collect it.
+    2. If not carrying: find a rule that directly produces target_type, pick up
+       input A while avoiding all other object positions so no accidental pickup
+       occurs en route.
+    3. If carrying A: navigate to input B of the chosen rule (avoid other
+       objects to prevent accidental pickups); stepping on B triggers the combo.
+    4. If no valid ground object exists for the carried type, idle until trial
+       budget resets the grid.
     """
 
-    def plan(self):
+    def __init__(self, env):
+        super().__init__(env)
+        # Persistent planning state across plan() calls within a trial
+        self._chosen_rule: tuple[int, int, int] | None = None  # (a, b, c)
+
+    def _scan_objects(self, grid) -> list[tuple[int, int, int]]:
+        """Return list of (x, y, obj_type_int) for all non-NONE objects."""
+        results = []
+        for cy in range(grid.height):
+            for cx in range(grid.width):
+                gt = int(grid.objects[cy, cx])
+                if gt != 0:
+                    results.append((cx, cy, gt))
+        return results
+
+    def _find_rule_for_target(
+        self,
+        rule_table: dict[tuple[int, int], int],
+        target_type: int,
+        objects_on_grid: list[tuple[int, int, int]],
+    ) -> tuple[int, int, int] | None:
+        """Find a rule (a, b, c) where c==target_type and both a and b exist on grid."""
+        grid_types = {gt for _, _, gt in objects_on_grid}
+        for (a, b), c in rule_table.items():
+            if c == target_type and a in grid_types and b in grid_types:
+                return (a, b, c)
+        # Fall back: any rule where result is target_type (even if B not on grid yet)
+        for (a, b), c in rule_table.items():
+            if c == target_type and a in grid_types:
+                return (a, b, c)
+        return None
+
+    def plan(self):  # noqa: C901
         config = self.api.task_config
-        door_opened = config.get("_door_opened", False)
+        grid = self.api.grid
+        agent = self.api.agent
         ax, ay = self.api.agent_position
 
-        # Build decoy avoidance set
-        decoy_set = {tuple(p) for p in config.get("decoy_positions", [])}
+        # Already succeeded
+        if config.get("_target_collected", False):
+            self.action_queue = [0]
+            return
 
-        if not door_opened:
-            activated = config.get("_activated", [])
-            real_positions = [
-                tuple(p) for p in config.get("real_switch_positions", [])
-            ]
+        target_type = config.get("_target_type", -1)
+        rule_table_list = config.get("_rule_table_list", [])
+        rule_table = {(int(r[0]), int(r[1])): int(r[2]) for r in rule_table_list}
+        objects_on_grid = self._scan_objects(grid)
+        all_obj_positions = {(ox, oy) for ox, oy, _ in objects_on_grid}
 
-            # Find next switch to activate
-            target = None
-            for i, done in enumerate(activated):
-                if not done:
-                    target = real_positions[i]
+        # ------------------------------------------------------------------ #
+        # Phase 1: collect crafted target
+        # ------------------------------------------------------------------ #
+        if config.get("_target_crafted", False):
+            for ox, oy, gt in objects_on_grid:
+                if gt == target_type:
+                    # Special case: target was placed on the agent's current cell
+                    # (combination result lands where agent stands).  Step away
+                    # first, then return.
+                    if (ox, oy) == (ax, ay):
+                        for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
+                            nx, ny = ax + dx, ay + dy
+                            if (
+                                grid.in_bounds((nx, ny))
+                                and int(grid.terrain[ny, nx]) != 1  # not WALL
+                                and (nx, ny) not in all_obj_positions
+                            ):
+                                actions = self.api.positions_to_actions(
+                                    [(ax, ay), (nx, ny)]
+                                )
+                                self.action_queue = actions if actions else [0]
+                                return
+                        self.action_queue = [0]
+                        return
+                    # Navigate to target; avoid other objects
+                    avoid = all_obj_positions - {(ox, oy)}
+                    path = self.api.bfs_path_positions((ax, ay), (ox, oy), avoid=avoid)
+                    if not path:
+                        path = self.api.bfs_path_positions((ax, ay), (ox, oy))
+                    if path:
+                        actions = self.api.positions_to_actions(path)
+                        if actions:
+                            self.action_queue = [actions[0]]
+                            return
+            self.action_queue = [0]
+            return
+
+        # ------------------------------------------------------------------ #
+        # Phase 2: choose a rule to execute
+        # ------------------------------------------------------------------ #
+        # If inventory changed (trial reset cleared it), discard stale plan
+        carrying_type: int | None = None
+        if len(agent.inventory) > 0:
+            carrying_type = agent.inventory[0].properties.get("object_type", None)
+
+        if carrying_type is None:
+            # Reset chosen rule so we re-evaluate
+            self._chosen_rule = None
+
+        if self._chosen_rule is None:
+            self._chosen_rule = self._find_rule_for_target(
+                rule_table, target_type, objects_on_grid,
+            )
+
+        if self._chosen_rule is None:
+            # No rule found — idle until trial resets
+            self.action_queue = [0]
+            return
+
+        chosen_a, chosen_b, chosen_c = self._chosen_rule
+
+        # ------------------------------------------------------------------ #
+        # Phase 3: pick up input A (if not already holding it)
+        # ------------------------------------------------------------------ #
+        if carrying_type is None:
+            # Navigate to nearest object of type chosen_a, avoiding all others
+            pickup_pos: tuple[int, int] | None = None
+            for ox, oy, gt in objects_on_grid:
+                if gt == chosen_a:
+                    pickup_pos = (ox, oy)
                     break
-            if target is None:
+
+            if pickup_pos is None:
+                # chosen_a no longer on grid (used up); reset plan
+                self._chosen_rule = None
+                self.action_queue = [0]
                 return
 
-            # Switches are solid — use adjacent-interact pattern
-            avoid = decoy_set - {target}
-            actions = _interact_with_target(self.api, target, avoid=avoid)
-            if actions:
-                self.action_queue = actions
-                return
-            # Fallback without avoidance
-            actions = _interact_with_target(self.api, target)
-            if actions:
-                self.action_queue = actions
-                return
-            self.action_queue = self.api.move_to(*target)
+            # Avoid all other objects on the path to pickup_pos
+            avoid = all_obj_positions - {pickup_pos}
+            path = self.api.bfs_path_positions((ax, ay), pickup_pos, avoid=avoid)
+            if not path:
+                # Relax: allow passing through other objects
+                path = self.api.bfs_path_positions((ax, ay), pickup_pos)
+            if path:
+                actions = self.api.positions_to_actions(path)
+                if actions:
+                    self.action_queue = [actions[0]]
+                    return
+            self.action_queue = [0]
             return
 
-        # Door is open — navigate to GOAL (through the barrier door)
-        goal_positions = config.get("goal_positions", [])
-        door_pos = tuple(config.get("barrier_door_pos", []))
-        if not goal_positions:
+        # ------------------------------------------------------------------ #
+        # Phase 4: carrying something — navigate to input B to combine
+        # ------------------------------------------------------------------ #
+        # Validate we're still carrying the right type
+        if carrying_type != chosen_a:
+            # Carrying something unexpected; find any valid ground for it
+            for ox, oy, gt in objects_on_grid:
+                if rule_table.get((carrying_type, gt)) is not None:
+                    avoid = all_obj_positions - {(ox, oy)}
+                    path = self.api.bfs_path_positions((ax, ay), (ox, oy), avoid=avoid)
+                    if not path:
+                        path = self.api.bfs_path_positions((ax, ay), (ox, oy))
+                    if path:
+                        actions = self.api.positions_to_actions(path)
+                        if actions:
+                            self.action_queue = [actions[0]]
+                            return
+            # Nothing to combine with — idle
+            self.action_queue = [0]
             return
 
-        gx, gy = goal_positions[0]
-        # Mark the door cell as extra_passable so BFS can route through it
-        extra = {door_pos} if door_pos else set()
-        avoid = decoy_set - {(gx, gy)}
-        path = self.api.bfs_path_positions(
-            (ax, ay), (gx, gy), extra_passable=extra, avoid=avoid,
-        )
+        # Find input B on the grid
+        ground_pos: tuple[int, int] | None = None
+        # Prefer the exact B type from chosen_rule
+        for ox, oy, gt in objects_on_grid:
+            if gt == chosen_b:
+                ground_pos = (ox, oy)
+                break
+
+        if ground_pos is None:
+            # B not available; try any valid ground for carrying_type
+            for ox, oy, gt in objects_on_grid:
+                if rule_table.get((carrying_type, gt)) is not None:
+                    ground_pos = (ox, oy)
+                    break
+
+        if ground_pos is None:
+            # No valid ground at all — idle until trial resets
+            self.action_queue = [0]
+            return
+
+        # Navigate to ground_pos, avoiding all other objects along the path
+        avoid = all_obj_positions - {ground_pos}
+        path = self.api.bfs_path_positions((ax, ay), ground_pos, avoid=avoid)
+        if not path:
+            path = self.api.bfs_path_positions((ax, ay), ground_pos)
         if path:
             actions = self.api.positions_to_actions(path)
             if actions:
                 self.action_queue = [actions[0]]
                 return
-        # Fallback without avoidance
-        path = self.api.bfs_path_positions(
-            (ax, ay), (gx, gy), extra_passable=extra,
-        )
-        if path:
-            actions = self.api.positions_to_actions(path)
-            if actions:
-                self.action_queue = [actions[0]]
-                return
-        self.action_queue = self.api.move_to(gx, gy)
+        self.action_queue = [0]
 
 
 @register_oracle("GraphColoring-v0")

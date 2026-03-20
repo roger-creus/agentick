@@ -39,7 +39,7 @@ class TreasureHuntTask(TaskSpec):
         "easy": DifficultyConfig(
             name="easy",
             grid_size=9,
-            max_steps=100,
+            max_steps=60,
             params={
                 "n_treasures": 2,
                 "n_clues": 6,
@@ -50,7 +50,7 @@ class TreasureHuntTask(TaskSpec):
         "medium": DifficultyConfig(
             name="medium",
             grid_size=12,
-            max_steps=160,
+            max_steps=80,
             params={
                 "n_treasures": 3,
                 "n_clues": 8,
@@ -61,7 +61,7 @@ class TreasureHuntTask(TaskSpec):
         "hard": DifficultyConfig(
             name="hard",
             grid_size=15,
-            max_steps=250,
+            max_steps=120,
             params={
                 "n_treasures": 4,
                 "n_clues": 10,
@@ -72,7 +72,7 @@ class TreasureHuntTask(TaskSpec):
         "expert": DifficultyConfig(
             name="expert",
             grid_size=18,
-            max_steps=400,
+            max_steps=180,
             params={
                 "n_treasures": 5,
                 "n_clues": 12,
@@ -264,6 +264,8 @@ class TreasureHuntTask(TaskSpec):
         if (x, y) in treasure_positions and (x, y) not in collected:
             collected.append((x, y))
             config["_collected_treasures"] = collected
+            # Visual feedback: place GOAL marker at discovered treasure position
+            grid.objects[y, x] = ObjectType.GOAL
 
     # ------------------------------------------------------------------
     # Success / reward

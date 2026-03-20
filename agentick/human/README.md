@@ -14,7 +14,6 @@ Key API endpoints:
 - `/api/step` -- submit an action and receive multi-modal observations (ASCII + language + pixels)
 - `/api/reset` -- reset the current session
 - `/api/quit` -- close the session
-- `/gallery/` -- oracle/solution GIF gallery
 
 ### `recorder.py` -- HumanDataRecorder
 

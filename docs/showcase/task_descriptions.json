@@ -36,42 +36,6 @@
     ]
   },
   {
-    "name": "CausalChain-v0",
-    "category": "reasoning",
-    "summary": "Activate levers in causal sequence to remove barrier walls between zones. Each real lever opens a specific barrier when stepped on. Decoy levers look identical but do nothing or add walls.",
-    "objects": "LEVER objects (real: remove wall barriers; decoy: no effect or harmful), WALL barriers (between zones, removed by correct levers), GOAL (in final zone).",
-    "goal": "Activate levers in causal order to open all barriers, then reach GOAL.",
-    "actions": "Move in 4 directions. Levers activate automatically when you step on them. Identify real levers from decoys by their causal effects.",
-    "difficulty_descriptions": [
-      {
-        "level": "easy",
-        "description": "9x9 grid with 2 levers in linear chain. No decoys. Clear zone progression."
-      },
-      {
-        "level": "medium",
-        "description": "11x11 grid with 3 levers, 1 decoy lever, maze zones."
-      },
-      {
-        "level": "hard",
-        "description": "13x13 grid with 4 levers, 2 decoys. Complex layout."
-      },
-      {
-        "level": "expert",
-        "description": "15x15 grid with 5 levers, 3 decoys, nonlinear layout."
-      }
-    ],
-    "capability_tags": [
-      "reasoning",
-      "causal_reasoning"
-    ],
-    "difficulties": [
-      "easy",
-      "medium",
-      "hard",
-      "expert"
-    ]
-  },
-  {
     "name": "ChaseEvade-v0",
     "category": "control",
     "summary": "Survive against color-coded ENEMY NPCs with diverse behaviors inspired by Pacman ghosts. Chaser (red, BFS pursuit), Ambusher (pink, targets ahead of agent), Patrol (cyan, fixed route), Erratic (orange, random movement). SWITCH power-ups freeze all enemies for 5 steps. Success = surviving all required steps.",

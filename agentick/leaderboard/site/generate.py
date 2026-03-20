@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -61,6 +62,23 @@ class SiteGenerator:
         if assets_src.exists():
             shutil.copytree(assets_src, assets_dst, dirs_exist_ok=True)
 
+    @staticmethod
+    def _display_field(agent_type: str, raw_value: str, field: str) -> str:
+        """Return display value for modality/harness columns.
+
+        Non-applicable combinations show '-' instead of the raw value.
+        """
+        is_baseline = agent_type in ("other",)
+        if field == "modality":
+            if is_baseline:
+                return "\u2013"
+            return raw_value or "\u2013"
+        if field == "harness":
+            if is_baseline or agent_type == "rl":
+                return "\u2013"
+            return raw_value or "\u2013"
+        return raw_value
+
     def _generate_index(self) -> None:
         """Generate main leaderboard page."""
         entries = load_entries(self.entries_path)
@@ -70,12 +88,19 @@ class SiteGenerator:
         for entry in entries:
             scores = entry.get("scores", {})
             ci = scores.get("agentick_score_ci", [0.0, 0.0])
+            agent_type = entry.get("agent_type", "")
             rankings.append({
                 "rank": 0,
                 "agent_name": entry.get("agent_name", ""),
                 "author": entry.get("author", ""),
-                "agent_type": entry.get("agent_type", ""),
+                "agent_type": agent_type,
                 "observation_mode": entry.get("observation_mode", ""),
+                "modality": self._display_field(
+                    agent_type, entry.get("observation_mode", ""), "modality",
+                ),
+                "harness": self._display_field(
+                    agent_type, entry.get("harness", ""), "harness",
+                ),
                 "model": entry.get("model", ""),
                 "score": scores.get("agentick_score", 0.0),
                 "score_ci_lower": ci[0] if len(ci) >= 2 else 0.0,
@@ -83,7 +108,6 @@ class SiteGenerator:
                 "per_category": scores.get("per_category", {}),
                 "per_task": scores.get("per_task", {}),
                 "open_weights": entry.get("open_weights", False),
-                "harness": entry.get("harness", ""),
                 "date": entry.get("date", ""),
             })
 
@@ -91,14 +115,47 @@ class SiteGenerator:
         for i, r in enumerate(rankings):
             r["rank"] = i + 1
 
-        # Capability list for tabs
+        # Capability list for category tabs
         categories = sorted(set(TASK_CAPABILITY_MAP.values()))
+
+        # Task list sorted alphabetically, grouped by category
+        task_names = sorted(TASK_CAPABILITY_MAP.keys())
+        task_categories = dict(TASK_CAPABILITY_MAP)
+
+        # Load task descriptions from showcase JSON (truncate for compact display)
+        task_descriptions = {}
+        desc_path = Path("docs/showcase/task_descriptions.json")
+        if desc_path.exists():
+            with open(desc_path) as f:
+                for td in json.load(f):
+                    summary = td.get("goal", td.get("summary", ""))
+                    # Keep it short — first sentence only, max 120 chars
+                    if ". " in summary:
+                        summary = summary[: summary.index(". ") + 1]
+                    if len(summary) > 120:
+                        summary = summary[:117] + "..."
+                    task_descriptions[td["name"]] = summary
+
+        # Build chart data as JSON for Chart.js
+        chart_data = {
+            "agent_names": [r["agent_name"] for r in rankings],
+            "overall_scores": [round(r["score"], 3) for r in rankings],
+            "categories": categories,
+            "per_category": {
+                cat: [round(r["per_category"].get(cat, 0), 3) for r in rankings]
+                for cat in categories
+            },
+        }
 
         template = self.env.get_template("index.html")
         html = template.render(
             title="Agentick Leaderboard",
             rankings=rankings,
             categories=categories,
+            task_names=task_names,
+            task_categories=task_categories,
+            task_descriptions=task_descriptions,
+            chart_data_json=json.dumps(chart_data),
         )
 
         (self.output_dir / "index.html").write_text(html)

@@ -2,27 +2,40 @@
 
 {% block content %}
 <h1>Agentick Leaderboard</h1>
-<p>Universal benchmark for evaluating AI agents across 38 procedurally generated gridworld tasks.</p>
+<p>Universal benchmark for evaluating AI agents across 37 procedurally generated gridworld tasks.</p>
 
 {% if rankings %}
-<!-- Category Tabs -->
-<div class="tabs">
-    <button class="tab-btn active" onclick="showTab('overall')">Overall</button>
-    {% for cat in categories %}
-    <button class="tab-btn" onclick="showTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
-    {% endfor %}
+
+<!-- View selector -->
+<div class="view-selector">
+    <button class="view-btn active" onclick="switchView('overview')">Full Benchmark</button>
+    <button class="view-btn" onclick="switchView('categories')">By Category</button>
+    <button class="view-btn" onclick="switchView('tasks')">By Task</button>
 </div>
 
-<!-- Overall ranking table -->
-<div id="tab-overall" class="tab-content active">
+<!-- ═══════════════ VIEW 1: FULL BENCHMARK ═══════════════ -->
+<div id="view-overview" class="view-content active">
+
+<!-- Charts: bar + radar side by side -->
+<div class="chart-section">
+    <div class="chart-box">
+        <h3>Overall Agentick Score</h3>
+        <canvas id="chart-overall-bar"></canvas>
+    </div>
+    <div class="chart-box">
+        <h3>Category Breakdown</h3>
+        <canvas id="chart-overall-radar"></canvas>
+    </div>
+</div>
+
 <table class="leaderboard-table" id="table-overall">
     <thead>
         <tr>
             <th onclick="sortTable('table-overall', 0, 'num')">Rank <span class="sort-arrow"></span></th>
             <th onclick="sortTable('table-overall', 1, 'str')">Agent <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 2, 'str')">Author <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 3, 'str')">Type <span class="sort-arrow"></span></th>
-            <th onclick="sortTable('table-overall', 4, 'str')">Obs. Mode <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 2, 'str')">Type <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 3, 'str')">Modality <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-overall', 4, 'str')">Harness <span class="sort-arrow"></span></th>
             <th onclick="sortTable('table-overall', 5, 'num')">Score <span class="sort-arrow"></span></th>
             <th>95% CI</th>
             <th onclick="sortTable('table-overall', 7, 'str')">Open <span class="sort-arrow"></span></th>
@@ -32,62 +45,69 @@
     <tbody>
         {% for entry in rankings %}
         <tr>
-            <td class="rank-cell {% if entry.rank == 1 %}rank-1{% elif entry.rank == 2 %}rank-2{% elif entry.rank == 3 %}rank-3{% endif %}">
-                {{ entry.rank }}
-            </td>
+            <td class="rank-cell {% if entry.rank == 1 %}rank-1{% elif entry.rank == 2 %}rank-2{% elif entry.rank == 3 %}rank-3{% endif %}">{{ entry.rank }}</td>
             <td class="agent-name">{{ entry.agent_name }}</td>
-            <td>{{ entry.author }}</td>
             <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
-            <td>{{ entry.observation_mode }}</td>
+            <td class="dim-cell">{{ entry.modality }}</td>
+            <td class="dim-cell">{{ entry.harness }}</td>
             <td class="score-cell">
                 <div class="score-bar-container">
                     <span class="score-value">{{ "%.3f"|format(entry.score) }}</span>
-                    <div class="score-bar">
-                        <div class="score-bar-fill" style="width: {{ (entry.score * 100)|int }}%"></div>
-                    </div>
+                    <div class="score-bar"><div class="score-bar-fill" style="width: {{ (entry.score * 100)|int }}%"></div></div>
                 </div>
             </td>
-            <td class="score-cell" style="color: var(--text-muted); font-size: 12px;">
-                {{ "%.3f"|format(entry.score_ci_lower) }}&ndash;{{ "%.3f"|format(entry.score_ci_upper) }}
-            </td>
-            <td>
-                {% if entry.open_weights %}
-                <span class="open-weights" title="Open weights">Yes</span>
-                {% else %}
-                <span class="closed-weights">No</span>
-                {% endif %}
-            </td>
-            <td style="color: var(--text-muted); font-size: 12px;">{{ entry.date }}</td>
+            <td class="ci-cell">{{ "%.3f"|format(entry.score_ci_lower) }}&ndash;{{ "%.3f"|format(entry.score_ci_upper) }}</td>
+            <td>{% if entry.open_weights %}<span class="open-weights">Yes</span>{% else %}<span class="closed-weights">No</span>{% endif %}</td>
+            <td class="dim-cell">{{ entry.date }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 </div>
 
-<!-- Per-category tabs -->
+<!-- ═══════════════ VIEW 2: BY CATEGORY ═══════════════ -->
+<div id="view-categories" class="view-content">
+<div class="tabs">
+    {% for cat in categories %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showCatTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
+    {% endfor %}
+</div>
+
 {% for cat in categories %}
-<div id="tab-{{ cat }}" class="tab-content">
-<h2>{{ cat | replace('_', ' ') | title }}</h2>
-<table class="leaderboard-table" id="table-{{ cat }}">
+<div id="cattab-{{ cat }}" class="cattab-content {% if loop.first %}active{% endif %}">
+
+<div class="chart-section">
+    <div class="chart-box" style="max-width: 600px;">
+        <h3>{{ cat | replace('_', ' ') | title }} Scores</h3>
+        <canvas id="chart-cat-{{ cat }}"></canvas>
+    </div>
+</div>
+
+<table class="leaderboard-table" id="table-cat-{{ cat }}">
     <thead>
         <tr>
-            <th>Rank</th>
-            <th>Agent</th>
-            <th>Score ({{ cat | replace('_', ' ') | title }})</th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 0, 'num')">Rank <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 1, 'str')">Agent <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 2, 'str')">Type <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 3, 'str')">Modality <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 4, 'str')">Harness <span class="sort-arrow"></span></th>
+            <th onclick="sortTable('table-cat-{{ cat }}', 5, 'num')">Score <span class="sort-arrow"></span></th>
         </tr>
     </thead>
     <tbody>
         {% for entry in rankings %}
-        {% if entry.per_category and entry.per_category[cat] is defined %}
+        {% set cat_score = entry.per_category.get(cat, None) %}
+        {% if cat_score is not none %}
         <tr>
             <td class="rank-cell">{{ loop.index }}</td>
             <td class="agent-name">{{ entry.agent_name }}</td>
+            <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
+            <td class="dim-cell">{{ entry.modality }}</td>
+            <td class="dim-cell">{{ entry.harness }}</td>
             <td class="score-cell">
                 <div class="score-bar-container">
-                    <span class="score-value">{{ "%.3f"|format(entry.per_category[cat]) }}</span>
-                    <div class="score-bar">
-                        <div class="score-bar-fill" style="width: {{ (entry.per_category[cat] * 100)|int }}%"></div>
-                    </div>
+                    <span class="score-value">{{ "%.3f"|format(cat_score) }}</span>
+                    <div class="score-bar"><div class="score-bar-fill" style="width: {{ (cat_score * 100)|int }}%"></div></div>
                 </div>
             </td>
         </tr>
@@ -97,6 +117,71 @@
 </table>
 </div>
 {% endfor %}
+</div>
+
+<!-- ═══════════════ VIEW 3: PER-TASK ═══════════════ -->
+<div id="view-tasks" class="view-content">
+<div class="tabs">
+    {% for cat in categories %}
+    <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showTaskCatTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
+    {% endfor %}
+</div>
+
+{% for cat in categories %}
+<div id="taskcattab-{{ cat }}" class="taskcattab-content {% if loop.first %}active{% endif %}">
+    {% for task_name in task_names %}
+    {% if task_categories[task_name] == cat %}
+    <div class="task-card">
+        <h3 class="task-card-title">{{ task_name }}</h3>
+        <div class="task-card-body">
+            <div class="task-card-left">
+                <table class="leaderboard-table task-table">
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Type</th>
+                            <th>Easy</th>
+                            <th>Medium</th>
+                            <th>Hard</th>
+                            <th>Expert</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in rankings %}
+                        {% set task_data = entry.per_task.get(task_name, {}) %}
+                        {% if task_data %}
+                        <tr>
+                            <td class="agent-name">{{ entry.agent_name }}</td>
+                            <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
+                            {% for diff in ["easy", "medium", "hard", "expert"] %}
+                            {% set d = task_data.get(diff, {}) %}
+                            {% if d %}
+                            <td class="score-cell {% if d.get('success_rate', 0) >= 0.8 %}score-high{% elif d.get('success_rate', 0) >= 0.3 %}score-mid{% elif d.get('success_rate', 0) > 0 %}score-low{% endif %}">
+                                {{ "%.0f"|format(d.get('success_rate', 0) * 100) }}%
+                            </td>
+                            {% else %}
+                            <td class="dim-cell">&ndash;</td>
+                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="task-card-right">
+                <img class="task-gif" src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/{{ task_name }}_easy.gif" alt="{{ task_name }}" loading="lazy">
+                {% if task_descriptions.get(task_name) %}
+                <div class="task-desc">{{ task_descriptions[task_name] }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endfor %}
+</div>
 
 {% else %}
 <div class="empty-state">
@@ -106,10 +191,146 @@
 {% endif %}
 
 <script>
-function showTab(name) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
+/* ══════════ Chart.js global defaults (dark theme) ══════════ */
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
+
+const AGENT_COLORS = [
+    '#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff',
+    '#79c0ff', '#56d364', '#e3b341', '#ff7b72', '#d2a8ff',
+];
+
+/* ══════════ Chart data (injected by generator) ══════════ */
+const CD = {{ chart_data_json | safe }};
+
+/* ══════════ Helper: bar chart config ══════════ */
+function barConfig(labels, data, title) {
+    return {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: labels.map((_, i) => AGENT_COLORS[i % AGENT_COLORS.length] + 'cc'),
+                borderColor: labels.map((_, i) => AGENT_COLORS[i % AGENT_COLORS.length]),
+                borderWidth: 1.5,
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#161b22',
+                    borderColor: '#30363d',
+                    borderWidth: 1,
+                    titleColor: '#e6edf3',
+                    bodyColor: '#8b949e',
+                    padding: 10,
+                    cornerRadius: 6,
+                },
+            },
+            scales: {
+                x: {
+                    min: 0, max: 1,
+                    grid: { color: '#30363d22' },
+                    border: { color: '#30363d' },
+                    ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                },
+                y: {
+                    grid: { display: false },
+                    border: { color: '#30363d' },
+                    ticks: { font: { size: 12, weight: '600' } },
+                },
+            },
+        },
+    };
+}
+
+/* ══════════ Overall bar chart ══════════ */
+new Chart(
+    document.getElementById('chart-overall-bar'),
+    barConfig(CD.agent_names, CD.overall_scores, 'Overall Score')
+);
+
+/* ══════════ Radar chart ══════════ */
+(() => {
+    const catLabels = CD.categories.map(c => c.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()));
+    const datasets = CD.agent_names.map((name, i) => ({
+        label: name,
+        data: CD.categories.map(c => CD.per_category[c][i]),
+        borderColor: AGENT_COLORS[i % AGENT_COLORS.length],
+        backgroundColor: AGENT_COLORS[i % AGENT_COLORS.length] + '18',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: AGENT_COLORS[i % AGENT_COLORS.length],
+    }));
+    new Chart(document.getElementById('chart-overall-radar'), {
+        type: 'radar',
+        data: { labels: catLabels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 12, font: { size: 11 } },
+                },
+                tooltip: {
+                    backgroundColor: '#161b22',
+                    borderColor: '#30363d',
+                    borderWidth: 1,
+                    titleColor: '#e6edf3',
+                    bodyColor: '#8b949e',
+                    padding: 10,
+                    cornerRadius: 6,
+                },
+            },
+            scales: {
+                r: {
+                    min: 0, max: 1,
+                    grid: { color: '#8b949e33' },
+                    angleLines: { color: '#8b949e33' },
+                    pointLabels: { font: { size: 11, weight: '600' }, color: '#e6edf3' },
+                    ticks: {
+                        display: false,
+                        stepSize: 0.25,
+                    },
+                },
+            },
+        },
+    });
+})();
+
+/* ══════════ Per-category bar charts ══════════ */
+CD.categories.forEach(cat => {
+    const el = document.getElementById('chart-cat-' + cat);
+    if (el) new Chart(el, barConfig(CD.agent_names, CD.per_category[cat], cat));
+});
+
+/* ══════════ View / tab switching ══════════ */
+function switchView(name) {
+    document.querySelectorAll('.view-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function showCatTab(name) {
+    document.querySelectorAll('.cattab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#view-categories .tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('cattab-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function showTaskCatTab(name) {
+    document.querySelectorAll('.taskcattab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#view-tasks .tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('taskcattab-' + name).classList.add('active');
     event.target.classList.add('active');
 }
 
@@ -117,11 +338,8 @@ function sortTable(tableId, colIdx, type) {
     const table = document.getElementById(tableId);
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    // Determine current sort direction
     const th = table.querySelectorAll('th')[colIdx];
     const ascending = th.dataset.sortDir !== 'asc';
-    // Reset all arrows
     table.querySelectorAll('th').forEach(h => {
         h.dataset.sortDir = '';
         const arrow = h.querySelector('.sort-arrow');
@@ -130,19 +348,14 @@ function sortTable(tableId, colIdx, type) {
     th.dataset.sortDir = ascending ? 'asc' : 'desc';
     const arrow = th.querySelector('.sort-arrow');
     if (arrow) arrow.textContent = ascending ? '\u25B2' : '\u25BC';
-
     rows.sort((a, b) => {
         let aVal = a.cells[colIdx].textContent.trim();
         let bVal = b.cells[colIdx].textContent.trim();
-        if (type === 'num') {
-            aVal = parseFloat(aVal) || 0;
-            bVal = parseFloat(bVal) || 0;
-        }
+        if (type === 'num') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
         if (aVal < bVal) return ascending ? -1 : 1;
         if (aVal > bVal) return ascending ? 1 : -1;
         return 0;
     });
-
     rows.forEach(row => tbody.appendChild(row));
 }
 </script>

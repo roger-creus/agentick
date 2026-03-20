@@ -1,15 +1,19 @@
+<p align="center">
+  <img src="assets/agentick_banner.png" alt="Agentick" width="100%">
+</p>
+
 # Agentick
 
 **Universal benchmark for evaluating AI agents**
 
-Agentick provides 38 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
+Agentick provides 37 procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
 
 ## Try It Now
 
-The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself, watch oracle demos, and browse all observation modalities:
+The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
-git clone https://github.com/agentick/agentick.git && cd agentick
+git clone https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra all
 uv run agentick webapp          # Opens http://localhost:5000
 ```
@@ -18,15 +22,15 @@ uv run agentick webapp          # Opens http://localhost:5000
 
 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
   <div style="text-align: center;">
-    <img src="showcase/videos/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis (isometric)">
     <br><em>ProgramSynthesis</em>
   </div>
   <div style="text-align: center;">
-    <img src="showcase/videos/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle (isometric)">
     <br><em>KeyDoorPuzzle</em>
   </div>
   <div style="text-align: center;">
-    <img src="showcase/videos/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle (isometric)">
+    <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle (isometric)">
     <br><em>PackingPuzzle</em>
   </div>
 </div>
@@ -78,13 +82,13 @@ env.close()
 
 ## Task Gallery
 
-38 tasks across 6 capability categories:
+37 tasks across 6 capability categories:
 
 | Capability | Tasks | Count |
 |---|---|---|
 | **Navigation** | GoToGoal, MazeNavigation, ShortestPath, DynamicObstacles, CuriosityMaze, RecursiveRooms, TimingChallenge, InstructionFollowing | 8 |
 | **Planning** | SokobanPush, KeyDoorPuzzle, BacktrackPuzzle, TileSorting, PackingPuzzle, PreciseNavigation, RecipeAssembly, ToolUse, ResourceManagement | 9 |
-| **Reasoning** | CausalChain, SwitchCircuit, RuleInduction, LightsOut, GraphColoring, SymbolMatching, ProgramSynthesis, TaskInterference, DeceptiveReward | 9 |
+| **Reasoning** | SwitchCircuit, RuleInduction, LightsOut, GraphColoring, SymbolMatching, ProgramSynthesis, TaskInterference, DeceptiveReward | 8 |
 | **Memory** | SequenceMemory, DelayedGratification, TreasureHunt, FogOfWarExploration | 4 |
 | **Generalization** | FewShotAdaptation, DistributionShift, NoisyObservation | 3 |
 | **Multi-Agent** | CooperativeTransport, TagHunt, ChaseEvade, Herding, EmergentStrategy | 5 |
@@ -128,7 +132,7 @@ dataset.export_to_huggingface("data/hf/", format="conversation")
 ## Learn More
 
 - [Quickstart](getting_started/quickstart.md) — Installation and 5-minute tutorial
-- [Tasks](tasks.md) — Browse all 38 tasks
+- [Tasks](tasks.md) — Browse all 37 tasks
 - [Observations](concepts/observations.md) — All observation modes
 
 ## License

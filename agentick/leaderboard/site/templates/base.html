@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} - Agentick Leaderboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --bg: #0d1117;
@@ -187,6 +188,134 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
+        /* View selector (top-level: Full Benchmark / By Category / By Task) */
+        .view-selector {
+            display: flex;
+            gap: 8px;
+            margin: 24px 0 16px;
+        }
+        .view-btn {
+            padding: 8px 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+        .view-btn:hover { color: var(--text); border-color: var(--text-muted); }
+        .view-btn.active {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: rgba(88, 166, 255, 0.08);
+        }
+        .view-content { display: none; }
+        .view-content.active { display: block; }
+
+        /* Category sub-tabs */
+        .cattab-content { display: none; }
+        .cattab-content.active { display: block; }
+
+        /* Task category tabs */
+        .taskcattab-content { display: none; }
+        .taskcattab-content.active { display: block; }
+
+        /* Task cards (per-task mini-tables) */
+        .task-card {
+            margin: 20px 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .task-card-title {
+            padding: 10px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+        }
+        .task-table { margin: 0; }
+        .task-table th { font-size: 11px; padding: 8px 10px; }
+        .task-table td { padding: 6px 10px; font-size: 13px; }
+
+        /* Task card layout: table left, GIF+desc right */
+        .task-card-body {
+            display: flex;
+            gap: 0;
+        }
+        .task-card-left { flex: 1; min-width: 0; }
+        .task-card-right {
+            width: 220px;
+            flex-shrink: 0;
+            padding: 12px 16px;
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .task-gif {
+            width: 180px;
+            height: 180px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid var(--border);
+        }
+        .task-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            text-align: center;
+        }
+        @media (max-width: 900px) {
+            .task-card-body { flex-direction: column; }
+            .task-card-right {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border);
+                flex-direction: row;
+            }
+            .task-gif { width: 100px; height: 100px; }
+        }
+
+        /* Chart containers */
+        .chart-section {
+            margin: 24px 0;
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .chart-box {
+            flex: 1;
+            min-width: 340px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .chart-box h3 {
+            margin: 0 0 12px;
+            font-size: 14px;
+            color: var(--text);
+            font-weight: 600;
+        }
+        .chart-box canvas {
+            max-height: 320px;
+        }
+
+        /* Dim cells (modality, harness, date) */
+        .dim-cell { color: var(--text-muted); font-size: 13px; }
+        .ci-cell { color: var(--text-muted); font-size: 12px; font-family: "SFMono-Regular", Consolas, monospace; }
+
+        /* Per-task score coloring */
+        .score-high { color: var(--accent-green); }
+        .score-mid { color: var(--accent-orange); }
+        .score-low { color: var(--accent-red); }
+
         /* Empty state */
         .empty-state {
             text-align: center;
@@ -215,7 +344,7 @@
     </main>
 
     <footer>
-        <p>Agentick Leaderboard -- Universal Agent Benchmark. 38 tasks, 6 categories, 4 difficulty levels.</p>
+        <p>Agentick Leaderboard -- Universal Agent Benchmark. 37 tasks, 6 categories, 4 difficulty levels.</p>
     </footer>
 </body>
 </html>

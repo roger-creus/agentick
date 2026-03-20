@@ -3,9 +3,16 @@
 The agent must explore a procedurally generated maze and visit a target
 percentage of all reachable cells within a step budget. No explicit targets
 or landmarks are placed on the grid — success is purely coverage-driven.
+
+SUCCESS METRIC:
+  Success = visited_cells >= 0.9 * upper_bound_coverage
+  upper_bound_coverage is the best achievable coverage within the step budget,
+  estimated via a greedy nearest-unvisited BFS simulation during generation.
 """
 
 from __future__ import annotations
+
+from collections import deque
 
 import numpy as np
 
@@ -14,6 +21,74 @@ from agentick.core.types import CellType
 from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
+
+_DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+
+def _bfs_path_len(terrain, start, goal, height, width):
+    """BFS shortest path length from start to goal on terrain array."""
+    if start == goal:
+        return 0
+    visited = {start}
+    q = deque([(start, 0)])
+    while q:
+        (cx, cy), d = q.popleft()
+        for dx, dy in _DIRS:
+            nx, ny = cx + dx, cy + dy
+            if (nx, ny) == goal:
+                return d + 1
+            if (nx, ny) in visited or not (0 <= nx < width and 0 <= ny < height):
+                continue
+            if terrain[ny, nx] == CellType.WALL:
+                continue
+            visited.add((nx, ny))
+            q.append(((nx, ny), d + 1))
+    return -1  # unreachable
+
+
+def _simulate_greedy_coverage(terrain, start, max_steps, reachable, height, width):
+    """Simulate greedy nearest-unvisited exploration and return coverage count."""
+    visited = {start}
+    pos = start
+    steps_used = 0
+    unvisited = set(reachable) - visited
+
+    while steps_used < max_steps and unvisited:
+        # Find nearest unvisited cell via BFS
+        bfs_visited = {pos}
+        q = deque([(pos, 0)])
+        nearest = None
+        nearest_dist = -1
+
+        while q:
+            (cx, cy), d = q.popleft()
+            if (cx, cy) in unvisited:
+                nearest = (cx, cy)
+                nearest_dist = d
+                break
+            for dx, dy in _DIRS:
+                nx, ny = cx + dx, cy + dy
+                if (nx, ny) in bfs_visited or not (0 <= nx < width and 0 <= ny < height):
+                    continue
+                if terrain[ny, nx] == CellType.WALL:
+                    continue
+                bfs_visited.add((nx, ny))
+                q.append(((nx, ny), d + 1))
+
+        if nearest is None:
+            break
+
+        if steps_used + nearest_dist > max_steps:
+            # Can't reach the nearest unvisited; count cells found during BFS
+            visited |= bfs_visited & unvisited
+            break
+
+        steps_used += nearest_dist
+        visited.add(nearest)
+        unvisited.discard(nearest)
+        pos = nearest
+
+    return len(visited)
 
 
 @register_task("CuriosityMaze-v0", tags=["exploration", "memory", "navigation"])
@@ -46,25 +121,25 @@ class CuriosityMazeTask(TaskSpec):
             name="easy",
             grid_size=9,
             max_steps=80,
-            params={"coverage_threshold": 0.70, "wall_density": 0.15},
+            params={"wall_density": 0.15},
         ),
         "medium": DifficultyConfig(
             name="medium",
             grid_size=13,
             max_steps=150,
-            params={"coverage_threshold": 0.75, "wall_density": 0.20},
+            params={"wall_density": 0.20},
         ),
         "hard": DifficultyConfig(
             name="hard",
             grid_size=17,
             max_steps=280,
-            params={"coverage_threshold": 0.80, "wall_density": 0.25},
+            params={"wall_density": 0.25},
         ),
         "expert": DifficultyConfig(
             name="expert",
             grid_size=21,
             max_steps=450,
-            params={"coverage_threshold": 0.85, "wall_density": 0.28},
+            params={"wall_density": 0.28},
         ),
     }
 
@@ -73,7 +148,6 @@ class CuriosityMazeTask(TaskSpec):
         size = self.difficulty_config.grid_size
         p = self.difficulty_config.params or {}
         wall_density = p.get("wall_density", 0.15)
-        coverage_threshold = p.get("coverage_threshold", 0.70)
 
         for _attempt in range(20):
             grid = Grid(size, size)
@@ -104,13 +178,22 @@ class CuriosityMazeTask(TaskSpec):
             if reachable_count < min_cells:
                 continue
 
+            # Compute upper-bound coverage via greedy BFS simulation
+            max_steps = self.get_max_steps()
+            upper_bound = _simulate_greedy_coverage(
+                grid.terrain, agent_pos, max_steps, reachable, size, size,
+            )
+            # Reject if budget is too tight for meaningful exploration
+            if upper_bound < 0.5 * reachable_count:
+                continue
+
             return grid, {
                 "agent_start": agent_pos,
                 "goal_positions": [],
                 "_reachable_count": reachable_count,
-                "_coverage_threshold": coverage_threshold,
+                "_upper_bound_coverage": upper_bound,
                 "_visited_cells": set(),
-                "max_steps": self.get_max_steps(),
+                "max_steps": max_steps,
             }
 
         # Fallback: open grid with border walls only
@@ -121,13 +204,17 @@ class CuriosityMazeTask(TaskSpec):
         grid.terrain[:, -1] = CellType.WALL
         agent_pos = (size // 2, size // 2)
         reachable = grid.flood_fill(agent_pos)
+        max_steps = self.get_max_steps()
+        upper_bound = _simulate_greedy_coverage(
+            grid.terrain, agent_pos, max_steps, reachable, size, size,
+        )
         return grid, {
             "agent_start": agent_pos,
             "goal_positions": [],
             "_reachable_count": len(reachable),
-            "_coverage_threshold": coverage_threshold,
+            "_upper_bound_coverage": upper_bound,
             "_visited_cells": set(),
-            "max_steps": self.get_max_steps(),
+            "max_steps": max_steps,
         }
 
     def on_env_reset(self, agent, grid, config):
@@ -151,12 +238,12 @@ class CuriosityMazeTask(TaskSpec):
         if "config" not in state:
             return False
         config = state["config"]
-        reachable_count = config.get("_reachable_count", 1)
         visited = config.get("_visited_cells", set())
-        threshold = config.get("_coverage_threshold", 0.70)
-        if reachable_count <= 0:
+        upper_bound = config.get("_upper_bound_coverage", config.get("_reachable_count", 1))
+        if upper_bound <= 0:
             return False
-        return len(visited) / reachable_count >= threshold
+        # Success = visited at least 90% of what's theoretically achievable
+        return len(visited) >= 0.9 * upper_bound
 
     def compute_dense_reward(self, old_state, action, new_state, info):
         reward = -0.01  # step penalty

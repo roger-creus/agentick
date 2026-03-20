@@ -54,7 +54,7 @@ class TestCLIListCommands:
         result = run_cli("list-tasks")
         assert result.returncode == 0
         assert "GoToGoal-v0" in result.stdout
-        assert "38 total" in result.stdout or "tasks" in result.stdout.lower()
+        assert "37 total" in result.stdout or "tasks" in result.stdout.lower()
 
     def test_list_suites(self):
         """Test list-suites command."""

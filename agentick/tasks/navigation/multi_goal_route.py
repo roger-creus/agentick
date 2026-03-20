@@ -1,9 +1,9 @@
-"""ShortestPath task - Visit all goals within a step budget relative to optimal path.
+"""ShortestPath task - Visit all goals with near-optimal efficiency.
 
 SUCCESS METRIC:
-  Success = all goals visited AND steps_taken <= optimal_path_length * budget_multiplier
-  Budget multiplier varies by difficulty: easy=2.0, medium=1.5, hard=1.3, expert=1.15
-  This gives a clean boolean success flag rather than an unbounded score.
+  Success = all goals visited AND efficiency >= 90%
+  Efficiency = optimal_path_length / steps_taken
+  i.e. steps_taken <= optimal_path_length / 0.9  (~optimal * 1.11)
 """
 
 from collections import deque
@@ -17,12 +17,7 @@ from agentick.tasks.base import TaskSpec
 from agentick.tasks.configs import DifficultyConfig
 from agentick.tasks.registry import register_task
 
-_BUDGET_MULTIPLIERS = {
-    "easy": 2.0,
-    "medium": 1.5,
-    "hard": 1.3,
-    "expert": 1.15,
-}
+_EFFICIENCY_THRESHOLD = 0.9  # Success requires >= 90% path efficiency
 
 
 def _bfs_distance(grid, start, end):
@@ -99,9 +94,9 @@ def _compute_optimal_tsp(grid, agent_pos, goal_positions):
 
 @register_task("ShortestPath-v0", tags=["planning", "optimization", "navigation"])
 class ShortestPathTask(TaskSpec):
-    """Visit all goals within a step budget relative to the optimal path length.
+    """Visit all goals with near-optimal efficiency.
 
-    Success = all goals visited AND steps_taken <= optimal_path * budget_multiplier.
+    Success = all goals visited AND efficiency (optimal / steps) >= 90%.
     """
 
     name = "ShortestPath-v0"
@@ -192,9 +187,8 @@ class ShortestPathTask(TaskSpec):
             goal_positions.append(goal_pos)
             grid.objects[goal_pos[1], goal_pos[0]] = ObjectType.GOAL
 
-        # Compute optimal TSP path length for success budget
+        # Compute optimal TSP path length for success check
         optimal_path = _compute_optimal_tsp(grid, agent_pos, goal_positions)
-        budget_mult = _BUDGET_MULTIPLIERS.get(self.difficulty, 2.0)
 
         # Place decoy targets
         decoy_positions = []
@@ -212,7 +206,6 @@ class ShortestPathTask(TaskSpec):
             "decoy_positions": decoy_positions,
             "goals_visited": [],
             "optimal_path_length": optimal_path,
-            "budget_multiplier": budget_mult,
             "max_steps": self.get_max_steps(),
         }
 
@@ -282,7 +275,7 @@ class ShortestPathTask(TaskSpec):
         return len(visited) >= n_goals
 
     def check_success(self, state):
-        """All goals visited within the step budget."""
+        """All goals visited with >= 90% efficiency (optimal / steps)."""
         if "config" not in state:
             return False
         config = state["config"]
@@ -292,11 +285,12 @@ class ShortestPathTask(TaskSpec):
         visited = getattr(self, "_visited_goals_set", set())
         if len(visited) < n_goals:
             return False
-        # Check step budget
-        optimal = config.get("optimal_path_length", float("inf"))
-        budget = config.get("budget_multiplier", 2.0)
-        steps = getattr(self, "_steps_taken", 0)
-        return steps <= optimal * budget
+        # Check efficiency: optimal / steps >= 0.9
+        optimal = config.get("optimal_path_length", 0)
+        steps = max(getattr(self, "_steps_taken", 0), 1)
+        if optimal <= 0:
+            return True  # degenerate case: agent already at all goals
+        return optimal / steps >= _EFFICIENCY_THRESHOLD
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

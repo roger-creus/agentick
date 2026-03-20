@@ -62,8 +62,10 @@ class VLLMLLMBackend(ModelBackend):
         """
         from huggingface_hub import snapshot_download
 
-        cache_dir = os.environ.get("HF_HOME", os.environ.get("HUGGINGFACE_HUB_CACHE"))
-        lock_dir = cache_dir or os.path.expanduser("~/.cache/huggingface/hub")
+        # Let snapshot_download use HF_HOME env var (adds /hub/ prefix automatically)
+        lock_dir = os.environ.get(
+            "HF_HOME", os.path.expanduser("~/.cache/huggingface")
+        )
         os.makedirs(lock_dir, exist_ok=True)
         lock_path = os.path.join(
             lock_dir, self.model_id.replace("/", "--") + ".lock"
@@ -72,7 +74,7 @@ class VLLMLLMBackend(ModelBackend):
         import filelock
 
         with filelock.FileLock(lock_path, timeout=1800):
-            snapshot_download(self.model_id, cache_dir=cache_dir)
+            snapshot_download(self.model_id, local_files_only=True)
 
     def _ensure_loaded(self) -> None:
         """Lazily load the vLLM engine on first use."""

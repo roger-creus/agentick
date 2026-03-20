@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "Agentick: Universal Benchmark for AI Agents"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: Creus Castanyer
+    given-names: Roger
+    orcid: "https://orcid.org/0000-0003-1952-3357"
+repository-code: "https://github.com/roger-creus/agentick"
+url: "https://roger-creus.github.io/agentick/"
+license: MIT
+version: "1.0.0"
+date-released: "2025-06-17"
+doi: "10.5281/zenodo.19104717"
+keywords:
+  - reinforcement-learning
+  - benchmark
+  - ai-agents
+  - gridworld
+  - gymnasium

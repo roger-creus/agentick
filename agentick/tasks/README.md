@@ -58,7 +58,7 @@ The entry point is `agentick.make("TaskName-v0")`, which looks up the task class
 |------------------|-------|
 | **navigation**   | `go_to_goal`, `maze_navigation`, `multi_goal_route`, `dynamic_obstacles`, `fog_of_war` |
 | **memory**       | `key_door_puzzle`, `sequence_memory`, `breadcrumb_trail`, `delayed_gratification`, `backtrack_puzzle` |
-| **reasoning**    | `sokoban_push`, `switch_circuit`, `symbol_matching`, `causal_chain`, `rule_induction` |
+| **reasoning**    | `sokoban_push`, `switch_circuit`, `symbol_matching`, `rule_induction` |
 | **skill**        | `tool_use`, `recipe_assembly`, `resource_management`, `emergent_strategy` |
 | **control**      | `precise_navigation`, `timing_challenge`, `chase_evade`, `herding` |
 | **combinatorial**| `lights_out`, `tile_sorting`, `graph_coloring`, `packing_puzzle` |

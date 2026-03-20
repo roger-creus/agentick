@@ -171,39 +171,6 @@
     color: var(--text-dim);
     font-size: .9rem;
   }
-  .slide-video img.gallery-gif {
-    max-width: 100%;
-    max-height: calc(100vh - 160px);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 4px 32px rgba(0,0,0,.5);
-    background: #000;
-  }
-
-  /* Oracle GIF overlay/modal */
-  .oracle-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    background: rgba(0,0,0,.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-  .oracle-overlay img {
-    max-width: 80vw;
-    max-height: 80vh;
-    border-radius: var(--radius-lg);
-    box-shadow: 0 8px 48px rgba(0,0,0,.6);
-  }
-  .oracle-overlay .close-hint {
-    position: absolute;
-    top: 24px;
-    right: 32px;
-    color: var(--text-dim);
-    font-size: .85rem;
-  }
-
   .slide-info {
     display: flex;
     flex-direction: column;
@@ -512,65 +479,6 @@
   }
   .play-placeholder .icon { font-size: 3rem; opacity: .3; }
 
-  /* (docs-page styles removed — docs tab replaced by gallery) */
-
-  /* ── Gallery page ──────────────────────────────────────── */
-  .gallery-page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 32px 24px;
-  }
-  .gallery-mode-btn, .gallery-diff-btn {
-    padding: 5px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    cursor: pointer;
-    font-size: .8rem;
-    font-family: var(--font);
-    font-weight: 600;
-    background: var(--surface2);
-    color: var(--text-dim);
-    transition: all .15s;
-  }
-  .gallery-mode-btn:hover, .gallery-diff-btn:hover {
-    background: var(--surface3);
-    color: var(--text);
-  }
-  .gallery-mode-btn.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-  }
-  .gallery-diff-btn.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-  }
-  .gallery-card {
-    background: var(--surface2);
-    border-radius: var(--radius);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: border-color .15s, transform .1s;
-  }
-  .gallery-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-  }
-  .gallery-card img {
-    width: 100%;
-    display: block;
-    aspect-ratio: 1;
-    object-fit: cover;
-  }
-  .gallery-card-label {
-    padding: 8px 10px;
-    font-size: .78rem;
-    color: var(--text-dim);
-    text-align: center;
-    font-weight: 600;
-  }
 
   /* ════════════════════════════════════════════════════════
      HOME PAGE
@@ -677,7 +585,6 @@
       <button class="nav-link active" data-page="home" onclick="showPage('home')">Home</button>
       <button class="nav-link" data-page="tasks" onclick="showPage('tasks')">Tasks</button>
       <button class="nav-link" data-page="play" onclick="showPage('play')">Play</button>
-      <button class="nav-link" data-page="gallery" onclick="showPage('gallery')">Gallery</button>
     </div>
     <div class="navbar-meta">
       <span class="counter-pill" id="taskCountPill">0 tasks</span>
@@ -703,7 +610,6 @@
       <div class="home-actions">
         <button class="btn-lg primary" onclick="showPage('tasks')">Browse Tasks</button>
         <button class="btn-lg secondary" onclick="showPage('play')">Play Now</button>
-        <button class="btn-lg secondary" onclick="showPage('gallery')">Oracle Gallery</button>
       </div>
     </div>
   </div>
@@ -808,34 +714,6 @@
     </div>
   </div>
 
-  <!-- ════════════════════════════════════════════════════════
-       GALLERY PAGE
-       ════════════════════════════════════════════════════════ -->
-  <div id="galleryPage" class="page" style="overflow-y:auto;">
-    <div class="gallery-page" id="galleryContent">
-      <h2 style="margin-bottom:4px;">Oracle Gallery</h2>
-      <p style="color:var(--text-dim);margin-bottom:16px;">Animated demos of the oracle (optimal) agent solving every task.</p>
-
-      <!-- Controls: render mode + difficulty -->
-      <div id="galleryControls" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:.8rem;color:var(--text-dim);font-weight:600;text-transform:uppercase;">Render</span>
-          <button class="gallery-mode-btn active" data-mode="iso" onclick="setGalleryMode('iso')">Isometric</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:.8rem;color:var(--text-dim);font-weight:600;text-transform:uppercase;">Difficulty</span>
-          <button class="gallery-diff-btn active" data-diff="easy" onclick="setGalleryDiff('easy')">easy</button>
-          <button class="gallery-diff-btn" data-diff="medium" onclick="setGalleryDiff('medium')">medium</button>
-          <button class="gallery-diff-btn" data-diff="hard" onclick="setGalleryDiff('hard')">hard</button>
-          <button class="gallery-diff-btn" data-diff="expert" onclick="setGalleryDiff('expert')">expert</button>
-        </div>
-      </div>
-
-      <!-- Task GIF grid -->
-      <div id="galleryGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;"></div>
-    </div>
-  </div>
-
 </div>
 
 <script>
@@ -851,24 +729,6 @@ let playTotalReward = 0;
 let busy = false;
 let activePage = 'home';
 
-/** Resolve gallery_gif dict to a URL path, preferring the given difficulty. */
-function gifUrl(t, diff) {
-  const g = t.gallery_gif;
-  if (!g) return null;
-  if (typeof g === 'string') return '/gallery/' + g;            // flat legacy
-  if (g[diff || 'easy']) return '/gallery/' + g[diff || 'easy'];
-  // fall back to first available
-  const first = Object.values(g)[0];
-  return first ? '/gallery/' + first : null;
-}
-
-/** Return sorted difficulty keys present in gallery_gif dict. */
-function gifDiffs(t) {
-  const g = t.gallery_gif;
-  if (!g || typeof g === 'string') return [];
-  const order = ['easy','medium','hard','expert'];
-  return order.filter(d => g[d]);
-}
 
 /* ================================================================
    Boot
@@ -898,7 +758,6 @@ function gifDiffs(t) {
   });
 
   if (tasks.length > 0) renderSlide();
-  renderGallery();
 })();
 
 /* ================================================================
@@ -938,12 +797,9 @@ function renderSlide() {
   if (!tasks.length) return;
   const t = tasks[currentIdx];
 
-  // Video / GIF preview (prefer gallery GIF, fall back to video)
+  // Video preview
   const videoEl = document.getElementById('slideVideo');
-  const gUrl = gifUrl(t, slideSelectedDiff);
-  if (gUrl) {
-    videoEl.innerHTML = `<img class="gallery-gif" id="slideGif" src="${gUrl}" alt="${t.name} oracle demo">`;
-  } else if (t.video) {
+  if (t.video) {
     videoEl.innerHTML = `<video src="/videos/${t.video}" autoplay loop muted playsinline></video>`;
   } else {
     videoEl.innerHTML = '<div class="no-video">No preview available</div>';
@@ -990,7 +846,6 @@ function renderSlide() {
     <div class="diff-description" id="diffDesc">${diffDesc}</div>
     <div style="display:flex;gap:10px;">
       <button class="btn-primary" onclick="playTask('${t.name}')">Play This Task</button>
-      <button class="btn-primary" style="background:var(--surface2);border:1px solid var(--border);" onclick="viewOracleFromSlide('${t.name}')">View Oracle</button>
     </div>
   `;
 }
@@ -998,11 +853,6 @@ function renderSlide() {
 function selectSlideDiff(diff) {
   slideSelectedDiff = diff;
   const t = tasks[currentIdx];
-
-  // Update GIF
-  const img = document.getElementById('slideGif');
-  const newUrl = gifUrl(t, diff);
-  if (img && newUrl) img.src = newUrl;
 
   // Update badge active states
   document.querySelectorAll('#slideInfo .badge-diff').forEach(b => {
@@ -1014,39 +864,6 @@ function selectSlideDiff(diff) {
   const dd = diffDescs.find(d => d.level === diff);
   const descEl = document.getElementById('diffDesc');
   if (descEl) descEl.textContent = dd ? dd.description : '';
-}
-
-function viewOracleFromSlide(taskName) {
-  const t = tasks.find(x => x.name === taskName);
-  if (!t) return;
-  const url = gifUrl(t, slideSelectedDiff);
-  if (!url) { alert('No oracle GIF available for this difficulty.'); return; }
-  const diffs = gifDiffs(t);
-  const overlay = document.createElement('div');
-  overlay.className = 'oracle-overlay';
-  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
-  let curDiff = slideSelectedDiff;
-  const diffBtns = diffs.map(d =>
-    `<button style="padding:4px 12px;border-radius:6px;border:1px solid var(--border);`
-    + `background:${d===curDiff?'var(--accent)':'var(--surface2)'};color:var(--text);cursor:pointer;`
-    + `font-size:.8rem;" onclick="event.stopPropagation();`
-    + `this.parentElement.parentElement.querySelector('img').src=gifUrl(tasks.find(x=>x.name==='${t.name}'),'${d}');`
-    + `[...this.parentElement.children].forEach(b=>b.style.background='var(--surface2)');`
-    + `this.style.background='var(--accent)'">${d}</button>`
-  ).join('');
-  overlay.innerHTML = `
-    <span class="close-hint">Click background or press Escape to close</span>
-    <div style="text-align:center;" onclick="event.stopPropagation()">
-      <div style="margin-bottom:8px;display:flex;gap:6px;justify-content:center;">${diffBtns}</div>
-      <img src="${url}" alt="${t.name} oracle trajectory"
-           style="max-width:80vw;max-height:75vh;border-radius:var(--radius-lg);box-shadow:0 8px 48px rgba(0,0,0,.6);">
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  const closeOnEsc = e => {
-    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', closeOnEsc); }
-  };
-  document.addEventListener('keydown', closeOnEsc);
 }
 
 function playTask(taskName) {
@@ -1270,63 +1087,6 @@ function hideOverlay() {
   document.getElementById('playOverlay').className = 'pixel-overlay';
 }
 
-/* ================================================================
-   Gallery Page
-   ================================================================ */
-let galleryMode = 'iso';     // 'iso' or 'flat'
-let galleryDiff = 'easy';    // 'easy', 'medium', 'hard', 'expert'
-
-function galleryGifUrl(taskName, mode, diff) {
-  return '/gallery/' + mode + '/' + taskName + '_' + diff + '.gif';
-}
-
-function setGalleryMode(mode) {
-  galleryMode = mode;
-  document.querySelectorAll('.gallery-mode-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.mode === mode));
-  updateGalleryImages();
-}
-
-function setGalleryDiff(diff) {
-  galleryDiff = diff;
-  document.querySelectorAll('.gallery-diff-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.diff === diff));
-  updateGalleryImages();
-}
-
-function updateGalleryImages() {
-  document.querySelectorAll('#galleryGrid .gallery-card img').forEach(img => {
-    const taskName = img.dataset.task;
-    img.src = galleryGifUrl(taskName, galleryMode, galleryDiff);
-  });
-}
-
-function renderGallery() {
-  const grid = document.getElementById('galleryGrid');
-  if (!grid || !tasks.length) return;
-  grid.innerHTML = '';
-
-  tasks.forEach(t => {
-    const card = document.createElement('div');
-    card.className = 'gallery-card';
-    const src = galleryGifUrl(t.name, galleryMode, galleryDiff);
-    card.innerHTML = '<img data-task="' + t.name + '" src="' + src
-      + '" alt="' + t.name + '">'
-      + '<div class="gallery-card-label">' + t.name + '</div>';
-    card.onclick = () => {
-      const ov = document.createElement('div');
-      ov.className = 'oracle-overlay';
-      ov.onclick = e => { if (e.target === ov) ov.remove(); };
-      ov.innerHTML = '<span class="close-hint">Click background or press Escape to close</span>'
-        + '<img src="' + galleryGifUrl(t.name, galleryMode, galleryDiff)
-        + '" alt="' + t.name + '">';
-      document.body.appendChild(ov);
-      const fn = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', fn); } };
-      document.addEventListener('keydown', fn);
-    };
-    grid.appendChild(card);
-  });
-}
 </script>
 </body>
 </html>

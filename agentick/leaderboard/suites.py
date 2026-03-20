@@ -9,7 +9,7 @@ from typing import Literal
 
 from agentick.leaderboard.seeds import generate_task_seeds
 
-# All 38 tasks for full benchmark
+# All 37 tasks for full benchmark
 FULL_TASKS = [
     "GoToGoal-v0",
     "MazeNavigation-v0",
@@ -21,7 +21,6 @@ FULL_TASKS = [
     "DelayedGratification-v0",
     "BacktrackPuzzle-v0",
     "SokobanPush-v0",
-    "CausalChain-v0",
     "SymbolMatching-v0",
     "RuleInduction-v0",
     "SwitchCircuit-v0",
@@ -76,7 +75,6 @@ PLANNING_TASKS = [
 ]
 
 REASONING_TASKS = [
-    "CausalChain-v0",
     "SwitchCircuit-v0",
     "RuleInduction-v0",
     "LightsOut-v0",
@@ -167,7 +165,7 @@ class BenchmarkSuite:
 AGENTICK_FULL_V2 = BenchmarkSuite(
     name="agentick-full-v2",
     display_name="Agentick Full Benchmark v2.0",
-    description="Complete benchmark with all 38 official tasks",
+    description="Complete benchmark with all 37 official tasks",
     tasks=tuple(FULL_TASKS),
     difficulty="medium",
     scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),
@@ -194,7 +192,7 @@ AGENTICK_PLANNING_V2 = BenchmarkSuite(
 AGENTICK_REASONING_V2 = BenchmarkSuite(
     name="agentick-reasoning-v2",
     display_name="Reasoning Capability Suite v2.0",
-    description="Reasoning capability across 9 tasks",
+    description="Reasoning capability across 8 tasks",
     tasks=tuple(REASONING_TASKS),
     difficulty="medium",
     scoring=ScoringConfig(normalization="random_oracle", aggregation="mean"),

@@ -45,7 +45,7 @@ class MazeNavigationTask(TaskSpec):
             grid_size=11,
             max_steps=120,
             params={
-                "loop_freq": 0.15,
+                "loop_freq": 0.0,
                 "n_hazards": 0,
                 "n_doors": 1,
                 "algorithm": "recursive_backtracker",
@@ -56,7 +56,7 @@ class MazeNavigationTask(TaskSpec):
             grid_size=15,
             max_steps=250,
             params={
-                "loop_freq": 0.08,
+                "loop_freq": 0.0,
                 "n_hazards": 4,
                 "n_doors": 1,
                 "algorithm": "recursive_backtracker",
@@ -67,7 +67,7 @@ class MazeNavigationTask(TaskSpec):
             grid_size=21,
             max_steps=500,
             params={
-                "loop_freq": 0.03,
+                "loop_freq": 0.0,
                 "n_hazards": 6,
                 "n_doors": 2,
                 "algorithm": "recursive_backtracker",
@@ -215,30 +215,38 @@ class MazeNavigationTask(TaskSpec):
                 grid.terrain[hy, hx] = CellType.HAZARD
                 used_cells.add((hx, hy))
 
-        # Place key/door pairs at medium+ difficulties
+        # Place key/door pairs at medium+ difficulties.
+        # Doors MUST be true chokepoints: removing them disconnects agent from goal.
         n_doors = p.get("n_doors", 0)
         door_positions = []
         key_positions = []
         if n_doors > 0 and optimal_path and len(optimal_path) > 4:
             for door_idx in range(n_doors):
                 color = door_idx  # 0=gold, 1=red, 2=blue
-                # Pick a choke point on the optimal path (~40-60% of the way)
-                frac = 0.4 + 0.2 * door_idx / max(1, n_doors - 1) if n_doors > 1 else 0.5
-                path_idx = int(len(optimal_path) * frac)
-                path_idx = max(2, min(len(optimal_path) - 2, path_idx))
-                door_pos = optimal_path[path_idx]
-                if door_pos in used_cells:
-                    found = False
-                    for offset in [1, -1, 2, -2, 3, -3]:
-                        pi = path_idx + offset
-                        if 0 < pi < len(optimal_path) - 1:
-                            dp = optimal_path[pi]
-                            if dp not in used_cells:
-                                door_pos = dp
-                                found = True
-                                break
-                    if not found:
+                all_door_cells = set(door_positions)
+
+                # Find TRUE chokepoints on the optimal path: cells whose removal
+                # (treating all existing doors as walls too) disconnects agent
+                # from goal. Prefer the middle portion of the path.
+                chokepoints = []
+                for pi in range(2, len(optimal_path) - 2):
+                    p_cand = optimal_path[pi]
+                    if p_cand in used_cells:
                         continue
+                    test_blocked = all_door_cells | {p_cand}
+                    reach = self._flood_reachable(grid, agent_pos, blocked=test_blocked)
+                    if goal_pos not in reach:
+                        chokepoints.append((pi, p_cand))
+
+                if not chokepoints:
+                    continue  # no chokepoint found for this door
+
+                # Pick a chokepoint in the middle portion of the path
+                mid_start = len(chokepoints) // 4
+                mid_end = max(mid_start + 1, 3 * len(chokepoints) // 4 + 1)
+                cp_idx = int(rng.integers(mid_start, min(mid_end, len(chokepoints))))
+                path_idx, door_pos = chokepoints[cp_idx]
+
                 ddx, ddy = door_pos
                 grid.objects[ddy, ddx] = ObjectType.DOOR
                 grid.metadata[ddy, ddx] = color
@@ -246,34 +254,19 @@ class MazeNavigationTask(TaskSpec):
                 used_cells.add(door_pos)
 
                 # Find a key position: reachable from agent WITHOUT crossing
-                # any door, NOT on the agent→door path segment, preferring
-                # dead-end cells.
-                # Flood-fill from agent, treating ALL door cells as blocked,
-                # to find cells the agent can reach before opening any door.
+                # any door, preferring dead-end cells.
                 all_door_cells = set(door_positions)
                 reachable_from_agent = self._flood_reachable(
                     grid, agent_pos, blocked=all_door_cells,
                 )
-                pre_door_path = set(optimal_path[:path_idx])
                 key_cands = [
                     pos
                     for pos in valid_positions
                     if pos not in used_cells
-                    and pos not in pre_door_path
                     and pos in reachable_from_agent
                     and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
                     and grid.objects[pos[1], pos[0]] == ObjectType.NONE
                 ]
-                if not key_cands:
-                    # Relax: allow cells on the pre-door path too
-                    key_cands = [
-                        pos
-                        for pos in valid_positions
-                        if pos not in used_cells
-                        and pos in reachable_from_agent
-                        and grid.terrain[pos[1], pos[0]] == CellType.EMPTY
-                        and grid.objects[pos[1], pos[0]] == ObjectType.NONE
-                    ]
                 if key_cands:
                     dead_end_keys = [
                         kp
