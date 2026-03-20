@@ -276,10 +276,9 @@ class TrainingBenchmarkRunner:
         with open(output_dir / "training_summary.json", "w") as f:
             json.dump(training_summary, f, indent=2, default=_json_default)
 
-        # Clean checkpoint on success
+        # Clean checkpoint on success (missing_ok for concurrent job safety)
         ckpt_path = output_dir / ".checkpoint.json"
-        if ckpt_path.exists():
-            ckpt_path.unlink()
+        ckpt_path.unlink(missing_ok=True)
 
         # Auto-generate plots
         print("\nGenerating training plots...")
@@ -351,8 +350,14 @@ class TrainingBenchmarkRunner:
         )
 
         # -- Create PPO --
-        tb_log_dir = output_dir / "tensorboard"
-        tb_log_dir.mkdir(exist_ok=True)
+        # Use tensorboard logging only if tensorboard is installed
+        try:
+            import tensorboard  # noqa: F401
+            tb_log_dir = output_dir / "tensorboard"
+            tb_log_dir.mkdir(exist_ok=True)
+            tb_log_arg: str | None = str(tb_log_dir)
+        except ImportError:
+            tb_log_arg = None
         tb_log_name = f"{task_name}_{difficulty}"
 
         model = PPO(
@@ -368,7 +373,7 @@ class TrainingBenchmarkRunner:
             max_grad_norm=hp.get("max_grad_norm", 0.5),
             gamma=hp.get("gamma", 0.99),
             gae_lambda=hp.get("gae_lambda", 0.95),
-            tensorboard_log=str(tb_log_dir),
+            tensorboard_log=tb_log_arg,
             device=tc.device,
             seed=seed,
             verbose=0,

@@ -34,6 +34,7 @@ class VLLMLLMBackend(ModelBackend):
         max_model_len: int = 32768,
         tensor_parallel_size: int = 1,
         quantization: str | None = None,
+        enforce_eager: bool = False,
     ):
         self.name = f"vllm/{model_id.split('/')[-1]}"
         self.model_id = model_id
@@ -47,6 +48,7 @@ class VLLMLLMBackend(ModelBackend):
         self.gpu_memory_utilization = gpu_memory_utilization
         self.enable_prefix_caching = enable_prefix_caching
         self.max_model_len = max_model_len
+        self.enforce_eager = enforce_eager
         self.tensor_parallel_size = tensor_parallel_size
         self.quantization = quantization
 
@@ -98,6 +100,8 @@ class VLLMLLMBackend(ModelBackend):
             "tensor_parallel_size": self.tensor_parallel_size,
             "max_model_len": self.max_model_len,
         }
+        if getattr(self, "enforce_eager", False):
+            engine_kwargs["enforce_eager"] = True
         if self.quantization is not None:
             engine_kwargs["quantization"] = self.quantization
 

@@ -119,7 +119,7 @@ class IsometricRenderer:
     - Direction arrows: labeled UP/DOWN/LEFT/RIGHT at diamond edges
     - Metadata-driven rendering: fog, lit/unlit, energy, colored nodes, labels
     - Ghost tiles: target slots show faded version of the expected object
-    - Comprehensive visual information for all 38 tasks
+    - Comprehensive visual information for all tasks
     """
 
     def __init__(

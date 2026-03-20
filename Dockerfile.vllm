@@ -1,0 +1,56 @@
+# ============================================================================
+# Agentick — based on official vLLM image (pre-compiled FlashInfer + CUDA)
+#
+# Build:  docker build -f Dockerfile.vllm -t agentick:latest .
+# ============================================================================
+
+FROM vllm/vllm-openai:v0.17.1
+
+# --- System dependencies ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # SDL/pygame deps
+    libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+    # Pillow deps
+    libjpeg-dev libpng-dev \
+    # Video encoding
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Install uv ---
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# --- Set up working directory ---
+WORKDIR /opt/agentick
+
+# --- Copy project files ---
+COPY pyproject.toml uv.lock* ./
+COPY . .
+
+# --- Install agentick + deps into the existing venv ---
+# The vLLM image already has torch, vllm, flashinfer etc.
+# We just need to install agentick's extra deps (sb3, gymnasium, etc.)
+# Use system Python (vLLM image uses system Python, not a venv)
+ENV UV_SYSTEM_PYTHON=1
+RUN uv pip install --system -e ".[all]" --no-deps 2>/dev/null || true && \
+    uv pip install --system stable-baselines3 gymnasium pygame pillow pyyaml pydantic filelock tensorboard && \
+    python3 -c "import agentick; print('agentick OK')"
+
+# --- Verify ---
+RUN python3 -c "\
+import agentick; \
+env = agentick.make('GoToGoal-v0'); env.reset(); env.close(); \
+print('agentick OK'); \
+import torch; print(f'torch {torch.__version__}, CUDA={torch.cuda.is_available()}'); \
+import stable_baselines3; print(f'sb3 {stable_baselines3.__version__}'); \
+import vllm; print(f'vllm {vllm.__version__}'); \
+import flashinfer; print(f'flashinfer {flashinfer.__version__}'); \
+from agentick.agents import BaseAgent, MarkovianZeroShot; print('agents OK'); \
+print('All checks passed!'); \
+"
+
+ENV PYTHONPATH="/opt/agentick"
+ENV PYGAME_HIDE_SUPPORT_PROMPT=1
+ENV SDL_VIDEODRIVER=dummy
+ENV SDL_AUDIODRIVER=dummy
+
+CMD ["/bin/bash"]
