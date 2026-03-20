@@ -19,11 +19,11 @@
 <!-- Charts: bar + radar side by side -->
 <div class="chart-section">
     <div class="chart-box">
-        <h3>Overall Agentick Score</h3>
+        <h3>Oracle-Normalized Score (ONS)</h3>
         <canvas id="chart-overall-bar"></canvas>
     </div>
     <div class="chart-box">
-        <h3>Category Breakdown</h3>
+        <h3>Category ONS Breakdown</h3>
         <canvas id="chart-overall-radar"></canvas>
     </div>
 </div>
@@ -83,7 +83,7 @@
 
 <div class="chart-section">
     <div class="chart-box" style="max-width: 600px;">
-        <h3>{{ cat | replace('_', ' ') | title }} Scores</h3>
+        <h3>{{ cat | replace('_', ' ') | title }} ONS</h3>
         <canvas id="chart-cat-{{ cat }}"></canvas>
     </div>
 </div>

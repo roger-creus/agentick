@@ -143,15 +143,45 @@ class SiteGenerator:
                         summary = summary[:117] + "..."
                     task_descriptions[td["name"]] = summary
 
-        # Build chart data from full-benchmark entries only
+        # Build chart data: exclude oracle/random, deduplicate models
+        # (keep highest-scoring entry per model name), normalize to ONS.
+        baseline_types = {"other"}
+        oracle_entry = next(
+            (r for r in full_rankings if r["agent_name"] == "Oracle Agent"), None
+        )
+        random_entry = next(
+            (r for r in full_rankings if r["agent_name"] == "Random Agent"), None
+        )
+
+        # Deduplicate: for each model name, keep the one with highest score
+        seen_models: dict[str, dict] = {}
+        for r in full_rankings:
+            if r["agent_type"] in baseline_types:
+                continue  # skip oracle/random from charts
+            name = r["agent_name"]
+            if name not in seen_models or r["score"] > seen_models[name]["score"]:
+                seen_models[name] = r
+        chart_entries = sorted(seen_models.values(), key=lambda x: x["score"], reverse=True)
+
+        # ONS normalization: (agent - random) / (oracle - random)
+        def _ons(agent_val: float, cat: str | None = None) -> float:
+            if oracle_entry is None or random_entry is None:
+                return agent_val
+            if cat:
+                o = oracle_entry["per_category"].get(cat, 1.0)
+                ra = random_entry["per_category"].get(cat, 0.0)
+            else:
+                o = oracle_entry["score"]
+                ra = random_entry["score"]
+            denom = o - ra
+            return round((agent_val - ra) / denom, 3) if abs(denom) > 1e-9 else 0.0
+
         chart_data = {
-            "agent_names": [r["agent_name"] for r in full_rankings],
-            "overall_scores": [round(r["score"], 3) for r in full_rankings],
+            "agent_names": [r["agent_name"] for r in chart_entries],
+            "overall_scores": [_ons(r["score"]) for r in chart_entries],
             "categories": categories,
             "per_category": {
-                cat: [
-                    round(r["per_category"].get(cat, 0), 3) for r in full_rankings
-                ]
+                cat: [_ons(r["per_category"].get(cat, 0), cat) for r in chart_entries]
                 for cat in categories
             },
         }
