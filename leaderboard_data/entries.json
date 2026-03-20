@@ -1691,7 +1691,7 @@
       }
     },
     {
-      "agent_name": "Gemini-2.5-Flash-Lite-ASCII-Markov",
+      "agent_name": "Gemini 2.5 Flash Lite",
       "author": "Agentick",
       "description": "Gemini 2.5 Flash Lite with ASCII observations, markovian zero-shot harness",
       "agent_type": "llm",
@@ -2536,7 +2536,7 @@
       }
     },
     {
-      "agent_name": "Gemini-2.5-Flash-Lite-ASCII-Reasoner",
+      "agent_name": "Gemini 2.5 Flash Lite",
       "author": "Agentick",
       "description": "Gemini 2.5 Flash Lite with ASCII observations, markovian reasoner (CoT) harness",
       "agent_type": "llm",
@@ -3381,7 +3381,7 @@
       }
     },
     {
-      "agent_name": "Gemini-2.5-Flash-Lite-Lang-Markov",
+      "agent_name": "Gemini 2.5 Flash Lite",
       "author": "Agentick",
       "description": "Gemini 2.5 Flash Lite with language observations, markovian zero-shot harness",
       "agent_type": "llm",
@@ -4226,7 +4226,7 @@
       }
     },
     {
-      "agent_name": "GPT-5-mini-ASCII-Reasoner",
+      "agent_name": "GPT-5 mini",
       "author": "Agentick",
       "description": "GPT-5-mini-ASCII-Reasoner",
       "agent_type": "llm",
