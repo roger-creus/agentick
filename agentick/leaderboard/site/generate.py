@@ -122,13 +122,19 @@ class SiteGenerator:
         task_names = sorted(TASK_CAPABILITY_MAP.keys())
         task_categories = dict(TASK_CAPABILITY_MAP)
 
-        # Load task descriptions from showcase JSON
+        # Load task descriptions from showcase JSON (truncate for compact display)
         task_descriptions = {}
         desc_path = Path("docs/showcase/task_descriptions.json")
         if desc_path.exists():
             with open(desc_path) as f:
                 for td in json.load(f):
-                    task_descriptions[td["name"]] = td.get("summary", "")
+                    summary = td.get("goal", td.get("summary", ""))
+                    # Keep it short — first sentence only, max 120 chars
+                    if ". " in summary:
+                        summary = summary[: summary.index(". ") + 1]
+                    if len(summary) > 120:
+                        summary = summary[:117] + "..."
+                    task_descriptions[td["name"]] = summary
 
         # Build chart data as JSON for Chart.js
         chart_data = {

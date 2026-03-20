@@ -7,7 +7,7 @@ slug: introducing-agentick
 
 # Introducing Agentick: A Universal Benchmark for AI Agents
 
-**38 procedurally generated tasks. Multi-modal observations. Every agent type. One benchmark.**
+**37 procedurally generated tasks. Multi-modal observations. Every agent type. One benchmark.**
 
 ![Agentick Banner](../../assets/agentick_banner.png)
 
@@ -18,6 +18,13 @@ Agentick is an open-source benchmark for evaluating AI agents across the core ch
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="200" alt="ProgramSynthesis" loading="lazy" style="border-radius: 8px;">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ChaseEvade-v0_easy.gif" width="200" alt="ChaseEvade" loading="lazy" style="border-radius: 8px;">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="200" alt="KeyDoorPuzzle" loading="lazy" style="border-radius: 8px;">
+</div>
+
+<div style="background: linear-gradient(135deg, #161b2280, #1a2332); border: 1px solid #30363d; border-radius: 10px; padding: 24px 28px; margin: 1.5em 0; text-align: center;">
+  <h3 style="margin: 0 0 8px; color: #58a6ff;">📊 The Leaderboard is Live</h3>
+  <p style="margin: 0 0 12px; color: #8b949e;">See how current agents compare across all 37 tasks — and submit your own results.</p>
+  <a href="https://roger-creus.github.io/agentick/board/" target="_blank" style="display: inline-block; padding: 10px 24px; background: #58a6ff; color: #0d1117; text-decoration: none; border-radius: 6px; font-weight: 700; margin-right: 8px;">View Leaderboard</a>
+  <a href="https://roger-creus.github.io/agentick/leaderboard/" target="_blank" style="display: inline-block; padding: 10px 24px; background: transparent; color: #58a6ff; text-decoration: none; border-radius: 6px; font-weight: 600; border: 1px solid #58a6ff;">How to Submit</a>
 </div>
 
 ## The Gap
@@ -38,7 +45,7 @@ Rather than producing a single aggregate score, Agentick decomposes evaluation i
 |-|-|:-:|
 | **Navigation** | Spatial reasoning, pathfinding, reactive control | 8 |
 | **Planning** | Multi-step lookahead, constraint satisfaction, backtracking | 9 |
-| **Reasoning** | Logical inference, causal reasoning, abstraction | 9 |
+| **Reasoning** | Logical inference, causal reasoning, abstraction | 8 |
 | **Memory** | Information retention, temporal integration, partial observability | 4 |
 | **Generalization** | Distribution shift, few-shot adaptation, noise robustness | 3 |
 | **Multi-Agent** | Cooperation, competition, emergent strategy | 5 |
