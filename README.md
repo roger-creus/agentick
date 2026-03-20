@@ -17,6 +17,10 @@
 Agentick provides 37 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
 
 <p align="center">
+  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
+</p>
+
+<p align="center">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/KeyDoorPuzzle-v0_expert.gif" width="256" alt="KeyDoorPuzzle">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/PackingPuzzle-v0_medium.gif" width="256" alt="PackingPuzzle">
