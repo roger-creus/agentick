@@ -6762,7 +6762,147 @@
         "policy": "CnnPolicy",
         "n_envs": 8
       }
+    },
+    {
+      "agent_name": "Gemini 3.1 Flash Lite",
+      "author": "Agentick",
+      "description": "Gemini 2.0 Flash Lite",
+      "agent_type": "llm",
+      "observation_mode": "ascii",
+      "harness": "MarkovianReasoner",
+      "model": "gemini-3.1-flash-lite-preview",
+      "open_weights": false,
+      "date": "2026-03-20",
+      "scores": {
+        "agentick_score": 0.0,
+        "agentick_score_ci": [
+          0.0,
+          0.0
+        ],
+        "per_category": {},
+        "per_task": {
+          "BacktrackPuzzle-v0": {
+            "hard": {
+              "success_rate": 0.6,
+              "mean_return": 0.6,
+              "n_episodes": 25
+            }
+          },
+          "DeceptiveReward-v0": {
+            "hard": {
+              "success_rate": 0.56,
+              "mean_return": 0.56,
+              "n_episodes": 25
+            }
+          },
+          "GraphColoring-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "KeyDoorPuzzle-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "LightsOut-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "PackingPuzzle-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "PreciseNavigation-v0": {
+            "hard": {
+              "success_rate": 0.48,
+              "mean_return": 0.48,
+              "n_episodes": 25
+            }
+          },
+          "ProgramSynthesis-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "RecipeAssembly-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "ResourceManagement-v0": {
+            "hard": {
+              "success_rate": 0.48,
+              "mean_return": -0.52,
+              "n_episodes": 25
+            }
+          },
+          "RuleInduction-v0": {
+            "hard": {
+              "success_rate": 0.32,
+              "mean_return": 0.32,
+              "n_episodes": 25
+            }
+          },
+          "SokobanPush-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SwitchCircuit-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SymbolMatching-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "TaskInterference-v0": {
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "TileSorting-v0": {
+            "hard": {
+              "success_rate": 0.24,
+              "mean_return": 0.24,
+              "n_episodes": 25
+            }
+          },
+          "ToolUse-v0": {
+            "hard": {
+              "success_rate": 0.96,
+              "mean_return": 0.8,
+              "n_episodes": 25
+            }
+          }
+        }
+      }
     }
   ],
-  "updated_at": "2026-03-20"
+  "updated_at": "2026-03-20T12:56:10.827891"
 }
