@@ -7,7 +7,7 @@ slug: introducing-agentick
 
 # Introducing Agentick: A Universal Benchmark for AI Agents
 
-**37 procedurally generated tasks. Multi-modal observations. Every agent type. One benchmark.**
+**Procedurally generated tasks. Multi-modal observations. Every agent type. One benchmark.**
 
 ![Agentick Banner](../../assets/agentick_banner.png)
 

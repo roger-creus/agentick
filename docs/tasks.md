@@ -1,6 +1,6 @@
 # Tasks
 
-37 procedurally generated tasks across 6 categories. All tasks support 4 difficulty levels (easy/medium/hard/expert), multiple observation modes, and both sparse and dense rewards.
+Procedurally generated tasks across 6 categories. All tasks support 4 difficulty levels (easy/medium/hard/expert), multiple observation modes, and both sparse and dense rewards.
 
 **Browse tasks interactively** — the best way to understand each task is to play it yourself in the webapp:
 
