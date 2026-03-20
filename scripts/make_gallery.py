@@ -1,4 +1,4 @@
-"""Create a gallery video grid of all 38 tasks."""
+"""Create a gallery video grid of all tasks."""
 
 import cv2
 import numpy as np
@@ -8,7 +8,7 @@ import glob
 VIDEOS_DIR = "videos"
 OUTPUT_PATH = "videos/gallery_all_tasks.mp4"
 
-# Grid layout: 8 columns x 5 rows = 40 cells for 38 tasks
+# Grid layout for all tasks
 COLS = 8
 ROWS = 5
 CELL_W = 200  # width per cell (scaled down from 288)

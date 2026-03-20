@@ -50,7 +50,7 @@ results = runner.run()
 Use predefined suites instead of listing tasks:
 
 ```yaml
-tasks: "full"           # All 38 tasks
+tasks: "full"           # All tasks
 tasks: "navigation"     # 8 navigation tasks
 tasks: "planning"       # 9 planning tasks
 tasks: "reasoning"      # 9 reasoning tasks

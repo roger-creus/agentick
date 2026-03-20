@@ -16,9 +16,9 @@ MECHANICS:
 
 DIFFICULTY:
   - easy:   9x9,  4 objects,  2 valid combos, 5 trials, max_steps=150
-  - medium: 11x11, 5 objects, 3 valid combos, 4 trials, max_steps=250
-  - hard:   13x13, 5 objects, 4 valid combos, 3 trials, max_steps=400
-  - expert: 15x15, 5 objects, 5 valid combos, 2 trials, max_steps=550
+  - medium: 11x11, 5 objects, 3 valid combos, 5 trials, max_steps=250
+  - hard:   13x13, 5 objects, 4 valid combos, 5 trials, max_steps=400
+  - expert: 15x15, 5 objects, 5 valid combos, 5 trials, max_steps=550
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ class RuleInductionTask(TaskSpec):
             params={
                 "n_objects": 5,
                 "n_valid_combos": 3,
-                "n_trials": 4,
+                "n_trials": 5,
             },
         ),
         "hard": DifficultyConfig(
@@ -86,7 +86,7 @@ class RuleInductionTask(TaskSpec):
             params={
                 "n_objects": 5,
                 "n_valid_combos": 4,
-                "n_trials": 3,
+                "n_trials": 5,
             },
         ),
         "expert": DifficultyConfig(
@@ -96,7 +96,7 @@ class RuleInductionTask(TaskSpec):
             params={
                 "n_objects": 5,
                 "n_valid_combos": 5,
-                "n_trials": 2,
+                "n_trials": 5,
             },
         ),
     }
@@ -428,9 +428,26 @@ class RuleInductionTask(TaskSpec):
         result_type = rule_table.get((carried_type, ground_type), None)
 
         if result_type is not None:
-            # Valid combination: place result at the stepped-on position
-            grid.objects[y, x] = result_type
+            # Valid combination: place result at a random empty walkable cell
             config["_valid_combos_made"] = config.get("_valid_combos_made", 0) + 1
+            # Find all empty walkable cells to place the result
+            empty_cells = []
+            for cy in range(grid.height):
+                for cx in range(grid.width):
+                    if (
+                        int(grid.terrain[cy, cx]) == int(CellType.EMPTY)
+                        and int(grid.objects[cy, cx]) == int(ObjectType.NONE)
+                        and (cx, cy) != (x, y)
+                    ):
+                        empty_cells.append((cx, cy))
+            if empty_cells:
+                # Use a seeded pick based on step count for determinism
+                rng_idx = (x * 31 + y * 17 + config.get("_trial_steps_used", 0)) % len(empty_cells)
+                rx, ry = empty_cells[rng_idx]
+                grid.objects[ry, rx] = result_type
+            else:
+                # Fallback: place at combination position
+                grid.objects[y, x] = result_type
             # Check if the result is the target
             if result_type == target_type:
                 config["_target_crafted"] = True

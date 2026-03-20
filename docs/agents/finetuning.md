@@ -21,7 +21,7 @@ Each dataset is a DatasetDict with train/test splits (using different determinis
 
 ## Step 1: Collect Trajectories (optional)
 
-Skip this if using the pre-built datasets above. The script collects from all 38 tasks x 4 difficulties. Use `--n-test-episodes` to produce a DatasetDict with train/test splits (using different deterministic seeds).
+Skip this if using the pre-built datasets above. The script collects from all tasks x 4 difficulties. Use `--n-test-episodes` to produce a DatasetDict with train/test splits (using different deterministic seeds).
 
 ```bash
 # ~100k train + ~100k test (25 episodes per split per task-difficulty)

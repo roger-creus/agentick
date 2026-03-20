@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Agentick is a universal benchmark for evaluating AI agents (RL, LLM, VLM, hybrid, human) across 38 procedurally generated gridworld tasks. It implements the Gymnasium API and supports multi-modal observations (ASCII, language, pixels, state dict).
+Agentick is a universal benchmark for evaluating AI agents (RL, LLM, VLM, hybrid, human) across procedurally generated gridworld tasks. It implements the Gymnasium API and supports multi-modal observations (ASCII, language, pixels, state dict).
 
 ## Common Commands
 

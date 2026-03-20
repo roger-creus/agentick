@@ -44,7 +44,7 @@ htmlcov/
 # Project specific
 *.log
 *.mp4
-results/
+results*/
 checkpoints/
 wandb/
 leaderboard_site/

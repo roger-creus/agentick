@@ -2,11 +2,11 @@
 
 {% block content %}
 <h1>Submit Your Agent</h1>
-<p>Evaluate your agent on all 38 Agentick tasks and submit your results to the leaderboard.</p>
+<p>Evaluate your agent on all Agentick tasks and submit your results to the leaderboard.</p>
 
 <h2>1. Run the evaluation</h2>
 <p>
-    Evaluate your agent on all 38 tasks, all 4 difficulty levels, using the official eval seeds
+    Evaluate your agent on all tasks, all 4 difficulty levels, using the official eval seeds
     (25 seeds per task-difficulty). Save results as JSON files in the following layout:
 </p>
 <pre><code>results/my_agent/
@@ -19,7 +19,7 @@
     MazeNavigation-v0/
       easy.json
       ...
-    ... (all 38 tasks)</code></pre>
+    ... (all tasks)</code></pre>
 
 <p>Each difficulty JSON must contain:</p>
 <pre><code>{
@@ -43,7 +43,7 @@ seeds = get_eval_seeds("GoToGoal-v0", "easy")  # returns tuple of 25 ints</code>
 <pre><code>python scripts/validate_submission.py results/my_agent/ \
     --agent-name "My Agent Name"</code></pre>
 <p>
-    This checks that all 38 tasks and 4 difficulties are present, seeds match the official eval
+    This checks that all tasks and 4 difficulties are present, seeds match the official eval
     seeds, episode counts are correct (25 per task-difficulty), and computes your Agentick score.
     If everything passes, it packages your results into a submission zip file.
 </p>

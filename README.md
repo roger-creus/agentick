@@ -14,7 +14,11 @@
   <a href="https://doi.org/10.5281/zenodo.19104717"><img src="https://zenodo.org/badge/1155852082.svg" alt="DOI"></a>
 </p>
 
-Agentick provides 37 procedurally generated tasks for evaluating AI agents. Train and evaluate any agent type: RL, LLM, VLM, hybrid, or human.
+Universal benchmark for evaluating AI agents. Train and evaluate any agent type — RL, LLM, VLM, hybrid, or human — across procedurally generated gridworld tasks.
+
+<p align="center">
+  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
+</p>
 
 <p align="center">
   <img src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/ProgramSynthesis-v0_easy.gif" width="256" alt="ProgramSynthesis">

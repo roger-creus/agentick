@@ -68,7 +68,7 @@ env = agentick.make("GoToGoal-v0", reward_mode="dense")   # Shaped progress rewa
 
 ```python
 from agentick.tasks.registry import list_tasks
-tasks = list_tasks()                          # All 38 tasks
+tasks = list_tasks()                          # All registered tasks
 nav_tasks = list_tasks(capability="navigation")
 ```
 
@@ -79,7 +79,7 @@ uv run agentick list-suites
 
 ## Next Steps
 
-- [Tasks](../tasks.md) — Browse all 38 tasks
+- [Tasks](../tasks.md) — Browse all tasks
 - [Observations](../concepts/observations.md) — Observation mode details
 - [RL Agents](../agents/rl_agents.md) — Train RL agents
 - [LLM Agents](../agents/llm_agents.md) — Evaluate LLMs

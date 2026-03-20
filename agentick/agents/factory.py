@@ -75,6 +75,7 @@ def create_agent(agent_config: AgentConfig) -> BaseAgent | None:
         "max_model_len",
         "tensor_parallel_size",
         "limit_mm_per_prompt",
+        "enforce_eager",
     ):
         if key in hp:
             backend_kwargs[key] = hp[key]

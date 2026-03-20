@@ -89,6 +89,8 @@ class SiteGenerator:
             scores = entry.get("scores", {})
             ci = scores.get("agentick_score_ci", [0.0, 0.0])
             agent_type = entry.get("agent_type", "")
+            overall = scores.get("agentick_score", 0.0)
+            has_overall = overall > 0 or len(scores.get("per_category", {})) == 6
             rankings.append({
                 "rank": 0,
                 "agent_name": entry.get("agent_name", ""),
@@ -102,7 +104,8 @@ class SiteGenerator:
                     agent_type, entry.get("harness", ""), "harness",
                 ),
                 "model": entry.get("model", ""),
-                "score": scores.get("agentick_score", 0.0),
+                "score": overall,
+                "has_overall": has_overall,
                 "score_ci_lower": ci[0] if len(ci) >= 2 else 0.0,
                 "score_ci_upper": ci[1] if len(ci) >= 2 else 0.0,
                 "per_category": scores.get("per_category", {}),
@@ -111,8 +114,12 @@ class SiteGenerator:
                 "date": entry.get("date", ""),
             })
 
+        # Sort by score descending
         rankings.sort(key=lambda x: x["score"], reverse=True)
-        for i, r in enumerate(rankings):
+
+        # Split: full-benchmark entries (shown everywhere) vs partial (per-task only)
+        full_rankings = [r for r in rankings if r["has_overall"]]
+        for i, r in enumerate(full_rankings):
             r["rank"] = i + 1
 
         # Capability list for category tabs
@@ -136,13 +143,45 @@ class SiteGenerator:
                         summary = summary[:117] + "..."
                     task_descriptions[td["name"]] = summary
 
-        # Build chart data as JSON for Chart.js
+        # Build chart data: exclude oracle/random, deduplicate models
+        # (keep highest-scoring entry per model name), normalize to ONS.
+        baseline_types = {"other"}
+        oracle_entry = next(
+            (r for r in full_rankings if r["agent_name"] == "Oracle Agent"), None
+        )
+        random_entry = next(
+            (r for r in full_rankings if r["agent_name"] == "Random Agent"), None
+        )
+
+        # Deduplicate: for each model name, keep the one with highest score
+        seen_models: dict[str, dict] = {}
+        for r in full_rankings:
+            if r["agent_type"] in baseline_types:
+                continue  # skip oracle/random from charts
+            name = r["agent_name"]
+            if name not in seen_models or r["score"] > seen_models[name]["score"]:
+                seen_models[name] = r
+        chart_entries = sorted(seen_models.values(), key=lambda x: x["score"], reverse=True)
+
+        # ONS normalization: (agent - random) / (oracle - random)
+        def _ons(agent_val: float, cat: str | None = None) -> float:
+            if oracle_entry is None or random_entry is None:
+                return agent_val
+            if cat:
+                o = oracle_entry["per_category"].get(cat, 1.0)
+                ra = random_entry["per_category"].get(cat, 0.0)
+            else:
+                o = oracle_entry["score"]
+                ra = random_entry["score"]
+            denom = o - ra
+            return round((agent_val - ra) / denom, 3) if abs(denom) > 1e-9 else 0.0
+
         chart_data = {
-            "agent_names": [r["agent_name"] for r in rankings],
-            "overall_scores": [round(r["score"], 3) for r in rankings],
+            "agent_names": [r["agent_name"] for r in chart_entries],
+            "overall_scores": [_ons(r["score"]) for r in chart_entries],
             "categories": categories,
             "per_category": {
-                cat: [round(r["per_category"].get(cat, 0), 3) for r in rankings]
+                cat: [_ons(r["per_category"].get(cat, 0), cat) for r in chart_entries]
                 for cat in categories
             },
         }
@@ -150,7 +189,8 @@ class SiteGenerator:
         template = self.env.get_template("index.html")
         html = template.render(
             title="Agentick Leaderboard",
-            rankings=rankings,
+            rankings=full_rankings,
+            all_rankings=rankings,
             categories=categories,
             task_names=task_names,
             task_categories=task_categories,

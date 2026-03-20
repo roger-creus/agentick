@@ -29,7 +29,7 @@ python -m agentick.experiments.run --config config.yaml --n-parallel 4
 
 ### `training_runner.py`
 
-- **`TrainingBenchmarkRunner`** -- Runs PPO pixel-based RL training across all 38 tasks. Contains a static `TASK_CATEGORIES` mapping from task names to category strings (navigation, memory, reasoning, etc.). Uses `rich.progress` for training progress.
+- **`TrainingBenchmarkRunner`** -- Runs PPO pixel-based RL training across all tasks. Contains a static `TASK_CATEGORIES` mapping from task names to category strings (navigation, memory, reasoning, etc.). Uses `rich.progress` for training progress.
 
 ### `reproduce.py`
 

@@ -41,7 +41,7 @@ grid.flood_fill((x, y))
 
 ## Tasks Module: `agentick/tasks/`
 
-38 tasks across 6 categories: navigation (8), planning (9), reasoning (9), memory (4), generalization (3), multi\_agent (5).
+Tasks across 6 categories: navigation, planning, reasoning, memory, generalization, and multi-agent.
 
 **TaskSpec** defines the task interface:
 
@@ -70,7 +70,7 @@ all_tasks = agentick.list_tasks()
 
 ## Oracle System: `agentick/oracles/`
 
-Hand-coded optimal policies for all 38 tasks. Used for expert trajectory generation, task verification, and score upper bounds. One file per category (`navigation_oracles.py`, `planning_oracles.py`, etc.).
+Hand-coded optimal policies for all tasks. Used for expert trajectory generation, task verification, and score upper bounds. One file per category (`navigation_oracles.py`, `planning_oracles.py`, etc.).
 
 ```python
 from agentick.oracles import get_oracle, list_oracles
@@ -110,6 +110,6 @@ env = agentick.make("GoToGoal-v0", reward_mode="dense")   # Shaped progress rewa
 
 # Evaluation suites
 from agentick.leaderboard.suites import get_suite
-full_suite = get_suite("full")   # All 38 tasks
+full_suite = get_suite("full")   # All tasks
 quick_suite = get_suite("quick") # 5 representative tasks
 ```

@@ -250,7 +250,7 @@ def get_task_description(task_name: str) -> str:
     """
     Get natural language description of task objective.
 
-    Dynamically looks up the task in the registry so that all 38 tasks are
+    Dynamically looks up the task in the registry so that all tasks are
     covered (not just a hardcoded subset).
 
     Args:

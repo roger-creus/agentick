@@ -198,7 +198,7 @@ def validate_results_dir(
     report.ok("per_task/ directory found")
 
     # ------------------------------------------------------------------
-    # 2. Check all 38 tasks present
+    # 2. Check all tasks present
     # ------------------------------------------------------------------
     found_tasks = sorted(
         d.name for d in per_task_dir.iterdir() if d.is_dir()
