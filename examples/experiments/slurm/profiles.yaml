@@ -14,6 +14,7 @@ profiles:
   local_4g_12h:     { cpus: 32, gres: "gpu:4", mem: "128G", time: "11:59:00", partition: "lab-real" }
   api_6h:           { cpus: 4,  gres: "",      mem: "16G",  time: "05:59:00", partition: "long-cpu" }
   api_12h:          { cpus: 4,  gres: "",      mem: "16G",  time: "11:59:00", partition: "long-cpu" }
+  api_24h:          { cpus: 8,  gres: "",      mem: "32G",  time: "23:59:00", partition: "lab-real" }
   baseline:         { cpus: 4,  gres: "",      mem: "8G",   time: "05:59:00" }
 
 # Classification rules — first match wins.
@@ -61,8 +62,14 @@ classification:
   - { pattern: "gpt5mini_*_reasoner*",              profile: api_12h }
 
   # Gemini Flash configs
+  - { pattern: "gemini_31_flash_lite_*_markov*",    profile: api_6h }
+  - { pattern: "gemini_31_flash_lite_*_reasoner*",  profile: api_12h }
   - { pattern: "gemini_flash_lite_*_markov*",       profile: api_6h }
   - { pattern: "gemini_flash_lite_*_reasoner*",     profile: api_12h }
+
+  # Haiku configs
+  - { pattern: "haiku_*_reasoner*",                  profile: api_24h }
+  - { pattern: "haiku_*_markov*",                    profile: api_24h }
 
   # Baselines
   - { pattern: "random_*",                          profile: baseline }

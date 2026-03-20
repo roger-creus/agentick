@@ -31,13 +31,17 @@ EXPERIMENTS_DIR = SCRIPT_DIR.parent
 CONFIGS_DIR = EXPERIMENTS_DIR / "configs"
 PROJECT_ROOT = SCRIPT_DIR.parents[2]  # agentick repo root
 
-API_KEY_VARS = ["OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN"]
+API_KEY_VARS = [
+    "OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN",
+    "CLAUDE_API_KEY", "CLAUDE_ENDPOINT",
+]
 
 REQUIRED_KEYS: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "huggingface_llm": "HUGGING_FACE_HUB_TOKEN",
     "huggingface_vlm": "HUGGING_FACE_HUB_TOKEN",
+    "anthropic": "CLAUDE_API_KEY",
 }
 
 # Known API rate limits per model (free/default tier).
@@ -46,6 +50,7 @@ REQUIRED_KEYS: dict[str, str] = {
 API_MODEL_LIMITS: dict[str, dict[str, int]] = {
     "gemini-2.5-flash-lite": {"rpm": 4000, "tpm": 4_000_000, "max_concurrent_jobs": 4},
     "gemini-2.5-flash": {"rpm": 1000, "tpm": 1_000_000, "max_concurrent_jobs": 2},
+    "gemini-3.1-flash-lite-preview": {"rpm": 4000, "tpm": 4_000_000, "max_concurrent_jobs": 4},
 }
 
 # Suite name → task list mapping (kept in sync with agentick.leaderboard.suites)

@@ -105,3 +105,9 @@ check_results.sh
 generate_relaunches.py
 relaunch_scripts/
 launch_batch.sh
+
+# Gemini 3.1 Flash Lite per-category configs (local only, RPD-split runs)
+examples/experiments/configs/gemini_31_flash_lite_*
+
+# Haiku configs (Azure credentials, local only)
+examples/experiments/configs/haiku_*
