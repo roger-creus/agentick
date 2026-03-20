@@ -22,7 +22,7 @@ Agentick is an open-source benchmark for evaluating AI agents across the core ch
 
 <div style="background: linear-gradient(135deg, #161b2280, #1a2332); border: 1px solid #30363d; border-radius: 10px; padding: 24px 28px; margin: 1.5em 0; text-align: center;">
   <h3 style="margin: 0 0 8px; color: #58a6ff;">📊 The Leaderboard is Live</h3>
-  <p style="margin: 0 0 12px; color: #8b949e;">See how current agents compare across all 37 tasks — and submit your own results.</p>
+  <p style="margin: 0 0 12px; color: #c9d1d9;">See how current agents compare — and submit your own results.</p>
   <a href="https://roger-creus.github.io/agentick/board/" target="_blank" style="display: inline-block; padding: 10px 24px; background: #58a6ff; color: #0d1117; text-decoration: none; border-radius: 6px; font-weight: 700; margin-right: 8px;">View Leaderboard</a>
   <a href="https://roger-creus.github.io/agentick/leaderboard/" target="_blank" style="display: inline-block; padding: 10px 24px; background: transparent; color: #58a6ff; text-decoration: none; border-radius: 6px; font-weight: 600; border: 1px solid #58a6ff;">How to Submit</a>
 </div>

@@ -8,6 +8,13 @@
 
 Universal benchmark for evaluating AI agents. Procedurally generated gridworld tasks spanning navigation, planning, reasoning, memory, generalization, and multi-agent coordination. Evaluate any agent type — RL, LLM, VLM, hybrid, or human — through a standard Gymnasium interface with multi-modal observations.
 
+<div style="background: linear-gradient(135deg, #161b2280, #1a2332); border: 1px solid #30363d; border-radius: 10px; padding: 24px 28px; margin: 1.5em 0; text-align: center;">
+  <h3 style="margin: 0 0 8px; color: #58a6ff;">📊 The Leaderboard is Live</h3>
+  <p style="margin: 0 0 12px; color: #c9d1d9;">See how current agents compare — and submit your own results.</p>
+  <a href="https://roger-creus.github.io/agentick/board/" target="_blank" style="display: inline-block; padding: 10px 24px; background: #58a6ff; color: #0d1117; text-decoration: none; border-radius: 6px; font-weight: 700; margin-right: 8px;">View Leaderboard</a>
+  <a href="leaderboard.md" style="display: inline-block; padding: 10px 24px; background: transparent; color: #58a6ff; text-decoration: none; border-radius: 6px; font-weight: 600; border: 1px solid #58a6ff;">How to Submit</a>
+</div>
+
 ## Try It Now
 
 The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
