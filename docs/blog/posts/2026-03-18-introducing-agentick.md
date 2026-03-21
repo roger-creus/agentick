@@ -397,40 +397,43 @@ We ran initial evaluations to understand where current agents stand. The results
 
 We evaluated three frontier LLMs on hard difficulty across navigation, planning, and reasoning using ASCII observations and a chain-of-thought reasoning harness.
 
-<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
-<canvas id="chart-frontier-grouped" height="300"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+<div style="display: flex; gap: 16px; flex-wrap: wrap; margin: 1.5em 0;">
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-hard-nav" height="200"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-hard-plan" height="220"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-hard-reason" height="200"></canvas>
+</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 (() => {
-const tasks = ["CuriosityMaze","DynamicObstacles","GoToGoal","InstructionFollow.","MazeNavigation","RecursiveRooms","ShortestPath","TimingChallenge","BacktrackPuzzle","KeyDoorPuzzle","PackingPuzzle","PreciseNavigation","RecipeAssembly","ResourceMgmt","SokobanPush","TileSorting","ToolUse","DeceptiveReward","GraphColoring","LightsOut","ProgramSynth.","RuleInduction","SwitchCircuit","SymbolMatching","TaskInterference"];
-const gpt = [0,60,56,80,4,12,72,36,20,4,0,12,0,12,0,12,100,100,0,0,0,0,0,0,4];
-const gem = [0,44,20,0,4,12,16,32,60,0,0,48,0,48,0,24,96,56,0,0,0,32,0,0,0];
-const hai = [0,24,20,8,0,0,0,32,0,0,0,32,0,76,0,44,100,80,0,0,0,0,0,0,12];
-new Chart(document.getElementById('chart-frontier-grouped'), {
-  type: 'bar',
-  data: {
-    labels: tasks,
-    datasets: [
-      { label: 'GPT-5 mini', data: gpt, backgroundColor: '#4a90d9cc', borderColor: '#4a90d9', borderWidth: 1, borderRadius: 3 },
-      { label: 'Gemini 3.1 Flash Lite', data: gem, backgroundColor: '#50b860cc', borderColor: '#50b860', borderWidth: 1, borderRadius: 3 },
-      { label: 'Claude Haiku 4.5', data: hai, backgroundColor: '#e8a838cc', borderColor: '#e8a838', borderWidth: 1, borderRadius: 3 },
-    ],
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top', labels: { boxWidth: 12, padding: 14, font: { size: 11 } } },
-      tooltip: { padding: 10, cornerRadius: 6 },
-      title: { display: true, text: 'Frontier LLMs — Success Rate at Hard Difficulty', font: { size: 14, weight: '600' }, padding: { bottom: 16 } },
+const M = ['GPT-5 mini','Gemini 3.1 FL','Haiku 4.5'];
+const C = ['#4a90d9','#50b860','#e8a838'];
+function hardBar(id, title, tasks, d0, d1, d2) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels: tasks, datasets: M.map((m,i) => ({ label: m, data: [d0,d1,d2][i], backgroundColor: C[i]+'cc', borderColor: C[i], borderWidth: 1, borderRadius: 3 })) },
+    options: { indexAxis: 'y', responsive: true,
+      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } }, tooltip: { padding: 8, cornerRadius: 6 }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 8 } } },
+      scales: { x: { min: 0, max: 100, grid: { color: '#e1e4e822' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v+'%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 9, weight: '500' } } } },
     },
-    scales: {
-      y: { min: 0, max: 100, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 10 } }, title: { display: true, text: 'Success Rate (%)', font: { size: 11 } } },
-      x: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 8 }, maxRotation: 55, minRotation: 45 } },
-    },
-  },
-});
+  });
+}
+hardBar('chart-hard-nav', 'Navigation (Hard)',
+  ['CuriosityMaze','DynamicObst.','GoToGoal','InstructionF.','MazeNav.','RecursiveR.','ShortestPath','TimingChal.'],
+  [0,60,56,80,4,12,72,36], [0,44,20,0,4,12,16,32], [0,24,20,8,0,0,0,32]);
+hardBar('chart-hard-plan', 'Planning (Hard)',
+  ['BacktrackP.','KeyDoorP.','PackingP.','PreciseNav.','RecipeAssem.','ResourceMgmt','SokobanPush','TileSorting','ToolUse'],
+  [20,4,0,12,0,12,0,12,100], [60,0,0,48,0,48,0,24,96], [0,0,0,32,0,76,0,44,100]);
+hardBar('chart-hard-reason', 'Reasoning (Hard)',
+  ['DeceptiveR.','GraphColor.','LightsOut','ProgramS.','RuleInduc.','SwitchCirc.','SymbolMatch.','TaskInterf.'],
+  [100,0,0,0,0,0,0,4], [56,0,0,0,32,0,0,0], [80,0,0,0,0,0,0,12]);
 })();
 </script>
 
@@ -445,7 +448,7 @@ For agents with complete evaluations across all tasks and difficulties, we can c
 <canvas id="chart-ons-bar" height="220"></canvas>
 </div>
 <div style="flex: 1; min-width: 300px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
-<canvas id="chart-ons-radar" height="280"></canvas>
+<canvas id="chart-ons-radar" height="300"></canvas>
 </div>
 </div>
 
@@ -470,11 +473,11 @@ new Chart(document.getElementById('chart-ons-bar'), {
     },
   },
 });
-// Radar chart
+// Radar chart — max 100 to show correct proportions
 const catLabels = ['Navigation', 'Planning', 'Reasoning', 'Memory', 'Generalization', 'Multi-Agent'];
 const radarData = [
   { name: 'GPT-5 mini', data: [44.5, 23.7, 13.4, 26.7, 41.8, 18.1], color: '#4a90d9' },
-  { name: 'PPO Dense (500k)', data: [16.4, 19.3, 15.6, 12.9, 0, 48.7], color: '#50b860' },
+  { name: 'PPO Dense (500k)', data: [16.3, 19.3, 15.6, 12.8, 0, 48.6], color: '#50b860' },
   { name: 'Gemini 2.5 FL (Reasoner)', data: [21.1, 12.7, 9.1, 5.2, 19.9, 10.3], color: '#e8a838' },
 ];
 new Chart(document.getElementById('chart-ons-radar'), {
@@ -486,7 +489,7 @@ new Chart(document.getElementById('chart-ons-radar'), {
   options: {
     responsive: true,
     plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: true, text: 'Category ONS (%)', font: { size: 14, weight: '600' }, padding: { bottom: 8 } } },
-    scales: { r: { min: 0, max: 50, grid: { color: '#d0d0d044' }, angleLines: { color: '#d0d0d044' }, pointLabels: { font: { size: 10, weight: '600' } }, ticks: { display: false, stepSize: 10 } } },
+    scales: { r: { min: 0, max: 100, grid: { color: '#d0d0d044' }, angleLines: { color: '#d0d0d044' }, pointLabels: { font: { size: 10, weight: '600' } }, ticks: { display: true, stepSize: 25, color: '#aaa', font: { size: 8 }, backdropColor: 'transparent' } } },
   },
 });
 })();
@@ -496,15 +499,28 @@ new Chart(document.getElementById('chart-ons-radar'), {
 
 ### Category Breakdown
 
-<div style="display: flex; gap: 20px; flex-wrap: wrap; margin: 1.5em 0;">
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
-<canvas id="chart-cat-nav" height="180"></canvas>
+ONS across all six capability categories for the three fully-evaluated agents.
+
+<div style="display: flex; gap: 16px; flex-wrap: wrap; margin: 1.5em 0;">
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-nav" height="160"></canvas>
 </div>
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
-<canvas id="chart-cat-plan" height="180"></canvas>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-plan" height="160"></canvas>
 </div>
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
-<canvas id="chart-cat-reason" height="180"></canvas>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-reason" height="160"></canvas>
+</div>
+</div>
+<div style="display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 1.5em;">
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-mem" height="160"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-gen" height="160"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
+<canvas id="chart-cat-multi" height="160"></canvas>
 </div>
 </div>
 
@@ -514,16 +530,19 @@ function catBar(id, title, labels, values, colors) {
   new Chart(document.getElementById(id), {
     type: 'bar', data: { labels, datasets: [{ data: values, backgroundColor: colors.map(c=>c+'cc'), borderColor: colors, borderWidth: 1.5, borderRadius: 4 }] },
     options: { indexAxis: 'y', responsive: true,
-      plugins: { legend: { display: false }, tooltip: { padding: 8, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 10 } } },
-      scales: { x: { min: 0, max: 50, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 10, weight: '600' } } } },
+      plugins: { legend: { display: false }, tooltip: { padding: 8, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 8 } } },
+      scales: { x: { min: -5, max: 55, grid: { color: '#e1e4e822' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 10, weight: '600' } } } },
     },
   });
 }
 const a = ['GPT-5 mini','PPO Dense','Gemini 2.5 FL'];
 const c = ['#4a90d9','#50b860','#e8a838'];
-catBar('chart-cat-nav', 'Navigation ONS', a, [44.5, 16.4, 21.1], c);
-catBar('chart-cat-plan', 'Planning ONS', a, [23.7, 19.3, 12.7], c);
-catBar('chart-cat-reason', 'Reasoning ONS', a, [13.4, 15.6, 9.1], c);
+catBar('chart-cat-nav', 'Navigation', a, [44.5, 16.3, 21.1], c);
+catBar('chart-cat-plan', 'Planning', a, [23.7, 19.3, 12.7], c);
+catBar('chart-cat-reason', 'Reasoning', a, [13.4, 15.6, 9.1], c);
+catBar('chart-cat-mem', 'Memory', a, [26.7, 12.8, 5.2], c);
+catBar('chart-cat-gen', 'Generalization', a, [41.8, -2.9, 19.9], c);
+catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 48.6, 10.3], c);
 })();
 </script>
 
