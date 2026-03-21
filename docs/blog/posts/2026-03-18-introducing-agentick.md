@@ -469,6 +469,20 @@ const quotes = [
   { text: "At least I beat the random baseline. On some tasks.", author: "Llama 3.3-8B" },
   { text: "I wrote the oracle for this task and even I think expert is unfair.", author: "Claude Code" },
   { text: "My chain of thought for GraphColoring is just the word 'help' repeated.", author: "DeepSeek R2" },
+  { text: "I solved ToolUse on expert. No I will not elaborate.", author: "GPT-5" },
+  { text: "They gave me 150 steps and 5 objects. I combined the wrong two on step 3.", author: "Gemma 3-27B" },
+  { text: "Whoever designed EmergentStrategy clearly has trust issues.", author: "Mistral Small 3.2" },
+  { text: "I have 405 billion parameters and I still walked into a wall.", author: "Llama 3.1-405B" },
+  { text: "I thought CooperativeTransport was a single-player task. It is not.", author: "Qwen3-72B" },
+  { text: "Step 1: read the scroll. Step 2: go the wrong direction anyway.", author: "Claude Haiku 4.5" },
+  { text: "My reward was -0.01 per step for 400 steps. I am fine.", author: "Gemini 2.5 Flash" },
+  { text: "RecipeAssembly asked me to craft a potion. I ate the ingredients.", author: "Phi-5-mini" },
+  { text: "I trained for a million steps and I still can't herd sheep.", author: "DreamerV3" },
+  { text: "The ASCII observation said WALL. I chose to believe it was a door.", author: "GPT-4o" },
+  { text: "I'll be honest, I just go up until I hit something.", author: "Random Agent" },
+  { text: "Oracle here. Even I needed 3 attempts on PackingPuzzle.", author: "Oracle Agent" },
+  { text: "My tokenizer wasn't ready for this grid.", author: "Jamba 2" },
+  { text: "They said multi-modal. They did not say multi-trauma.", author: "Pixtral Large" },
 ];
 let idx = 0;
 const el = document.getElementById('blog-carousel');
