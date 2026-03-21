@@ -458,10 +458,10 @@ For agents with complete evaluations across all tasks and difficulties, we can c
 
 <script>
 (() => {
-// ONS bar chart
-const agents = ['GPT-5 mini', 'PPO Dense (500k)', 'Gemini 2.5 FL (Reasoner)', 'PPO Sparse (500k)', 'Gemini 2.5 FL (Markov)'];
-const ons = [28.0, 17.7, 13.0, -0.9, -3.6];
-const barColors = ['#4a90d9', '#50b860', '#e8a838', '#7bc87b', '#f0c060'];
+// ONS bar chart — best config per model only
+const agents = ['GPT-5 mini', 'PPO Dense (500k)', 'Gemini 2.5 FL', 'Qwen3-4B', 'PPO Sparse (500k)'];
+const ons = [28.0, 17.7, 13.0, 0.3, -0.9];
+const barColors = ['#4a90d9', '#50b860', '#e8a838', '#bc8cff', '#7bc87b'];
 new Chart(document.getElementById('chart-ons-bar'), {
   type: 'bar',
   data: {
@@ -482,7 +482,8 @@ const catLabels = ['Navigation', 'Planning', 'Reasoning', 'Memory', 'Generalizat
 const radarData = [
   { name: 'GPT-5 mini', data: [44.5, 23.7, 13.4, 26.7, 41.8, 18.1], color: '#4a90d9' },
   { name: 'PPO Dense (500k)', data: [16.3, 19.3, 15.6, 12.8, 0, 48.6], color: '#50b860' },
-  { name: 'Gemini 2.5 FL (Reasoner)', data: [21.1, 12.7, 9.1, 5.2, 19.9, 10.3], color: '#e8a838' },
+  { name: 'Gemini 2.5 FL', data: [21.1, 12.7, 9.1, 5.2, 19.9, 10.3], color: '#e8a838' },
+  { name: 'Qwen3-4B', data: [3.5, 0, 0.2, 4.1, 0, 1.2], color: '#bc8cff' },
 ];
 new Chart(document.getElementById('chart-ons-radar'), {
   type: 'radar',
@@ -539,14 +540,14 @@ function catBar(id, title, labels, values, colors) {
     },
   });
 }
-const a = ['GPT-5 mini','PPO Dense','Gemini 2.5 FL'];
-const c = ['#4a90d9','#50b860','#e8a838'];
-catBar('chart-cat-nav', 'Navigation', a, [44.5, 16.3, 21.1], c);
-catBar('chart-cat-plan', 'Planning', a, [23.7, 19.3, 12.7], c);
-catBar('chart-cat-reason', 'Reasoning', a, [13.4, 15.6, 9.1], c);
-catBar('chart-cat-mem', 'Memory', a, [26.7, 12.8, 5.2], c);
-catBar('chart-cat-gen', 'Generalization', a, [41.8, -2.9, 19.9], c);
-catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 48.6, 10.3], c);
+const a = ['GPT-5 mini','PPO Dense','Gemini 2.5 FL','Qwen3-4B'];
+const c = ['#4a90d9','#50b860','#e8a838','#bc8cff'];
+catBar('chart-cat-nav', 'Navigation', a, [44.5, 16.3, 21.1, 3.5], c);
+catBar('chart-cat-plan', 'Planning', a, [23.7, 19.3, 12.7, -5.7], c);
+catBar('chart-cat-reason', 'Reasoning', a, [13.4, 15.6, 9.1, 0.2], c);
+catBar('chart-cat-mem', 'Memory', a, [26.7, 12.8, 5.2, 4.1], c);
+catBar('chart-cat-gen', 'Generalization', a, [41.8, -2.9, 19.9, -2.4], c);
+catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 48.6, 10.3, 1.2], c);
 })();
 </script>
 
