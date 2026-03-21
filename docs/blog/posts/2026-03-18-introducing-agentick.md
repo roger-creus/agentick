@@ -389,147 +389,6 @@ score = (agent_return - random) / (oracle - random)
 
 Per-category scores break down into the six capability axes. Submit your results to appear on the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">leaderboard</a> and see how your agent's capability profile compares.
 
-## First Results
-
-We ran a first round of evaluations to see where current agents stand. The results reveal some striking patterns — and a lot of room for improvement.
-
-### Frontier LLMs on Hard Tasks
-
-We evaluated three frontier LLMs on the hardest difficulty level across navigation, planning, and reasoning tasks using ASCII observations and a chain-of-thought reasoning harness. Full results for additional categories and difficulties are still being collected (more on that below).
-
-<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
-<canvas id="chart-frontier-hard" height="300"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script>
-(() => {
-const cats = ['Navigation', 'Planning', 'Reasoning'];
-const models = ['GPT-5 mini', 'Gemini 3.1 Flash Lite', 'Claude Haiku 4.5'];
-const colors = ['#58a6ff', '#3fb950', '#d29922'];
-// Mean success rate at hard level per category
-const data = {
-  'Navigation': [40.0, null, 10.5],
-  'Planning':   [17.8, 30.7, 28.0],
-  'Reasoning':  [13.0, 11.0, 11.5],
-};
-const datasets = models.map((m, i) => ({
-  label: m,
-  data: cats.map(c => data[c][i]),
-  backgroundColor: colors[i] + 'cc',
-  borderColor: colors[i],
-  borderWidth: 1.5,
-  borderRadius: 4,
-}));
-new Chart(document.getElementById('chart-frontier-hard'), {
-  type: 'bar',
-  data: { labels: cats, datasets },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top', labels: { color: '#e6edf3', boxWidth: 12, padding: 16 } },
-      tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e', padding: 10, cornerRadius: 6 },
-    },
-    scales: {
-      y: { min: 0, max: 100, grid: { color: '#30363d33' }, border: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => v + '%' }, title: { display: true, text: 'Success Rate (%)', color: '#8b949e' } },
-      x: { grid: { display: false }, border: { color: '#30363d' }, ticks: { color: '#e6edf3', font: { weight: '600' } } },
-    },
-  },
-});
-})();
-</script>
-
-A few observations:
-
-- **Planning tasks are surprisingly approachable** — even at hard difficulty, models like Gemini 3.1 and Haiku solve BacktrackPuzzle, ResourceManagement, and ToolUse at reasonable rates. These tasks reward multi-step reasoning, which chain-of-thought excels at.
-- **Reasoning is genuinely hard** — tasks like GraphColoring, LightsOut, and SwitchCircuit stump all three models. These require systematic search and state tracking that goes beyond what prompting alone can achieve.
-- **Navigation varies widely** — GPT-5 mini handles structured tasks (ShortestPath, InstructionFollowing) well, but complex spatial reasoning (MazeNavigation, CuriosityMaze) remains near zero even for frontier models.
-- **No single model dominates** — Haiku leads on ResourceManagement and TileSorting, Gemini 3.1 on BacktrackPuzzle and PreciseNavigation, GPT-5 mini on navigation. This is exactly the kind of differentiation a multi-task benchmark is designed to surface.
-
-*(Gemini 3.1 Flash Lite navigation results are being collected and will be added soon.)*
-
-### Full Benchmark: Foundation Models vs. RL
-
-For the models we've evaluated across all tasks and difficulties, we can compute full Oracle-Normalized Scores (ONS). This lets us compare agents across the entire spectrum — from zero-shot LLMs to RL agents trained from scratch.
-
-<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
-<canvas id="chart-full-benchmark" height="240"></canvas>
-</div>
-
-<script>
-(() => {
-const agents = ['GPT-5 mini', 'PPO Dense (500k)', 'Gemini 2.5 FL (Reasoner)', 'PPO Sparse (500k)', 'Gemini 2.5 FL (Markov)'];
-const ons = [0.28, 0.18, 0.13, -0.01, -0.04];
-const colors = ['#58a6ff', '#3fb950', '#d29922', '#56d364', '#e3b341'];
-new Chart(document.getElementById('chart-full-benchmark'), {
-  type: 'bar',
-  data: {
-    labels: agents,
-    datasets: [{ data: ons, backgroundColor: colors.map(c => c + 'cc'), borderColor: colors, borderWidth: 1.5, borderRadius: 4 }],
-  },
-  options: {
-    indexAxis: 'y',
-    responsive: true,
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e', padding: 10, cornerRadius: 6 } },
-    scales: {
-      x: { min: -0.1, max: 0.4, grid: { color: '#30363d33' }, border: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => (v * 100).toFixed(0) + '%' }, title: { display: true, text: 'ONS (Oracle-Normalized Score)', color: '#8b949e' } },
-      y: { grid: { display: false }, border: { color: '#30363d' }, ticks: { color: '#e6edf3', font: { size: 12, weight: '600' } } },
-    },
-  },
-});
-})();
-</script>
-
-<div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
-<canvas id="chart-full-radar" height="320"></canvas>
-</div>
-
-<script>
-(() => {
-const cats = ['Navigation', 'Planning', 'Reasoning', 'Memory', 'Generalization', 'Multi-Agent'];
-const agents = [
-  { name: 'GPT-5 mini', data: [0.445, 0.237, 0.134, 0.267, 0.418, 0.181], color: '#58a6ff' },
-  { name: 'PPO Dense (500k)', data: [0.164, 0.193, 0.156, 0.129, -0.029, 0.487], color: '#3fb950' },
-  { name: 'Gemini 2.5 FL (Reasoner)', data: [0.211, 0.127, 0.091, 0.052, 0.199, 0.103], color: '#d29922' },
-];
-new Chart(document.getElementById('chart-full-radar'), {
-  type: 'radar',
-  data: {
-    labels: cats,
-    datasets: agents.map(a => ({
-      label: a.name, data: a.data.map(v => Math.max(v, 0)),
-      borderColor: a.color, backgroundColor: a.color + '18',
-      borderWidth: 2, pointRadius: 3, pointBackgroundColor: a.color,
-    })),
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { position: 'bottom', labels: { color: '#e6edf3', boxWidth: 12, padding: 12, font: { size: 11 } } }, tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1, titleColor: '#e6edf3', bodyColor: '#8b949e', padding: 10, cornerRadius: 6 } },
-    scales: { r: { min: 0, max: 0.5, grid: { color: '#8b949e33' }, angleLines: { color: '#8b949e33' }, pointLabels: { font: { size: 12, weight: '600' }, color: '#e6edf3' }, ticks: { display: false, stepSize: 0.1 } } },
-  },
-});
-})();
-</script>
-
-Key takeaways:
-
-- **GPT-5 mini leads overall** at 28% ONS — strong across navigation, generalization, and memory, but reasoning remains its weakest axis.
-- **PPO Dense is competitive** at 18% ONS with just 500k training steps — and it *dominates* multi-agent tasks (49% ONS), far ahead of any LLM. Learning from experience in cooperative/competitive scenarios clearly helps where zero-shot reasoning falls short.
-- **Chain-of-thought matters** — the same Gemini 2.5 Flash Lite model jumps from ~0% to 13% ONS when switching from zero-shot to a reasoning harness. Prompting strategy is as important as model capability.
-- **Massive room for improvement** — even the best agent reaches only 28% of oracle performance. The hardest categories (reasoning, multi-agent) remain below 20% ONS for all agents. This benchmark has headroom for years of progress.
-
-All results are live on the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">leaderboard</a> with per-task breakdowns.
-
-## What's Next
-
-The leaderboard is live and growing. Here's what's coming:
-
-**More evaluations** — We're actively running open-source models (Qwen family) and collecting results across the full benchmark. Gemini 3.1 Flash Lite navigation results and additional frontier model evaluations are in progress. Every new result will be published to the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">leaderboard</a> as it comes in.
-
-**Fine-tuning foundation models** — Oracle trajectories are available as pre-built SFT datasets on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-50k" target="_blank">50k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-100k" target="_blank">100k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-200k" target="_blank">200k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-400k" target="_blank">400k</a> episodes). Fine-tune your favorite open-source model, evaluate it, and submit. RL post-training support is coming soon.
-
-**Help us populate the leaderboard!** If you have API access to frontier models (GPT-4o, Claude Opus/Sonnet, Gemini Pro, etc.) and want to contribute, we'd be incredibly grateful. Running a full evaluation takes a few hours with our harness — see the <a href="https://roger-creus.github.io/agentick/leaderboard/" target="_blank">submission instructions</a> for details.
-
 ## Get Started
 
 ```bash
@@ -553,18 +412,24 @@ env.close()
 
 ```bash
 uv run agentick webapp          # Play tasks yourself in the browser
-uv run agentick list-tasks      # See all tasks
+uv run agentick list-tasks      # See all 37 tasks
 ```
 
 Browse the [documentation](../../index.md), explore the [task catalog](../../tasks.md), or check out the [example configs](https://github.com/roger-creus/agentick/tree/main/examples) to get running.
 
 ## Built for the Research Community
 
-Agentick is MIT-licensed and designed for open research. Whether you're training RL agents, evaluating foundation models, building hybrid systems, or studying what makes agents "general" — we built this to be the common ground where all of that work can be measured and compared.
+Agentick is MIT-licensed and designed for open research. Whether you're training RL agents, evaluating foundation models, building hybrid systems, or studying what makes agents "general" - we built this to be the common ground where all of that work can be measured and compared.
+
+We'd love to see:
+
+- **Leaderboard submissions** from open-source and commercial models
+- **New training recipes** - RL post-training, SFT, behavior cloning, curriculum learning
+- **Analysis** of capability profiles across agent paradigms
+- **Community contributions** - new tasks, observation modes, agent harnesses
 
 The benchmark, documentation, examples, and leaderboard are all live. Give it a try and let us know what you find.
 
 <div style="text-align: center; margin: 2em 0;">
-  <a href="https://github.com/roger-creus/agentick" target="_blank" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; margin-right: 8px;">View on GitHub</a>
-  <a href="https://roger-creus.github.io/agentick/board/" target="_blank" style="display: inline-block; padding: 12px 24px; background: #58a6ff; color: #0d1117; text-decoration: none; border-radius: 6px; font-weight: bold;">View Leaderboard</a>
+  <a href="https://github.com/roger-creus/agentick" target="_blank" style="display: inline-block; padding: 12px 24px; background: #4051b5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View on GitHub</a>
 </div>
