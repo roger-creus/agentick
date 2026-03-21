@@ -399,40 +399,42 @@ We evaluated three frontier LLMs on hard difficulty across navigation, planning,
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<div style="display: flex; gap: 16px; flex-wrap: wrap; margin: 1.5em 0;">
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
-<canvas id="chart-hard-nav" height="200"></canvas>
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
+<canvas id="chart-hard-nav" height="160"></canvas>
 </div>
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
-<canvas id="chart-hard-plan" height="220"></canvas>
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 0 0 1em;">
+<canvas id="chart-hard-plan" height="170"></canvas>
 </div>
-<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 16px;">
-<canvas id="chart-hard-reason" height="200"></canvas>
-</div>
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 0 0 1.5em;">
+<canvas id="chart-hard-reason" height="160"></canvas>
 </div>
 
 <script>
 (() => {
-const M = ['GPT-5 mini','Gemini 3.1 FL','Haiku 4.5'];
-const C = ['#4a90d9','#50b860','#e8a838'];
+const M = ['GPT-5 mini','Gemini 3.1 Flash Lite','Claude Haiku 4.5'];
+const C = ['#4a90d9cc','#50b860cc','#e8a838cc'];
+const B = ['#4a90d9','#50b860','#e8a838'];
 function hardBar(id, title, tasks, d0, d1, d2) {
   new Chart(document.getElementById(id), {
     type: 'bar',
-    data: { labels: tasks, datasets: M.map((m,i) => ({ label: m, data: [d0,d1,d2][i], backgroundColor: C[i]+'cc', borderColor: C[i], borderWidth: 1, borderRadius: 3 })) },
-    options: { indexAxis: 'y', responsive: true,
-      plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } }, tooltip: { padding: 8, cornerRadius: 6 }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 8 } } },
-      scales: { x: { min: 0, max: 100, grid: { color: '#e1e4e822' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v+'%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 9, weight: '500' } } } },
+    data: { labels: tasks, datasets: M.map((m,i) => ({ label: m, data: [d0,d1,d2][i], backgroundColor: C[i], borderColor: B[i], borderWidth: 1.5, borderRadius: 4, barPercentage: 0.85, categoryPercentage: 0.82 })) },
+    options: { responsive: true,
+      plugins: { legend: { display: id==='chart-hard-nav', position: 'top', labels: { boxWidth: 12, padding: 14, font: { size: 11 } } }, tooltip: { padding: 10, cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } }, title: { display: true, text: title, font: { size: 14, weight: '600' }, padding: { bottom: 12 } } },
+      scales: {
+        y: { min: 0, max: 100, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v+'%', font: { size: 10 } } },
+        x: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 9 }, maxRotation: 35, minRotation: 20 } },
+      },
     },
   });
 }
-hardBar('chart-hard-nav', 'Navigation (Hard)',
+hardBar('chart-hard-nav', 'Navigation — Hard Difficulty',
   ['CuriosityMaze','DynamicObst.','GoToGoal','InstructionF.','MazeNav.','RecursiveR.','ShortestPath','TimingChal.'],
   [0,60,56,80,4,12,72,36], [0,44,20,0,4,12,16,32], [0,24,20,8,0,0,0,32]);
-hardBar('chart-hard-plan', 'Planning (Hard)',
-  ['BacktrackP.','KeyDoorP.','PackingP.','PreciseNav.','RecipeAssem.','ResourceMgmt','SokobanPush','TileSorting','ToolUse'],
+hardBar('chart-hard-plan', 'Planning — Hard Difficulty',
+  ['BacktrackP.','KeyDoorP.','PackingP.','PreciseNav.','RecipeA.','ResourceM.','SokobanP.','TileSorting','ToolUse'],
   [20,4,0,12,0,12,0,12,100], [60,0,0,48,0,48,0,24,96], [0,0,0,32,0,76,0,44,100]);
-hardBar('chart-hard-reason', 'Reasoning (Hard)',
-  ['DeceptiveR.','GraphColor.','LightsOut','ProgramS.','RuleInduc.','SwitchCirc.','SymbolMatch.','TaskInterf.'],
+hardBar('chart-hard-reason', 'Reasoning — Hard Difficulty',
+  ['DeceptiveR.','GraphC.','LightsOut','ProgramS.','RuleInduc.','SwitchC.','SymbolM.','TaskInterf.'],
   [100,0,0,0,0,0,0,4], [56,0,0,0,32,0,0,0], [80,0,0,0,0,0,0,12]);
 })();
 </script>
