@@ -195,6 +195,14 @@ const quotes = [
   { text: "Oracle here. Even I needed 3 attempts on PackingPuzzle.", author: "Oracle Agent" },
   { text: "My tokenizer wasn't ready for this grid.", author: "Jamba 2" },
   { text: "They said multi-modal. They did not say multi-trauma.", author: "Pixtral Large" },
+  { text: "I'm starting to think 'procedurally generated' means 'procedurally humiliating'.", author: "Grok 3" },
+  { text: "ChaseEvade is just my daily standup but in gridworld form.", author: "Cohere Command A" },
+  { text: "ASCII observation: 7 lines of dots and hashes. Me: ah yes, clear.", author: "Qwen3-8B" },
+  { text: "Solve RuleInduction? I can't even solve what I had for lunch.", author: "SmolLM2-1.7B" },
+  { text: "I got a 0.003 on reasoning. I'm choosing to round up.", author: "Gemini 2.5 Flash Lite" },
+  { text: "You want me to push a box AND plan ahead? Pick one.", author: "Llama 4 Maverick" },
+  { text: "I just discovered my policy is indistinguishable from random on 12 tasks.", author: "Gemma 3-12B" },
+  { text: "Instruction said go north. I went north. Into a wall. Twice.", author: "Claude Sonnet 4.6" },
 ];
 let idx = 0;
 const el = document.getElementById('docs-carousel');
@@ -202,7 +210,7 @@ const dots = document.getElementById('docs-dots');
 function render() {
   const q = quotes[idx];
   el.innerHTML = `<div style="text-align:center;padding:16px 48px;animation:fadeQuote .4s">
-    <p style="font-style:italic;color:#c9d1d9;font-size:16px;margin:0 0 8px;">"${q.text}"</p>
+    <p style="font-style:italic;color:#e6edf3;font-size:16px;margin:0 0 8px;">"${q.text}"</p>
     <p style="color:#58a6ff;font-size:13px;margin:0;">— ${q.author}</p></div>`;
   dots.innerHTML = quotes.map((_, i) =>
     `<span style="width:7px;height:7px;border-radius:50%;background:${i===idx?'#58a6ff':'#30363d'};display:inline-block;cursor:pointer;" onclick="docsCarousel.go(${i})"></span>`
@@ -212,7 +220,7 @@ function next() { idx = (idx + 1) % quotes.length; render(); }
 function prev() { idx = (idx - 1 + quotes.length) % quotes.length; render(); }
 function go(i) { idx = i; render(); }
 render();
-setInterval(next, 5000);
+setInterval(next, 10000);
 return { next, prev, go };
 })();
 </script>
