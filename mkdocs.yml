@@ -16,8 +16,7 @@ theme:
     - search.highlight
 
 nav:
-  - Home: index.md
-  - Blog: blog/index.md
+  - Home: blog/index.md
   - Quickstart: getting_started/quickstart.md
   - Tasks: tasks.md
   - Observations: concepts/observations.md

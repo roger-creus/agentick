@@ -389,6 +389,158 @@ score = (agent_return - random) / (oracle - random)
 
 Per-category scores break down into the six capability axes. Submit your results to appear on the <a href="https://roger-creus.github.io/agentick/board/" target="_blank">leaderboard</a> and see how your agent's capability profile compares.
 
+## Preliminary Results
+
+We ran initial evaluations to understand where current agents stand. The results are early — we're still collecting data — but they already reveal striking patterns.
+
+### Frontier LLMs on Hard Tasks
+
+We evaluated three frontier LLMs on hard difficulty across navigation, planning, and reasoning using ASCII observations and a chain-of-thought reasoning harness.
+
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
+<canvas id="chart-frontier-grouped" height="300"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+const tasks = ["CuriosityMaze","DynamicObstacles","GoToGoal","InstructionFollow.","MazeNavigation","RecursiveRooms","ShortestPath","TimingChallenge","BacktrackPuzzle","KeyDoorPuzzle","PackingPuzzle","PreciseNavigation","RecipeAssembly","ResourceMgmt","SokobanPush","TileSorting","ToolUse","DeceptiveReward","GraphColoring","LightsOut","ProgramSynth.","RuleInduction","SwitchCircuit","SymbolMatching","TaskInterference"];
+const gpt = [0,60,56,80,4,12,72,36,20,4,0,12,0,12,0,12,100,100,0,0,0,0,0,0,4];
+const gem = [0,44,20,0,4,12,16,32,60,0,0,48,0,48,0,24,96,56,0,0,0,32,0,0,0];
+const hai = [0,24,20,8,0,0,0,32,0,0,0,32,0,76,0,44,100,80,0,0,0,0,0,0,12];
+new Chart(document.getElementById('chart-frontier-grouped'), {
+  type: 'bar',
+  data: {
+    labels: tasks,
+    datasets: [
+      { label: 'GPT-5 mini', data: gpt, backgroundColor: '#4a90d9cc', borderColor: '#4a90d9', borderWidth: 1, borderRadius: 3 },
+      { label: 'Gemini 3.1 Flash Lite', data: gem, backgroundColor: '#50b860cc', borderColor: '#50b860', borderWidth: 1, borderRadius: 3 },
+      { label: 'Claude Haiku 4.5', data: hai, backgroundColor: '#e8a838cc', borderColor: '#e8a838', borderWidth: 1, borderRadius: 3 },
+    ],
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 14, font: { size: 11 } } },
+      tooltip: { padding: 10, cornerRadius: 6 },
+      title: { display: true, text: 'Frontier LLMs — Success Rate at Hard Difficulty', font: { size: 14, weight: '600' }, padding: { bottom: 16 } },
+    },
+    scales: {
+      y: { min: 0, max: 100, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 10 } }, title: { display: true, text: 'Success Rate (%)', font: { size: 11 } } },
+      x: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 8 }, maxRotation: 55, minRotation: 45 } },
+    },
+  },
+});
+})();
+</script>
+
+<!-- PLACEHOLDER: Analysis text will be added here -->
+
+### Full Benchmark Overview
+
+For agents with complete evaluations across all tasks and difficulties, we can compute Oracle-Normalized Scores (ONS).
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; margin: 1.5em 0;">
+<div style="flex: 1; min-width: 300px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
+<canvas id="chart-ons-bar" height="220"></canvas>
+</div>
+<div style="flex: 1; min-width: 300px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
+<canvas id="chart-ons-radar" height="280"></canvas>
+</div>
+</div>
+
+<script>
+(() => {
+// ONS bar chart
+const agents = ['GPT-5 mini', 'PPO Dense (500k)', 'Gemini 2.5 FL (Reasoner)', 'PPO Sparse (500k)', 'Gemini 2.5 FL (Markov)'];
+const ons = [28.0, 17.7, 13.0, -0.9, -3.6];
+const barColors = ['#4a90d9', '#50b860', '#e8a838', '#7bc87b', '#f0c060'];
+new Chart(document.getElementById('chart-ons-bar'), {
+  type: 'bar',
+  data: {
+    labels: agents,
+    datasets: [{ data: ons, backgroundColor: barColors.map(c => c + 'cc'), borderColor: barColors, borderWidth: 1.5, borderRadius: 4 }],
+  },
+  options: {
+    indexAxis: 'y', responsive: true,
+    plugins: { legend: { display: false }, tooltip: { padding: 10, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: 'Overall ONS (%)', font: { size: 14, weight: '600' }, padding: { bottom: 12 } } },
+    scales: {
+      x: { min: -10, max: 35, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 10 } } },
+      y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 11, weight: '600' } } },
+    },
+  },
+});
+// Radar chart
+const catLabels = ['Navigation', 'Planning', 'Reasoning', 'Memory', 'Generalization', 'Multi-Agent'];
+const radarData = [
+  { name: 'GPT-5 mini', data: [44.5, 23.7, 13.4, 26.7, 41.8, 18.1], color: '#4a90d9' },
+  { name: 'PPO Dense (500k)', data: [16.4, 19.3, 15.6, 12.9, 0, 48.7], color: '#50b860' },
+  { name: 'Gemini 2.5 FL (Reasoner)', data: [21.1, 12.7, 9.1, 5.2, 19.9, 10.3], color: '#e8a838' },
+];
+new Chart(document.getElementById('chart-ons-radar'), {
+  type: 'radar',
+  data: {
+    labels: catLabels,
+    datasets: radarData.map(a => ({ label: a.name, data: a.data, borderColor: a.color, backgroundColor: a.color + '18', borderWidth: 2, pointRadius: 3, pointBackgroundColor: a.color })),
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: true, text: 'Category ONS (%)', font: { size: 14, weight: '600' }, padding: { bottom: 8 } } },
+    scales: { r: { min: 0, max: 50, grid: { color: '#d0d0d044' }, angleLines: { color: '#d0d0d044' }, pointLabels: { font: { size: 10, weight: '600' } }, ticks: { display: false, stepSize: 10 } } },
+  },
+});
+})();
+</script>
+
+<!-- PLACEHOLDER: Full benchmark analysis text will be added here -->
+
+### Category Breakdown
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; margin: 1.5em 0;">
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
+<canvas id="chart-cat-nav" height="180"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
+<canvas id="chart-cat-plan" height="180"></canvas>
+</div>
+<div style="flex: 1; min-width: 280px; background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px;">
+<canvas id="chart-cat-reason" height="180"></canvas>
+</div>
+</div>
+
+<script>
+(() => {
+function catBar(id, title, labels, values, colors) {
+  new Chart(document.getElementById(id), {
+    type: 'bar', data: { labels, datasets: [{ data: values, backgroundColor: colors.map(c=>c+'cc'), borderColor: colors, borderWidth: 1.5, borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true,
+      plugins: { legend: { display: false }, tooltip: { padding: 8, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 10 } } },
+      scales: { x: { min: 0, max: 50, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 10, weight: '600' } } } },
+    },
+  });
+}
+const a = ['GPT-5 mini','PPO Dense','Gemini 2.5 FL'];
+const c = ['#4a90d9','#50b860','#e8a838'];
+catBar('chart-cat-nav', 'Navigation ONS', a, [44.5, 16.4, 21.1], c);
+catBar('chart-cat-plan', 'Planning ONS', a, [23.7, 19.3, 12.7], c);
+catBar('chart-cat-reason', 'Reasoning ONS', a, [13.4, 15.6, 9.1], c);
+})();
+</script>
+
+<!-- PLACEHOLDER: Category analysis text will be added here -->
+
+## What's Next
+
+<!-- PLACEHOLDER: Detailed what's next content will be added -->
+
+- **More evaluations** — open-source models (Qwen family) are being evaluated across the full benchmark
+- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-50k" target="_blank">50k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-100k" target="_blank">100k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-200k" target="_blank">200k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-400k" target="_blank">400k</a> episodes). RL post-training support coming soon.
+- **VLM evaluation** — pixel observation benchmarks for vision-language models
+- **Better RL baselines** — longer training, curriculum learning, multi-task agents
+- **New tasks** — community contributions welcome
+
+**Help us populate the leaderboard!** If you have API access to frontier models and want to contribute, see the <a href="https://roger-creus.github.io/agentick/leaderboard/" target="_blank">submission instructions</a>.
+
 ## Get Started
 
 ```bash
