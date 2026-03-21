@@ -504,11 +504,13 @@ function render() {
     `<span style="width:7px;height:7px;border-radius:50%;background:${i===idx?'#58a6ff':'#30363d'};display:inline-block;cursor:pointer;" onclick="blogCarousel.go(${i})"></span>`
   ).join('');
 }
-function next() { idx = (idx + 1) % quotes.length; render(); }
-function prev() { idx = (idx - 1 + quotes.length) % quotes.length; render(); }
-function go(i) { idx = i; render(); }
+let timer = null;
+function resetTimer() { clearInterval(timer); timer = setInterval(next, 10000); }
+function next() { idx = (idx + 1) % quotes.length; render(); resetTimer(); }
+function prev() { idx = (idx - 1 + quotes.length) % quotes.length; render(); resetTimer(); }
+function go(i) { idx = i; render(); resetTimer(); }
 render();
-setInterval(next, 10000);
+timer = setInterval(next, 10000);
 return { next, prev, go };
 })();
 </script>

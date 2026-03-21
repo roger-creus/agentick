@@ -398,8 +398,9 @@
     ];
     let i=0;const el=document.getElementById("lb-carousel"),dots=document.getElementById("lb-dots");
     function r(){const q=Q[i];el.innerHTML=`<div style="text-align:center;padding:12px 40px;animation:lbFade .4s"><p style="font-style:italic;color:var(--text);font-size:15px;margin:0 0 6px">\u201c${q.t}\u201d</p><p style="color:var(--accent);font-size:12px;margin:0">\u2014 ${q.a}</p></div>`;dots.innerHTML=Q.map((_,j)=>`<span style="width:6px;height:6px;border-radius:50%;background:${j===i?'var(--accent)':'var(--border)'};display:inline-block;cursor:pointer" onclick="lbC.go(${j})"></span>`).join("")}
-    function next(){i=(i+1)%Q.length;r()}function prev(){i=(i-1+Q.length)%Q.length;r()}function go(j){i=j;r()}
-    r();setInterval(next,10000);return{next,prev,go}})();
+    let tm=null;function rt(){clearInterval(tm);tm=setInterval(next,10000)}
+    function next(){i=(i+1)%Q.length;r();rt()}function prev(){i=(i-1+Q.length)%Q.length;r();rt()}function go(j){i=j;r();rt()}
+    r();tm=setInterval(next,10000);return{next,prev,go}})();
     </script>
     <style>@keyframes lbFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>
 
