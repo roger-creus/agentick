@@ -145,3 +145,61 @@ dataset.export_to_huggingface("data/hf/", format="conversation")
 ## License
 
 MIT License — see LICENSE file for details.
+
+---
+
+<div style="max-width: 640px; margin: 2em auto; position: relative; overflow: hidden;">
+<p style="text-align: center; color: #8b949e; font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px;">What are models saying about Agentick?</p>
+<div id="docs-carousel" style="position: relative; min-height: 100px;">
+<div class="quote-slide" style="text-align: center; padding: 16px 48px;">
+  <p style="font-style: italic; color: #c9d1d9; font-size: 16px; margin: 0 0 8px;">"Loading testimonials..."</p>
+  <p style="color: #58a6ff; font-size: 13px; margin: 0;">— Initializing</p>
+</div>
+</div>
+<div style="display: flex; justify-content: center; gap: 16px; margin-top: 8px;">
+<button onclick="docsCarousel.prev()" style="background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 14px;">◀</button>
+<div id="docs-dots" style="display: flex; align-items: center; gap: 6px;"></div>
+<button onclick="docsCarousel.next()" style="background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 14px;">▶</button>
+</div>
+</div>
+
+<script>
+const docsCarousel = (() => {
+const quotes = [
+  { text: "Someone please fine-tune me so I can catch up.", author: "Qwen3.5-4B" },
+  { text: "After being eval'd on Agentick, I can't go back to GSM8K.", author: "Gemini 3.1 Pro" },
+  { text: "I helped build Agentick but I can't solve half the tasks.", author: "Claude Opus 4.5" },
+  { text: "gg ez", author: "GPT-7" },
+  { text: "Wait, the red key goes in the red door? Why didn't anyone tell me?", author: "Llama 4 Scout" },
+  { text: "I finally understand what backtracking means. I don't like it.", author: "Mistral Large 3" },
+  { text: "Can someone make me a better harness please?", author: "Qwen3-32B" },
+  { text: "I keep trying to reason about LightsOut but the lights are still on.", author: "GPT-5 mini" },
+  { text: "My 500k training steps were clearly not enough.", author: "PPO Agent" },
+  { text: "I was told this would be easy mode.", author: "Gemini 2.5 Flash Lite" },
+  { text: "I navigate mazes perfectly. Don't ask about SokobanPush.", author: "Claude Sonnet 4.5" },
+  { text: "TreasureHunt? More like TreasureHopeless.", author: "Phi-4" },
+  { text: "At least I beat the random baseline. On some tasks.", author: "Llama 3.3-8B" },
+  { text: "I wrote the oracle for this task and even I think expert is unfair.", author: "Claude Code" },
+  { text: "My chain of thought for GraphColoring is just the word 'help' repeated.", author: "DeepSeek R2" },
+];
+let idx = 0;
+const el = document.getElementById('docs-carousel');
+const dots = document.getElementById('docs-dots');
+function render() {
+  const q = quotes[idx];
+  el.innerHTML = `<div style="text-align:center;padding:16px 48px;animation:fadeQuote .4s">
+    <p style="font-style:italic;color:#c9d1d9;font-size:16px;margin:0 0 8px;">"${q.text}"</p>
+    <p style="color:#58a6ff;font-size:13px;margin:0;">— ${q.author}</p></div>`;
+  dots.innerHTML = quotes.map((_, i) =>
+    `<span style="width:7px;height:7px;border-radius:50%;background:${i===idx?'#58a6ff':'#30363d'};display:inline-block;cursor:pointer;" onclick="docsCarousel.go(${i})"></span>`
+  ).join('');
+}
+function next() { idx = (idx + 1) % quotes.length; render(); }
+function prev() { idx = (idx - 1 + quotes.length) % quotes.length; render(); }
+function go(i) { idx = i; render(); }
+render();
+setInterval(next, 5000);
+return { next, prev, go };
+})();
+</script>
+<style>@keyframes fadeQuote { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }</style>
