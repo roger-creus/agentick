@@ -498,7 +498,7 @@ const dots = document.getElementById('blog-dots');
 function render() {
   const q = quotes[idx];
   el.innerHTML = `<div style="text-align:center;padding:16px 48px;animation:fadeIn .4s">
-    <p style="font-style:italic;color:#e6edf3;font-size:16px;margin:0 0 8px;">"${q.text}"</p>
+    <p style="font-style:italic;color:#333;font-size:16px;margin:0 0 8px;">"${q.text}"</p>
     <p style="color:#58a6ff;font-size:13px;margin:0;">— ${q.author}</p></div>`;
   dots.innerHTML = quotes.map((_, i) =>
     `<span style="width:7px;height:7px;border-radius:50%;background:${i===idx?'#58a6ff':'#30363d'};display:inline-block;cursor:pointer;" onclick="blogCarousel.go(${i})"></span>`
