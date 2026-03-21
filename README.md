@@ -164,10 +164,9 @@ Pre-built datasets of expert trajectories for SFT fine-tuning:
 
 | Dataset | Train | Test |
 |---------|-------|------|
-| [`agentick-oracle-trajectories-50k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) | ~50k steps | ~50k steps |
-| [`agentick-oracle-trajectories-100k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) | ~100k steps | ~100k steps |
-| [`agentick-oracle-trajectories-200k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) | ~200k steps | ~200k steps |
-| [`agentick-oracle-trajectories-400k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) | ~400k steps | ~400k steps |
+| [`agentick-oracle-trajectories-120k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) | 120K episodes |
+| [`agentick-oracle-trajectories-250k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K episodes |
+| [`agentick-oracle-trajectories-500k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K episodes |
 
 Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. Train/test use different deterministic seeds. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
 

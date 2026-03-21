@@ -556,8 +556,8 @@ catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 48.6, 10.3], c);
 
 <!-- PLACEHOLDER: Detailed what's next content will be added -->
 
-- **More evaluations** — open-source models (Qwen family) are being evaluated across the full benchmark
-- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-50k" target="_blank">50k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-100k" target="_blank">100k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-200k" target="_blank">200k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-400k" target="_blank">400k</a> episodes). RL post-training support coming soon.
+- **More evaluations** — open-source models are being evaluated across the full benchmark
+- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-120k" target="_blank">120k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-250k" target="_blank">250k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-500k" target="_blank">500k</a> episodes). RL post-training support coming soon.
 - **VLM evaluation** — pixel observation benchmarks for vision-language models
 - **Better RL baselines** — longer training, curriculum learning, multi-task agents
 - **New tasks** — community contributions welcome

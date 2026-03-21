@@ -6,12 +6,11 @@ Fine-tune language models on expert trajectories from Agentick oracles.
 
 Oracle trajectory datasets are available on HuggingFace:
 
-| Dataset | Train | Test | Link |
-|---------|-------|------|------|
-| `rogercc/agentick-oracle-trajectories-50k` | ~50k steps | ~50k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-50k) |
-| `rogercc/agentick-oracle-trajectories-100k` | ~100k steps | ~100k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-100k) |
-| `rogercc/agentick-oracle-trajectories-200k` | ~200k steps | ~200k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-200k) |
-| `rogercc/agentick-oracle-trajectories-400k` | ~400k steps | ~400k steps | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-400k) |
+| Dataset | Episodes | Link |
+|---------|----------|------|
+| `rogercc/agentick-oracle-trajectories-120k` | 120K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) |
+| `rogercc/agentick-oracle-trajectories-250k` | 250K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) |
+| `rogercc/agentick-oracle-trajectories-500k` | 500K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) |
 
 Each dataset is a DatasetDict with train/test splits (using different deterministic seeds). Per-step records with `ascii_render`, `language_render`, `action_int`, `action_name`, `task`, `difficulty`, `reward`, and `done` columns.
 
