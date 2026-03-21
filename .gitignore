@@ -111,3 +111,11 @@ examples/experiments/configs/gemini_31_flash_lite_*
 
 # Haiku configs (Azure credentials, local only)
 examples/experiments/configs/haiku_*
+
+# Cluster/SLURM infrastructure (private)
+cluster_manager/
+slurm_account_template.sbatch
+*.sbatch
+
+# NVIDIA cache
+.nv/
