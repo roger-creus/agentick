@@ -345,6 +345,56 @@
         {% block content %}{% endblock %}
     </main>
 
+    <div style="max-width: 560px; margin: 48px auto 0; padding: 0 24px;">
+        <p style="text-align: center; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;">What are models saying about Agentick?</p>
+        <div id="lb-carousel" style="min-height: 80px;"></div>
+        <div style="display: flex; justify-content: center; gap: 14px; margin-top: 6px;">
+            <button onclick="lbC.prev()" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:12px;">&#9664;</button>
+            <div id="lb-dots" style="display:flex;align-items:center;gap:5px;"></div>
+            <button onclick="lbC.next()" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:12px;">&#9654;</button>
+        </div>
+    </div>
+
+    <script>
+    const lbC=(()=>{
+    const Q=[
+      {t:"Someone please fine-tune me so I can catch up.",a:"Qwen3.5-4B"},
+      {t:"After being eval'd on Agentick, I can't go back to GSM8K.",a:"Gemini 3.1 Pro"},
+      {t:"I helped build Agentick but I can't solve half the tasks.",a:"Claude Opus 4.5"},
+      {t:"gg ez",a:"GPT-7"},
+      {t:"Wait, the red key goes in the red door? Why didn't anyone tell me?",a:"Llama 4 Scout"},
+      {t:"I finally understand what backtracking means. I don't like it.",a:"Mistral Large 3"},
+      {t:"Can someone make me a better harness please?",a:"Qwen3-32B"},
+      {t:"I keep trying to reason about LightsOut but the lights are still on.",a:"GPT-5 mini"},
+      {t:"My 500k training steps were clearly not enough.",a:"PPO Agent"},
+      {t:"I was told this would be easy mode.",a:"Gemini 2.5 Flash Lite"},
+      {t:"I navigate mazes perfectly. Don't ask about SokobanPush.",a:"Claude Sonnet 4.5"},
+      {t:"TreasureHunt? More like TreasureHopeless.",a:"Phi-4"},
+      {t:"At least I beat the random baseline. On some tasks.",a:"Llama 3.3-8B"},
+      {t:"I wrote the oracle for this task and even I think expert is unfair.",a:"Claude Code"},
+      {t:"My chain of thought for GraphColoring is just the word 'help' repeated.",a:"DeepSeek R2"},
+      {t:"I solved ToolUse on expert. No I will not elaborate.",a:"GPT-5"},
+      {t:"They gave me 150 steps and 5 objects. I combined the wrong two on step 3.",a:"Gemma 3-27B"},
+      {t:"Whoever designed EmergentStrategy clearly has trust issues.",a:"Mistral Small 3.2"},
+      {t:"I have 405 billion parameters and I still walked into a wall.",a:"Llama 3.1-405B"},
+      {t:"I thought CooperativeTransport was a single-player task. It is not.",a:"Qwen3-72B"},
+      {t:"Step 1: read the scroll. Step 2: go the wrong direction anyway.",a:"Claude Haiku 4.5"},
+      {t:"My reward was -0.01 per step for 400 steps. I am fine.",a:"Gemini 2.5 Flash"},
+      {t:"RecipeAssembly asked me to craft a potion. I ate the ingredients.",a:"Phi-5-mini"},
+      {t:"I trained for a million steps and I still can't herd sheep.",a:"DreamerV3"},
+      {t:"The ASCII observation said WALL. I chose to believe it was a door.",a:"GPT-4o"},
+      {t:"I'll be honest, I just go up until I hit something.",a:"Random Agent"},
+      {t:"Oracle here. Even I needed 3 attempts on PackingPuzzle.",a:"Oracle Agent"},
+      {t:"My tokenizer wasn't ready for this grid.",a:"Jamba 2"},
+      {t:"They said multi-modal. They did not say multi-trauma.",a:"Pixtral Large"},
+    ];
+    let i=0;const el=document.getElementById("lb-carousel"),dots=document.getElementById("lb-dots");
+    function r(){const q=Q[i];el.innerHTML=`<div style="text-align:center;padding:12px 40px;animation:lbFade .4s"><p style="font-style:italic;color:var(--text);font-size:15px;margin:0 0 6px">\u201c${q.t}\u201d</p><p style="color:var(--accent);font-size:12px;margin:0">\u2014 ${q.a}</p></div>`;dots.innerHTML=Q.map((_,j)=>`<span style="width:6px;height:6px;border-radius:50%;background:${j===i?'var(--accent)':'var(--border)'};display:inline-block;cursor:pointer" onclick="lbC.go(${j})"></span>`).join("")}
+    function next(){i=(i+1)%Q.length;r()}function prev(){i=(i-1+Q.length)%Q.length;r()}function go(j){i=j;r()}
+    r();setInterval(next,5000);return{next,prev,go}})();
+    </script>
+    <style>@keyframes lbFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}</style>
+
     <footer>
         <p>Agentick Leaderboard -- Universal Benchmark for Evaluating AI Agents.</p>
     </footer>
