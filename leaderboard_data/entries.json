@@ -19817,6 +19817,854 @@
       "metadata": {
         "config_stem": "qwen35_2b_lang_markov"
       }
+    },
+    {
+      "agent_name": "PPO Dense (2M)",
+      "author": "Agentick",
+      "description": "PPO CnnPolicy, dense rewards, 2M timesteps, 8 parallel envs",
+      "agent_type": "rl",
+      "observation_mode": "rgb_array",
+      "harness": "-",
+      "model": "PPO (CnnPolicy)",
+      "open_weights": true,
+      "date": "2026-03-22",
+      "scores": {
+        "agentick_score": 0.2869,
+        "agentick_score_ci": [
+          0.2116,
+          0.3668
+        ],
+        "per_category": {
+          "planning": 0.4022,
+          "multi_agent": 0.432,
+          "navigation": 0.25,
+          "reasoning": 0.1913,
+          "memory": 0.2825,
+          "generalization": 0.1633
+        },
+        "per_task": {
+          "BacktrackPuzzle-v0": {
+            "easy": {
+              "success_rate": 0.96,
+              "mean_return": 1.506,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.52,
+              "mean_return": 0.226,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.562,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "ChaseEvade-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 2.4328,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.4,
+              "mean_return": 1.0112,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.52,
+              "mean_return": 2.1452,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.08,
+              "mean_return": -0.352,
+              "n_episodes": 25
+            }
+          },
+          "CooperativeTransport-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -0.9936,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -2.0088,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.504,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -5.0176,
+              "n_episodes": 25
+            }
+          },
+          "CuriosityMaze-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -0.8,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.5,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.8,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -4.5,
+              "n_episodes": 25
+            }
+          },
+          "DeceptiveReward-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 0.06,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 0.09,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 0.13,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 0.11,
+              "n_episodes": 25
+            }
+          },
+          "DelayedGratification-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.1524,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.88,
+              "mean_return": 0.9916,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.2,
+              "mean_return": -0.6228,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "DistributionShift-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -1.93,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -3.446,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "DynamicObstacles-v0": {
+            "easy": {
+              "success_rate": 0.96,
+              "mean_return": 1.1468,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.72,
+              "mean_return": 0.85,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.12,
+              "mean_return": -0.604,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.04,
+              "mean_return": -0.502,
+              "n_episodes": 25
+            }
+          },
+          "EmergentStrategy-v0": {
+            "easy": {
+              "success_rate": 0.96,
+              "mean_return": 0.7884,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -2.0,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "FewShotAdaptation-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -0.9752,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.7,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.6,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -3.9988,
+              "n_episodes": 25
+            }
+          },
+          "FogOfWarExploration-v0": {
+            "easy": {
+              "success_rate": 0.92,
+              "mean_return": 0.976,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.36,
+              "mean_return": -0.8224,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.12,
+              "mean_return": -1.7324,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.28,
+              "mean_return": -1.618,
+              "n_episodes": 25
+            }
+          },
+          "GoToGoal-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.2988,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.24,
+              "mean_return": -0.4388,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.16,
+              "mean_return": -0.3648,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.08,
+              "mean_return": -1.1716,
+              "n_episodes": 25
+            }
+          },
+          "GraphColoring-v0": {
+            "easy": {
+              "success_rate": 0.32,
+              "mean_return": 3.962,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -2.17,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "Herding-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 3.8516,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.52,
+              "mean_return": 2.3384,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.32,
+              "mean_return": 0.5992,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "InstructionFollowing-v0": {
+            "easy": {
+              "success_rate": 0.2,
+              "mean_return": -0.4092,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -1.3044,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -1.8476,
+              "n_episodes": 25
+            }
+          },
+          "KeyDoorPuzzle-v0": {
+            "easy": {
+              "success_rate": 0.84,
+              "mean_return": 1.1656,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.954,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -4.956,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "LightsOut-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 21.4324,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.12,
+              "mean_return": -0.348,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "MazeNavigation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.3188,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -0.908,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.0484,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -4.38,
+              "n_episodes": 25
+            }
+          },
+          "NoisyObservation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.1392,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.56,
+              "mean_return": 0.214,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.24,
+              "mean_return": -0.4684,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.16,
+              "mean_return": -0.8228,
+              "n_episodes": 25
+            }
+          },
+          "PackingPuzzle-v0": {
+            "easy": {
+              "success_rate": 0.64,
+              "mean_return": 0.6968,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.8,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -5.0,
+              "n_episodes": 25
+            }
+          },
+          "PreciseNavigation-v0": {
+            "easy": {
+              "success_rate": 0.64,
+              "mean_return": 0.8772,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -0.598,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.08,
+              "mean_return": -0.734,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.04,
+              "mean_return": -1.7088,
+              "n_episodes": 25
+            }
+          },
+          "ProgramSynthesis-v0": {
+            "easy": {
+              "success_rate": 0.04,
+              "mean_return": -0.614,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.672,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.108,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "RecipeAssembly-v0": {
+            "easy": {
+              "success_rate": 0.88,
+              "mean_return": 1.5212,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -3.0392,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -5.274,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "RecursiveRooms-v0": {
+            "easy": {
+              "success_rate": 0.12,
+              "mean_return": -0.966,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -2.354,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.278,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "ResourceManagement-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 99.0,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 178.2,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 99.742,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 66.1236,
+              "n_episodes": 25
+            }
+          },
+          "RuleInduction-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -1.5,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -2.49,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -4.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SequenceMemory-v0": {
+            "easy": {
+              "success_rate": 0.76,
+              "mean_return": 1.1548,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.65,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.998,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -4.428,
+              "n_episodes": 25
+            }
+          },
+          "ShortestPath-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 3.0316,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.72,
+              "mean_return": 1.8208,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.25,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SokobanPush-v0": {
+            "easy": {
+              "success_rate": 0.92,
+              "mean_return": 2.4716,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.04,
+              "mean_return": -1.0416,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.22,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SwitchCircuit-v0": {
+            "easy": {
+              "success_rate": 0.24,
+              "mean_return": 0.066,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.04,
+              "mean_return": -2.156,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "SymbolMatching-v0": {
+            "easy": {
+              "success_rate": 0.32,
+              "mean_return": 0.1092,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.04,
+              "mean_return": -1.378,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -2.928,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -4.972,
+              "n_episodes": 25
+            }
+          },
+          "TagHunt-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.7868,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.96,
+              "mean_return": 2.8344,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.96,
+              "mean_return": 3.98,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.92,
+              "mean_return": 6.068,
+              "n_episodes": 25
+            }
+          },
+          "TaskInterference-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -1.006,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.8,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -3.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -4.508,
+              "n_episodes": 25
+            }
+          },
+          "TileSorting-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 8.888,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.96,
+              "mean_return": 16.536,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 25
+            }
+          },
+          "TimingChallenge-v0": {
+            "easy": {
+              "success_rate": 0.52,
+              "mean_return": 0.3856,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.32,
+              "mean_return": 0.0856,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.44,
+              "mean_return": -0.1136,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.36,
+              "mean_return": -0.4576,
+              "n_episodes": 25
+            }
+          },
+          "ToolUse-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 0.09,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 0.05,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.96,
+              "mean_return": -0.1104,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -0.21,
+              "n_episodes": 25
+            }
+          },
+          "TreasureHunt-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -0.6,
+              "n_episodes": 25
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -0.8,
+              "n_episodes": 25
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -1.2,
+              "n_episodes": 25
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -1.8,
+              "n_episodes": 25
+            }
+          }
+        }
+      },
+      "metadata": {
+        "total_timesteps": 2000000,
+        "reward_mode": "dense",
+        "policy": "CnnPolicy",
+        "n_envs": 8
+      }
     }
   ],
   "updated_at": "2026-03-22"
