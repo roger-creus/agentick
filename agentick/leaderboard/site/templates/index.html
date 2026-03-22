@@ -209,6 +209,7 @@ const AGENT_COLORS = [
 
 /* ══════════ Chart data (injected by generator) ══════════ */
 const CD = {{ chart_data_json | safe }};
+const RD = {{ radar_data_json | safe }};  // top 5 for radar
 
 /* ══════════ Helper: bar chart config ══════════ */
 function barConfig(labels, data, title) {
@@ -263,12 +264,12 @@ new Chart(
     barConfig(CD.agent_names, CD.overall_scores, 'Overall Score')
 );
 
-/* ══════════ Radar chart ══════════ */
+/* ══════════ Radar chart (top 5 models) ══════════ */
 (() => {
-    const catLabels = CD.categories.map(c => c.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()));
-    const datasets = CD.agent_names.map((name, i) => ({
+    const catLabels = RD.categories.map(c => c.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()));
+    const datasets = RD.agent_names.map((name, i) => ({
         label: name,
-        data: CD.categories.map(c => CD.per_category[c][i]),
+        data: RD.categories.map(c => RD.per_category[c][i]),
         borderColor: AGENT_COLORS[i % AGENT_COLORS.length],
         backgroundColor: AGENT_COLORS[i % AGENT_COLORS.length] + '18',
         borderWidth: 2,

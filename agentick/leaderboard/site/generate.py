@@ -153,14 +153,15 @@ class SiteGenerator:
             (r for r in full_rankings if r["agent_name"] == "Random Agent"), None
         )
 
-        # Deduplicate: for each model name, keep the one with highest score
+        # Deduplicate: for each model, keep the best harness-observation combo
         seen_models: dict[str, dict] = {}
         for r in full_rankings:
             if r["agent_type"] in baseline_types:
                 continue  # skip oracle/random from charts
-            name = r["agent_name"]
-            if name not in seen_models or r["score"] > seen_models[name]["score"]:
-                seen_models[name] = r
+            # Group by model name (strip harness/obs suffixes)
+            model = r.get("model", r["agent_name"])
+            if model not in seen_models or r["score"] > seen_models[model]["score"]:
+                seen_models[model] = r
         chart_entries = sorted(seen_models.values(), key=lambda x: x["score"], reverse=True)
 
         # ONS normalization: (agent - random) / (oracle - random)
@@ -176,12 +177,24 @@ class SiteGenerator:
             denom = o - ra
             return round((agent_val - ra) / denom, 3) if abs(denom) > 1e-9 else 0.0
 
+        # Barplot: all deduplicated models (best harness-obs per model)
         chart_data = {
             "agent_names": [r["agent_name"] for r in chart_entries],
             "overall_scores": [_ons(r["score"]) for r in chart_entries],
             "categories": categories,
             "per_category": {
                 cat: [_ons(r["per_category"].get(cat, 0), cat) for r in chart_entries]
+                for cat in categories
+            },
+        }
+        # Radar chart: top 5 only
+        top5 = chart_entries[:5]
+        radar_data = {
+            "agent_names": [r["agent_name"] for r in top5],
+            "overall_scores": [_ons(r["score"]) for r in top5],
+            "categories": categories,
+            "per_category": {
+                cat: [_ons(r["per_category"].get(cat, 0), cat) for r in top5]
                 for cat in categories
             },
         }
@@ -196,6 +209,7 @@ class SiteGenerator:
             task_categories=task_categories,
             task_descriptions=task_descriptions,
             chart_data_json=json.dumps(chart_data),
+            radar_data_json=json.dumps(radar_data),
         )
 
         (self.output_dir / "index.html").write_text(html)

@@ -1,0 +1,49 @@
+name: ppo-pixels-dense-2M
+description: PPO CnnPolicy from pixels, dense rewards, 2M steps, all tasks x all difficulties
+agent:
+  type: ppo
+  hyperparameters:
+    policy: CnnPolicy
+    n_steps: 128
+    batch_size: 256
+    n_epochs: 4
+    learning_rate: 0.00025
+    clip_range: 0.2
+    ent_coef: 0.01
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    gamma: 0.99
+    gae_lambda: 0.95
+tasks: full
+difficulties:
+- easy
+- medium
+- hard
+- expert
+reward_mode: dense
+training:
+  total_timesteps: 2000000
+  n_envs: 8
+  eval_frequency: 10000
+  n_eval_episodes: 10
+  checkpoint_frequency: 500000
+  save_best_model: true
+  device: auto
+n_episodes: 10
+n_seeds: 25
+render_modes:
+- rgb_array
+record_videos: false
+record_trajectories: false
+output_dir: results/ppo_benchmarks
+tags:
+- ppo
+- dense
+- pixel
+- benchmark
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- std_return
+split: train
