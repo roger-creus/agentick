@@ -218,7 +218,7 @@ function barConfig(labels, data, title) {
         data: {
             labels: labels,
             datasets: [{
-                data: data,
+                data: data.map(v => Math.max(v, 0.008)),  // min bar height for visibility
                 backgroundColor: labels.map((_, i) => AGENT_COLORS[i % AGENT_COLORS.length] + 'cc'),
                 borderColor: labels.map((_, i) => AGENT_COLORS[i % AGENT_COLORS.length]),
                 borderWidth: 1.5,

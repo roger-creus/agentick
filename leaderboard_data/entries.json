@@ -10524,7 +10524,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-4B ASCII Markov",
+      "agent_name": "Qwen3.5-4B",
       "author": "Agentick",
       "description": "Qwen3.5-4B LLM, markovian_zero_shot, ascii observations",
       "agent_type": "llm",
@@ -11369,7 +11369,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-4B Language Markov",
+      "agent_name": "Qwen3.5-4B",
       "author": "Agentick",
       "description": "Qwen3.5-4B LLM, markovian_zero_shot, language observations",
       "agent_type": "llm",
@@ -12214,7 +12214,7 @@
       }
     },
     {
-      "agent_name": "Qwen3-4B ASCII Markov",
+      "agent_name": "Qwen3-4B",
       "author": "Agentick",
       "description": "Qwen3-4B LLM, markovian_zero_shot, ascii observations",
       "agent_type": "llm",
@@ -13059,7 +13059,7 @@
       }
     },
     {
-      "agent_name": "Qwen3-4B ASCII Reasoner",
+      "agent_name": "Qwen3-4B",
       "author": "Agentick",
       "description": "Qwen3-4B LLM, markovian_reasoner, ascii observations",
       "agent_type": "llm",
@@ -13904,7 +13904,7 @@
       }
     },
     {
-      "agent_name": "Qwen3-4B Language Markov",
+      "agent_name": "Qwen3-4B",
       "author": "Agentick",
       "description": "Qwen3-4B LLM, markovian_zero_shot, language observations",
       "agent_type": "llm",
@@ -14749,7 +14749,7 @@
       }
     },
     {
-      "agent_name": "Qwen3-4B Language Reasoner",
+      "agent_name": "Qwen3-4B",
       "author": "Agentick",
       "description": "Qwen3-4B LLM, markovian_reasoner, language observations",
       "agent_type": "llm",
@@ -15594,7 +15594,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-0.8B ASCII Reasoner",
+      "agent_name": "Qwen3.5-0.8B",
       "author": "Agentick",
       "description": "Qwen3.5-0.8B LLM, markovian_reasoner, ascii observations",
       "agent_type": "llm",
@@ -16439,7 +16439,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-0.8B Language Markov",
+      "agent_name": "Qwen3.5-0.8B",
       "author": "Agentick",
       "description": "Qwen3.5-0.8B LLM, markovian_zero_shot, language observations",
       "agent_type": "llm",
@@ -17284,7 +17284,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-0.8B Language Reasoner",
+      "agent_name": "Qwen3.5-0.8B",
       "author": "Agentick",
       "description": "Qwen3.5-0.8B LLM, markovian_reasoner, language observations",
       "agent_type": "llm",
@@ -18129,7 +18129,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-2B ASCII Markov",
+      "agent_name": "Qwen3.5-2B",
       "author": "Agentick",
       "description": "Qwen3.5-2B LLM, markovian_zero_shot, ascii observations",
       "agent_type": "llm",
@@ -18974,7 +18974,7 @@
       }
     },
     {
-      "agent_name": "Qwen3.5-2B Language Markov",
+      "agent_name": "Qwen3.5-2B",
       "author": "Agentick",
       "description": "Qwen3.5-2B LLM, markovian_zero_shot, language observations",
       "agent_type": "llm",
