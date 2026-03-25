@@ -506,7 +506,7 @@ new Chart(document.getElementById('chart-ons-radar'), {
 How does observation mode (ASCII vs. language) and the reasoning harness affect performance across model scales? We evaluated the full Qwen model family — Qwen3-4B and Qwen3.5 at 0.8B, 2B, and 4B parameters — with every combination.
 
 <div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
-<canvas id="chart-qwen-harness" height="200"></canvas>
+<canvas id="chart-qwen-harness" height="150"></canvas>
 </div>
 
 <script>
@@ -564,12 +564,7 @@ new Chart(document.getElementById('chart-qwen-harness'), {
           },
         },
       },
-      title: {
-        display: true,
-        text: 'Qwen Family: Observation Mode & Reasoning Harness Impact',
-        font: { size: 14, weight: '600' },
-        padding: { bottom: 12 },
-      },
+      title: { display: false },
     },
     scales: {
       y: { min: 0, max: 26, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' },

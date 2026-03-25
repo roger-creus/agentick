@@ -108,6 +108,11 @@
     </div>
 </div>
 
+<div style="display: flex; gap: 10px; margin: 0 0 8px; align-items: center;">
+    <input type="text" placeholder="Search agent..." oninput="filterCatTable('table-cat-{{ cat }}', this.value)"
+        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 160px;">
+</div>
+
 <table class="leaderboard-table cattable" id="table-cat-{{ cat }}">
     <thead>
         <tr>
@@ -153,6 +158,11 @@
     {% for cat in categories %}
     <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="showTaskCatTab('{{ cat }}')">{{ cat | replace('_', ' ') | title }}</button>
     {% endfor %}
+</div>
+
+<div style="display: flex; gap: 10px; margin: 8px 0 12px; align-items: center;">
+    <input type="text" id="filter-task-search" placeholder="Search task or agent..." oninput="filterTaskCards(this.value)"
+        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 200px;">
 </div>
 
 {% for cat in categories %}
@@ -431,6 +441,26 @@ function toggleShowAll() {
     showAll = !showAll;
     document.getElementById('btn-show-more').textContent = showAll ? 'Show top 10' : 'Show all results';
     filterTable();  // re-run full filter+show logic
+}
+
+/* ══════════ Category table filter ══════════ */
+function filterCatTable(tableId, query) {
+    const q = query.toLowerCase();
+    const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
+    rows.forEach(row => {
+        const name = (row.querySelectorAll('td')[1]?.textContent || '').toLowerCase();
+        row.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+}
+
+/* ══════════ Task card filter ══════════ */
+function filterTaskCards(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.task-card').forEach(card => {
+        const title = (card.querySelector('.task-card-title')?.textContent || '').toLowerCase();
+        const agents = [...card.querySelectorAll('.agent-name')].map(a => a.textContent.toLowerCase()).join(' ');
+        card.style.display = (!q || title.includes(q) || agents.includes(q)) ? '' : 'none';
+    });
 }
 
 /* ══════════ Category table show more ══════════ */
