@@ -396,6 +396,7 @@ function filterTable() {
     const harness = document.getElementById('filter-harness').value;
     const rows = document.querySelectorAll('#table-overall tbody tr');
     let visible = 0;
+    let matchCount = 0;
     rows.forEach(row => {
         const cells = row.querySelectorAll('td');
         const name = (cells[1]?.textContent || '').toLowerCase();
@@ -406,38 +407,24 @@ function filterTable() {
         const matchType = !type || rType.includes(type);
         const matchMod = !modality || rMod.includes(modality);
         const matchHar = !harness || rHar.includes(harness);
-        const show = matchSearch && matchType && matchMod && matchHar;
-        row.style.display = show ? '' : 'none';
-        if (show) visible++;
+        const match = matchSearch && matchType && matchMod && matchHar;
+        if (match) {
+            matchCount++;
+            row.style.display = (!showAll && matchCount > MAX_VISIBLE) ? 'none' : '';
+            if (row.style.display !== 'none') visible++;
+        } else {
+            row.style.display = 'none';
+        }
     });
-    document.getElementById('filter-count').textContent = visible + ' results';
-    applyShowMore();
+    document.getElementById('filter-count').textContent = matchCount + ' results' + (!showAll && matchCount > MAX_VISIBLE ? ` (showing ${MAX_VISIBLE})` : '');
+    const btn = document.getElementById('btn-show-more');
+    btn.style.display = matchCount <= MAX_VISIBLE ? 'none' : '';
 }
 
 function toggleShowAll() {
     showAll = !showAll;
     document.getElementById('btn-show-more').textContent = showAll ? 'Show top 10' : 'Show all results';
-    applyShowMore();
-}
-
-function applyShowMore() {
-    const rows = document.querySelectorAll('#table-overall tbody tr');
-    let visibleIdx = 0;
-    rows.forEach(row => {
-        if (row.style.display === 'none') return;
-        visibleIdx++;
-        if (!showAll && visibleIdx > MAX_VISIBLE) {
-            row.style.display = 'none';
-        }
-    });
-    const btn = document.getElementById('btn-show-more');
-    const totalVisible = [...rows].filter(r => r.style.display !== 'none').length;
-    const totalMatching = [...rows].filter(r => {
-        const cells = r.querySelectorAll('td');
-        return cells.length > 0;
-    }).length;
-    btn.style.display = (showAll || totalMatching <= MAX_VISIBLE) && !showAll ? 'none' : '';
-    if (totalMatching <= MAX_VISIBLE) btn.style.display = 'none';
+    filterTable();  // re-run full filter+show logic
 }
 
 // Init: show top 10 by default
