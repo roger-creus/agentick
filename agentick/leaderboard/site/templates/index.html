@@ -108,9 +108,22 @@
     </div>
 </div>
 
-<div style="display: flex; gap: 10px; margin: 0 0 8px; align-items: center;">
-    <input type="text" placeholder="Search agent..." oninput="filterCatTable('table-cat-{{ cat }}', this.value)"
-        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 160px;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; align-items: center;">
+    <input type="text" placeholder="Search agent..." oninput="filterCatTable('table-cat-{{ cat }}')"
+        class="cat-filter-search" data-table="table-cat-{{ cat }}"
+        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 150px;">
+    <select onchange="filterCatTable('table-cat-{{ cat }}')" class="cat-filter-type" data-table="table-cat-{{ cat }}"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Types</option><option value="llm">LLM</option><option value="rl">RL</option><option value="other">Other</option>
+    </select>
+    <select onchange="filterCatTable('table-cat-{{ cat }}')" class="cat-filter-mod" data-table="table-cat-{{ cat }}"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Modalities</option><option value="ascii">ASCII</option><option value="language">Language</option><option value="rgb_array">Pixels</option>
+    </select>
+    <select onchange="filterCatTable('table-cat-{{ cat }}')" class="cat-filter-har" data-table="table-cat-{{ cat }}"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Harnesses</option><option value="markovian_zero_shot">Zero-Shot</option><option value="markovian_reasoner">Reasoner</option><option value="-">None (RL)</option>
+    </select>
 </div>
 
 <table class="leaderboard-table cattable" id="table-cat-{{ cat }}">
@@ -160,9 +173,21 @@
     {% endfor %}
 </div>
 
-<div style="display: flex; gap: 10px; margin: 8px 0 12px; align-items: center;">
-    <input type="text" id="filter-task-search" placeholder="Search task or agent..." oninput="filterTaskCards(this.value)"
-        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 200px;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; align-items: center;">
+    <input type="text" id="filter-task-search" placeholder="Search task or agent..." oninput="filterTaskCards()"
+        style="padding: 5px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px; width: 180px;">
+    <select id="filter-task-type" onchange="filterTaskCards()"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Types</option><option value="llm">LLM</option><option value="rl">RL</option><option value="other">Other</option>
+    </select>
+    <select id="filter-task-mod" onchange="filterTaskCards()"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Modalities</option><option value="ascii">ASCII</option><option value="language">Language</option><option value="rgb_array">Pixels</option>
+    </select>
+    <select id="filter-task-har" onchange="filterTaskCards()"
+        style="padding: 5px 8px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 12px;">
+        <option value="">All Harnesses</option><option value="markovian_zero_shot">Zero-Shot</option><option value="markovian_reasoner">Reasoner</option><option value="-">None (RL)</option>
+    </select>
 </div>
 
 {% for cat in categories %}
@@ -444,22 +469,52 @@ function toggleShowAll() {
 }
 
 /* ══════════ Category table filter ══════════ */
-function filterCatTable(tableId, query) {
-    const q = query.toLowerCase();
+function filterCatTable(tableId) {
+    const container = document.querySelector('[data-table="' + tableId + '"].cat-filter-search')?.closest('div');
+    if (!container) return;
+    const search = (container.querySelector('.cat-filter-search')?.value || '').toLowerCase();
+    const type = container.querySelector('.cat-filter-type')?.value || '';
+    const mod = container.querySelector('.cat-filter-mod')?.value || '';
+    const har = container.querySelector('.cat-filter-har')?.value || '';
     const rows = document.querySelectorAll('#' + tableId + ' tbody tr');
     rows.forEach(row => {
-        const name = (row.querySelectorAll('td')[1]?.textContent || '').toLowerCase();
-        row.style.display = (!q || name.includes(q)) ? '' : 'none';
+        const cells = row.querySelectorAll('td');
+        const name = (cells[1]?.textContent || '').toLowerCase();
+        const rType = (cells[2]?.textContent || '').toLowerCase().trim();
+        const rMod = (cells[3]?.textContent || '').toLowerCase().trim();
+        const rHar = (cells[4]?.textContent || '').toLowerCase().trim();
+        const show = (!search || name.includes(search)) && (!type || rType.includes(type)) && (!mod || rMod.includes(mod)) && (!har || rHar.includes(har));
+        row.style.display = show ? '' : 'none';
+        row.classList.remove('cat-overflow');  // reset show-more state when filtering
     });
 }
 
-/* ══════════ Task card filter ══════════ */
-function filterTaskCards(query) {
-    const q = query.toLowerCase();
+/* ══════════ Task card + row filter ══════════ */
+function filterTaskCards() {
+    const q = (document.getElementById('filter-task-search')?.value || '').toLowerCase();
+    const type = document.getElementById('filter-task-type')?.value || '';
+    const mod = document.getElementById('filter-task-mod')?.value || '';
+    const har = document.getElementById('filter-task-har')?.value || '';
+    const hasFilter = type || mod || har;
+
     document.querySelectorAll('.task-card').forEach(card => {
         const title = (card.querySelector('.task-card-title')?.textContent || '').toLowerCase();
-        const agents = [...card.querySelectorAll('.agent-name')].map(a => a.textContent.toLowerCase()).join(' ');
-        card.style.display = (!q || title.includes(q) || agents.includes(q)) ? '' : 'none';
+        // Show/hide entire card by task name search
+        if (q && !title.includes(q)) { card.style.display = 'none'; return; }
+        card.style.display = '';
+        // Filter rows within the card by type/mod/har
+        if (hasFilter) {
+            const rows = card.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const rType = (cells[1]?.textContent || '').toLowerCase().trim();
+                const show = (!type || rType.includes(type));
+                // Note: task tables don't have modality/harness columns,
+                // so we filter by badge type only
+                row.style.display = show ? '' : 'none';
+                row.classList.remove('task-overflow');
+            });
+        }
     });
 }
 
