@@ -29,6 +29,22 @@
     </div>
 </div>
 
+<!-- Filters -->
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; align-items: center;">
+    <input type="text" id="filter-search" placeholder="Search agent..." oninput="filterTable()"
+        style="padding: 6px 12px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 13px; width: 180px;">
+    <select id="filter-type" onchange="filterTable()" style="padding: 6px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 13px;">
+        <option value="">All Types</option><option value="llm">LLM</option><option value="rl">RL</option><option value="other">Other</option>
+    </select>
+    <select id="filter-modality" onchange="filterTable()" style="padding: 6px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 13px;">
+        <option value="">All Modalities</option><option value="ascii">ASCII</option><option value="language">Language</option><option value="rgb_array">Pixels</option>
+    </select>
+    <select id="filter-harness" onchange="filterTable()" style="padding: 6px 10px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #e6edf3; font-size: 13px;">
+        <option value="">All Harnesses</option><option value="markovian_zero_shot">Zero-Shot</option><option value="markovian_reasoner">Reasoner</option><option value="-">None (RL)</option>
+    </select>
+    <span id="filter-count" style="font-size: 12px; color: #8b949e; margin-left: auto;"></span>
+</div>
+
 <table class="leaderboard-table" id="table-overall">
     <thead>
         <tr>
@@ -69,6 +85,9 @@
         {% endfor %}
     </tbody>
 </table>
+<div id="show-more-container" style="text-align: center; margin: 12px 0;">
+    <button id="btn-show-more" onclick="toggleShowAll()" style="padding: 8px 24px; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #58a6ff; cursor: pointer; font-size: 13px;">Show all results</button>
+</div>
 </div>
 
 <!-- ═══════════════ VIEW 2: BY CATEGORY ═══════════════ -->
@@ -365,5 +384,63 @@ function sortTable(tableId, colIdx, type) {
     });
     rows.forEach(row => tbody.appendChild(row));
 }
+
+/* ══════════ Table filtering ══════════ */
+const MAX_VISIBLE = 10;
+let showAll = false;
+
+function filterTable() {
+    const search = document.getElementById('filter-search').value.toLowerCase();
+    const type = document.getElementById('filter-type').value;
+    const modality = document.getElementById('filter-modality').value;
+    const harness = document.getElementById('filter-harness').value;
+    const rows = document.querySelectorAll('#table-overall tbody tr');
+    let visible = 0;
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const name = (cells[1]?.textContent || '').toLowerCase();
+        const rType = (cells[2]?.textContent || '').toLowerCase().trim();
+        const rMod = (cells[3]?.textContent || '').toLowerCase().trim();
+        const rHar = (cells[4]?.textContent || '').toLowerCase().trim();
+        const matchSearch = !search || name.includes(search);
+        const matchType = !type || rType.includes(type);
+        const matchMod = !modality || rMod.includes(modality);
+        const matchHar = !harness || rHar.includes(harness);
+        const show = matchSearch && matchType && matchMod && matchHar;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.getElementById('filter-count').textContent = visible + ' results';
+    applyShowMore();
+}
+
+function toggleShowAll() {
+    showAll = !showAll;
+    document.getElementById('btn-show-more').textContent = showAll ? 'Show top 10' : 'Show all results';
+    applyShowMore();
+}
+
+function applyShowMore() {
+    const rows = document.querySelectorAll('#table-overall tbody tr');
+    let visibleIdx = 0;
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        visibleIdx++;
+        if (!showAll && visibleIdx > MAX_VISIBLE) {
+            row.style.display = 'none';
+        }
+    });
+    const btn = document.getElementById('btn-show-more');
+    const totalVisible = [...rows].filter(r => r.style.display !== 'none').length;
+    const totalMatching = [...rows].filter(r => {
+        const cells = r.querySelectorAll('td');
+        return cells.length > 0;
+    }).length;
+    btn.style.display = (showAll || totalMatching <= MAX_VISIBLE) && !showAll ? 'none' : '';
+    if (totalMatching <= MAX_VISIBLE) btn.style.display = 'none';
+}
+
+// Init: show top 10 by default
+document.addEventListener('DOMContentLoaded', () => { filterTable(); });
 </script>
 {% endblock %}
