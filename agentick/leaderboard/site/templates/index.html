@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<table class="leaderboard-table" id="table-cat-{{ cat }}">
+<table class="leaderboard-table cattable" id="table-cat-{{ cat }}">
     <thead>
         <tr>
             <th onclick="sortTable('table-cat-{{ cat }}', 0, 'num')">Rank <span class="sort-arrow"></span></th>
@@ -123,7 +123,7 @@
         {% for entry in rankings %}
         {% set cat_score = entry.per_category.get(cat, None) %}
         {% if cat_score is not none %}
-        <tr>
+        <tr {% if loop.index > 10 %}style="display:none" class="cat-overflow"{% endif %}>
             <td class="rank-cell">{{ loop.index }}</td>
             <td class="agent-name">{{ entry.agent_name }}</td>
             <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
@@ -140,6 +140,9 @@
         {% endfor %}
     </tbody>
 </table>
+<div style="text-align: center; margin: 8px 0;">
+    <button class="cat-show-more" onclick="toggleCatRows('table-cat-{{ cat }}', this)" style="padding: 6px 20px; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #58a6ff; cursor: pointer; font-size: 12px;">Show all</button>
+</div>
 </div>
 {% endfor %}
 </div>
@@ -175,7 +178,7 @@
                         {% for entry in all_rankings %}
                         {% set task_data = entry.per_task.get(task_name, {}) %}
                         {% if task_data %}
-                        <tr>
+                        <tr {% if loop.index > 5 %}style="display:none" class="task-overflow"{% endif %}>
                             <td class="agent-name">{{ entry.agent_name }}</td>
                             <td><span class="badge badge-{{ entry.agent_type }}">{{ entry.agent_type }}</span></td>
                             {% for diff in ["easy", "medium", "hard", "expert"] %}
@@ -193,6 +196,9 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <div style="text-align: center; margin: 4px 0;">
+                    <a href="#" class="task-show-more" onclick="toggleTaskRows(this); return false;" style="font-size: 11px; color: #58a6ff;">Show all agents</a>
+                </div>
             </div>
             <div class="task-card-right">
                 <img class="task-gif" src="https://huggingface.co/rogercc/agentick-gallery/resolve/main/iso/{{ task_name }}_easy.gif" alt="{{ task_name }}" loading="lazy">
@@ -425,6 +431,23 @@ function toggleShowAll() {
     showAll = !showAll;
     document.getElementById('btn-show-more').textContent = showAll ? 'Show top 10' : 'Show all results';
     filterTable();  // re-run full filter+show logic
+}
+
+/* ══════════ Category table show more ══════════ */
+function toggleCatRows(tableId, btn) {
+    const rows = document.querySelectorAll('#' + tableId + ' .cat-overflow');
+    const hidden = rows.length > 0 && rows[0].style.display === 'none';
+    rows.forEach(r => r.style.display = hidden ? '' : 'none');
+    btn.textContent = hidden ? 'Show top 10' : 'Show all';
+}
+
+/* ══════════ Task table show more ══════════ */
+function toggleTaskRows(link) {
+    const table = link.closest('.task-card-left').querySelector('table');
+    const rows = table.querySelectorAll('.task-overflow');
+    const hidden = rows.length > 0 && rows[0].style.display === 'none';
+    rows.forEach(r => r.style.display = hidden ? '' : 'none');
+    link.textContent = hidden ? 'Show top 5' : 'Show all agents';
 }
 
 // Init: show top 10 by default
