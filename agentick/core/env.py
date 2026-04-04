@@ -13,7 +13,7 @@ from agentick.core.actions import ActionSpace, ActionType, compute_action_mask, 
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.renderer import create_renderer
-from agentick.core.types import CellType, NON_WALKABLE_OBJECTS, ObjectType
+from agentick.core.types import NON_WALKABLE_OBJECTS, CellType, ObjectType
 
 
 class AgentickEnv(gym.Env):

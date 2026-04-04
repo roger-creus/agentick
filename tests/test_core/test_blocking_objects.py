@@ -5,7 +5,6 @@ from __future__ import annotations
 from agentick.core.grid import Grid
 from agentick.core.types import ObjectType
 
-
 # ---------------------------------------------------------------------------
 # Grid.bfs() and Grid.flood_fill() with check_objects
 # ---------------------------------------------------------------------------

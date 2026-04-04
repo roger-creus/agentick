@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agentick.core.grid import Grid
-from agentick.core.types import CellType, ObjectType, Position
+from agentick.core.types import ObjectType, Position
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
