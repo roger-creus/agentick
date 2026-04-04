@@ -67,7 +67,7 @@ The full per-task breakdown is in the implementation plan. Key systemic fixes:
 
 **language_structured new output format** (additions in bold):
 
-```python
+```json
 {
     "description": "A 10x10 gridworld environment",
     "position": {"x": 3, "y": 5},
@@ -101,7 +101,7 @@ The full per-task breakdown is in the implementation plan. Key systemic fixes:
 
 **state_dict new output format** (additions in bold):
 
-```python
+```json
 {
     "grid": {
         "height": 10, "width": 10,

@@ -6,6 +6,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
+
 from agentick.core.env import AgentickEnv
 from agentick.tasks.base import TaskSpec
 
@@ -412,9 +414,17 @@ class TaskEnv(AgentickEnv):
         return state
 
     def _get_info(self) -> dict[str, Any]:
-        """Get info dict with task config for renderer access."""
+        """Get info dict with task config for renderer access.
+
+        Gymnasium's check_step_determinism compares info dicts, so
+        we strip non-comparable objects (RNG instances) from the copy.
+        """
         info = super()._get_info()
-        info["task_config"] = self.task_config
+        info["task_config"] = {
+            k: v
+            for k, v in self.task_config.items()
+            if not isinstance(v, np.random.Generator)
+        }
         return info
 
     def _compute_reward(

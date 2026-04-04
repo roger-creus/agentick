@@ -90,11 +90,11 @@ The key design choice that makes this work: **multiple observation modes** for e
 
 === "Structured Dict (for LLM agents)"
 
-    ```python
+    ```json
     {"description": "You are at (1,1) facing north...",
      "position": {"x": 1, "y": 1},
      "orientation": "north",
-     "surroundings": {"north": "wall", "east": "empty", ...},
+     "surroundings": {"north": "wall", "east": "empty"},
      "valid_actions": ["move_down", "move_right"],
      "inventory": [], "energy": 1.0, "step_count": 0}
     ```
