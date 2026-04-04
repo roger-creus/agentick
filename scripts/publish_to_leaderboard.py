@@ -135,7 +135,7 @@ def main() -> None:
     parser.add_argument(
         "--observation-mode",
         required=True,
-        choices=["ascii", "language", "rgb_array", "rgb_array_flat", "state_dict"],
+        choices=["ascii", "language", "language_structured", "rgb_array", "state_dict"],
         help="Observation mode used",
     )
     parser.add_argument("--harness", default="", help="Harness preset name (if applicable)")

@@ -171,17 +171,24 @@ class Grid:
                 err += dx
                 y += sy
 
-    def flood_fill(self, start_pos: Position) -> set[Position]:
+    def flood_fill(
+        self, start_pos: Position, check_objects: bool = False
+    ) -> set[Position]:
         """
         Get all positions reachable from start_pos.
 
         Args:
             start_pos: Starting position
+            check_objects: If True, also treat blocking objects (closed doors,
+                levers, switches) as impassable. Default False for backward
+                compatibility with generation code.
 
         Returns:
             Set of reachable positions
         """
         if not self.is_walkable(start_pos):
+            return set()
+        if check_objects and self.is_object_blocking(start_pos):
             return set()
 
         visited = {start_pos}
@@ -191,23 +198,37 @@ class Grid:
             pos = queue.popleft()
             for neighbor in self.get_neighbors(pos):
                 if neighbor not in visited and self.is_walkable(neighbor):
+                    if check_objects and self.is_object_blocking(neighbor):
+                        continue
                     visited.add(neighbor)
                     queue.append(neighbor)
 
         return visited
 
-    def bfs(self, start: Position, goal: Position) -> list[Position] | None:
+    def bfs(
+        self,
+        start: Position,
+        goal: Position,
+        check_objects: bool = False,
+    ) -> list[Position] | None:
         """
         Find shortest path from start to goal using BFS.
 
         Args:
             start: Start position
             goal: Goal position
+            check_objects: If True, also treat blocking objects (closed doors,
+                levers, switches) as impassable. Default False for backward
+                compatibility with generation code.
 
         Returns:
             List of positions forming the path, or None if no path exists
         """
         if not self.is_walkable(start) or not self.is_walkable(goal):
+            return None
+        if check_objects and (
+            self.is_object_blocking(start) or self.is_object_blocking(goal)
+        ):
             return None
 
         if start == goal:
@@ -220,10 +241,11 @@ class Grid:
             pos, path = queue.popleft()
 
             for neighbor in self.get_neighbors(pos):
-                if neighbor == goal:
-                    return path + [neighbor]
-
                 if neighbor not in visited and self.is_walkable(neighbor):
+                    if check_objects and self.is_object_blocking(neighbor):
+                        continue
+                    if neighbor == goal:
+                        return path + [neighbor]
                     visited.add(neighbor)
                     queue.append((neighbor, path + [neighbor]))
 

@@ -13,7 +13,7 @@ from agentick.core.actions import ActionSpace, ActionType, compute_action_mask, 
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
 from agentick.core.renderer import create_renderer
-from agentick.core.types import CellType
+from agentick.core.types import CellType, NON_WALKABLE_OBJECTS, ObjectType
 
 
 class AgentickEnv(gym.Env):
@@ -305,6 +305,17 @@ class AgentickEnv(gym.Env):
         terrain = self.grid.terrain
         walkable = (terrain != CellType.WALL) & (terrain != CellType.HOLE)
 
+        # Account for blocking objects (closed doors, levers, switches)
+        objects = self.grid.objects
+        blocking = np.zeros_like(walkable)
+        for obj_type in NON_WALKABLE_OBJECTS:
+            obj_mask = objects == obj_type
+            if obj_type == ObjectType.DOOR:
+                # Open doors (metadata >= 10) are passable
+                obj_mask = obj_mask & (self.grid.metadata < 10)
+            blocking |= obj_mask
+        walkable = walkable & ~blocking
+
         mask = compute_action_mask(
             self.action_space_obj,
             self.agent.position,
@@ -387,14 +398,14 @@ class AgentickEnv(gym.Env):
         dx, dy = delta
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
 
-        if self.grid.is_walkable(new_pos):
+        if self.grid.is_walkable(new_pos) and not self.grid.is_object_blocking(new_pos):
             self.agent.position = new_pos
 
     def _move_forward(self) -> None:
         """Move agent forward in its facing direction."""
         dx, dy = self.agent.orientation.to_delta()
         new_pos = (self.agent.position[0] + dx, self.agent.position[1] + dy)
-        if self.grid.is_walkable(new_pos):
+        if self.grid.is_walkable(new_pos) and not self.grid.is_object_blocking(new_pos):
             self.agent.position = new_pos
 
     def _compute_reward(

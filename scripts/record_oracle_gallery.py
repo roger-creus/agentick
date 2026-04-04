@@ -5,14 +5,10 @@ Records a single oracle episode per (task, difficulty) as a looping GIF.
 
 Output naming convention: ``{output_dir}/{task_name}_{difficulty}.gif``
 
-Default output locations:
-  Isometric (rgb_array):    docs/showcase/videos/iso/
-  Flat 2D   (rgb_array_flat): docs/showcase/videos/flat/
+Default output: docs/showcase/videos/iso/
 
 Usage:
     uv run python scripts/record_oracle_gallery.py
-    uv run python scripts/record_oracle_gallery.py --render-mode rgb_array_flat \\
-        --output docs/showcase/videos/flat
     uv run python scripts/record_oracle_gallery.py --difficulties easy medium
     uv run python scripts/record_oracle_gallery.py --tasks GoToGoal-v0 MazeNavigation-v0
     uv run python scripts/record_oracle_gallery.py --n-episodes 3
@@ -34,7 +30,6 @@ ALL_DIFFICULTIES = ["easy", "medium", "hard", "expert"]
 
 _DEFAULT_OUTPUT = {
     "rgb_array": "docs/showcase/videos/iso",
-    "rgb_array_flat": "docs/showcase/videos/flat",
 }
 
 
@@ -152,15 +147,13 @@ def main():
     parser.add_argument(
         "--render-mode",
         default="rgb_array",
-        choices=["rgb_array", "rgb_array_flat"],
-        help="Render mode: rgb_array (isometric 512x512) or rgb_array_flat (2D grid). "
-             "Default: rgb_array (isometric).",
+        choices=["rgb_array"],
+        help="Render mode: rgb_array (isometric 512x512). Default: rgb_array.",
     )
     parser.add_argument(
         "--output",
         default=None,
-        help="Output directory (default: docs/showcase/videos/iso for rgb_array, "
-             "docs/showcase/videos/flat for rgb_array_flat)",
+        help="Output directory (default: docs/showcase/videos/iso)",
     )
     parser.add_argument(
         "--n-episodes", type=int, default=1,
