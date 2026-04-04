@@ -627,42 +627,93 @@ class AdvancedLanguageRenderer:
         agent: Agent,
         info: dict[str, Any],
     ) -> dict[str, Any]:
-        """Render as structured JSON-like dict."""
-        ax, ay = agent.position
+        """Render as structured JSON-like dict with full metadata parity."""
+        from agentick.core.annotations import extract_annotations
 
-        # Collect visible objects
+        ax, ay = agent.position
+        ann = extract_annotations(grid, info)
+
+        # Collect visible objects with metadata interpretation
         visible_entities = []
         for y in range(grid.height):
             for x in range(grid.width):
+                pos = (x, y)
+                if pos in ann.fog_cells:
+                    continue
                 obj_type = ObjectType(grid.objects[y, x])
-                if obj_type != ObjectType.NONE:
-                    visible_entities.append(
-                        {
-                            "type": obj_type.name.lower(),
-                            "position": [x, y],
-                            "distance": abs(x - ax) + abs(y - ay),
-                        }
-                    )
+                if obj_type == ObjectType.NONE:
+                    continue
+                entry: dict[str, Any] = {
+                    "type": obj_type.name.lower(),
+                    "position": [x, y],
+                    "distance": abs(x - ax) + abs(y - ay),
+                }
+                # Enrich with metadata from annotations
+                if pos in ann.key_colors:
+                    entry["color"] = ann.key_colors[pos]
+                if pos in ann.door_colors:
+                    entry["color"] = ann.door_colors[pos]
+                if pos in ann.door_states:
+                    entry["state"] = ann.door_states[pos]
+                if pos in ann.switch_states:
+                    entry["state"] = ann.switch_states[pos]
+                if pos in ann.switch_colors:
+                    entry["color"] = ann.switch_colors[pos]
+                if pos in ann.lever_states:
+                    entry["state"] = ann.lever_states[pos]
+                if pos in ann.npc_types:
+                    entry["behavior"] = ann.npc_types[pos]
+                if pos in ann.enemy_types:
+                    entry["behavior"] = ann.enemy_types[pos]
+                if pos in ann.resource_energy:
+                    entry["energy"] = ann.resource_energy[pos]
+                if pos in ann.tile_numbers:
+                    entry["tile_number"] = ann.tile_numbers[pos]
+                if pos in ann.target_slots:
+                    entry["slot_number"] = ann.target_slots[pos]
+                if pos in ann.scroll_directions:
+                    sd = ann.scroll_directions[pos]
+                    entry["direction"] = sd["direction"]
+                    entry["clue_distance"] = sd["distance"]
+                visible_entities.append(entry)
 
-        # Add other entities
+        # Add other entities (NPCs not on grid objects layer)
         for entity in entities:
             ex, ey = entity.position
-            visible_entities.append(
-                {
-                    "type": entity.entity_type,
-                    "position": [ex, ey],
-                    "distance": abs(ex - ax) + abs(ey - ay),
-                }
-            )
+            entry = {
+                "type": entity.entity_type,
+                "position": [ex, ey],
+                "distance": abs(ex - ax) + abs(ey - ay),
+            }
+            pos = (ex, ey)
+            if pos in ann.npc_types:
+                entry["behavior"] = ann.npc_types[pos]
+            if pos in ann.enemy_types:
+                entry["behavior"] = ann.enemy_types[pos]
+            visible_entities.append(entry)
 
-        # Find goals
         goals = [e for e in visible_entities if e["type"] == "goal"]
-
-        # Find threats
         threats = [e for e in visible_entities if e["type"] in ("hazard", "enemy")]
 
+        # Task-specific annotations
+        task_annotations: dict[str, Any] = {}
+        if ann.target_object:
+            task_annotations["target_object"] = ann.target_object
+        if ann.gem_meter is not None:
+            task_annotations["gem_meter"] = ann.gem_meter
+            task_annotations["orb_meter"] = ann.orb_meter
+            task_annotations["meter_threshold"] = ann.meter_threshold
+        if ann.trial_info:
+            task_annotations["trial_info"] = ann.trial_info
+        if ann.phase_info:
+            task_annotations["phase_info"] = ann.phase_info
+        if ann.clues:
+            task_annotations["clues"] = ann.clues
+        if ann.lights_out:
+            task_annotations["lights_out"] = True
+
         return {
-            "description": f"A {grid.width}×{grid.height} gridworld environment",
+            "description": f"A {grid.width}x{grid.height} gridworld environment",
             "position": {"x": ax, "y": ay},
             "orientation": agent.orientation.name.lower(),
             "visible_entities": visible_entities,
@@ -671,6 +722,7 @@ class AdvancedLanguageRenderer:
             "health": agent.health,
             "goals": goals,
             "threats": threats,
+            "task_annotations": task_annotations,
             "valid_actions": info.get("valid_actions", []),
             "step_count": info.get("step_count", 0),
             "max_steps": info.get("max_steps", 0),

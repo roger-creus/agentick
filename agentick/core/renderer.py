@@ -515,7 +515,7 @@ class EnhancedLanguageRenderer:
 
 
 class StateDictRenderer:
-    """Render grid as structured state dictionary."""
+    """Render grid as structured state dictionary with metadata annotations."""
 
     def __init__(self, fast_mode: bool = False):
         """
@@ -537,30 +537,94 @@ class StateDictRenderer:
         Render grid as complete state dictionary.
 
         Returns:
-            Dictionary with full grid and entity state
+            Dictionary with full grid state, entity state, and annotations.
         """
+        from agentick.core.annotations import extract_annotations
+
+        ann = extract_annotations(grid, info)
+
+        # Build annotations dict (serialisable)
+        annotations: dict[str, Any] = {}
+        if ann.key_colors:
+            annotations["key_colors"] = {f"{p[0]},{p[1]}": c for p, c in ann.key_colors.items()}
+        if ann.door_colors:
+            annotations["door_colors"] = {f"{p[0]},{p[1]}": c for p, c in ann.door_colors.items()}
+        if ann.door_states:
+            annotations["door_states"] = {f"{p[0]},{p[1]}": s for p, s in ann.door_states.items()}
+        if ann.switch_states:
+            annotations["switch_states"] = {
+                f"{p[0]},{p[1]}": s for p, s in ann.switch_states.items()
+            }
+        if ann.switch_colors:
+            annotations["switch_colors"] = {
+                f"{p[0]},{p[1]}": c for p, c in ann.switch_colors.items()
+            }
+        if ann.lever_states:
+            annotations["lever_states"] = {
+                f"{p[0]},{p[1]}": s for p, s in ann.lever_states.items()
+            }
+        if ann.npc_types:
+            annotations["npc_types"] = {f"{p[0]},{p[1]}": t for p, t in ann.npc_types.items()}
+        if ann.enemy_types:
+            annotations["enemy_types"] = {f"{p[0]},{p[1]}": t for p, t in ann.enemy_types.items()}
+        if ann.resource_energy:
+            annotations["resource_energy"] = {
+                f"{p[0]},{p[1]}": e for p, e in ann.resource_energy.items()
+            }
+        if ann.tile_numbers:
+            annotations["tile_numbers"] = {
+                f"{p[0]},{p[1]}": n for p, n in ann.tile_numbers.items()
+            }
+        if ann.target_slots:
+            annotations["target_slots"] = {
+                f"{p[0]},{p[1]}": n for p, n in ann.target_slots.items()
+            }
+        if ann.scroll_directions:
+            annotations["scroll_directions"] = {
+                f"{p[0]},{p[1]}": d for p, d in ann.scroll_directions.items()
+            }
+
+        # Task-level annotations
+        task_ann: dict[str, Any] = {}
+        if ann.target_object:
+            task_ann["target_object"] = ann.target_object
+        if ann.gem_meter is not None:
+            task_ann["gem_meter"] = ann.gem_meter
+            task_ann["orb_meter"] = ann.orb_meter
+            task_ann["meter_threshold"] = ann.meter_threshold
+        if ann.trial_info:
+            task_ann["trial_info"] = ann.trial_info
+        if ann.phase_info:
+            task_ann["phase_info"] = ann.phase_info
+        if ann.clues:
+            task_ann["clues"] = ann.clues
+        if ann.lights_out:
+            task_ann["lights_out"] = True
+        if task_ann:
+            annotations["task"] = task_ann
+
         if self.fast_mode:
-            # Fast mode: keep numpy arrays, minimal conversions
             return {
                 "grid": {
                     "height": grid.height,
                     "width": grid.width,
-                    "terrain": grid.terrain,  # Keep as numpy array
-                    "objects": grid.objects,  # Keep as numpy array
-                    "agents": grid.agents,  # Keep as numpy array
+                    "terrain": grid.terrain,
+                    "objects": grid.objects,
+                    "agents": grid.agents,
+                    "metadata": grid.metadata,
                 },
                 "agent": {
                     "position": agent.position,
-                    "orientation": agent.orientation,  # Keep as enum
-                    "inventory": agent.inventory,  # Keep as list
+                    "orientation": agent.orientation,
+                    "inventory": agent.inventory,
                     "energy": agent.energy,
                     "health": agent.health,
                 },
-                "entities": entities,  # Keep as list
+                "entities": entities,
+                "annotations": annotations,
                 "info": info,
             }
         else:
-            # Standard mode: full conversion for compatibility
             return {
                 "grid": {
                     "height": grid.height,
@@ -568,6 +632,7 @@ class StateDictRenderer:
                     "terrain": grid.terrain.tolist(),
                     "objects": grid.objects.tolist(),
                     "agents": grid.agents.tolist(),
+                    "metadata": grid.metadata.tolist(),
                 },
                 "agent": {
                     "position": agent.position,
@@ -577,6 +642,7 @@ class StateDictRenderer:
                     "health": agent.health,
                 },
                 "entities": [entity.to_dict() for entity in entities],
+                "annotations": annotations,
                 "info": info,
             }
 
