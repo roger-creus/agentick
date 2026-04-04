@@ -459,15 +459,15 @@ class ToolUseTask(TaskSpec):
 
     def validate_instance(self, grid, config):
         agent_pos = tuple(config.get("agent_start", (1, 1)))
-        # Scrolls reachable without crossing water
-        reachable = grid.flood_fill(agent_pos)
+        # Scrolls must be reachable WITHOUT crossing water
+        safe_reach = _bfs_reachable(grid, agent_pos, {int(CellType.EMPTY)})
         for sp in config.get("scroll_positions", []):
-            if tuple(sp) not in reachable:
+            if tuple(sp) not in safe_reach:
                 return False
-        # Goal reachable (flood_fill treats water as walkable)
-        goals = config.get("goal_positions", [])
-        for gp in goals:
-            if tuple(gp) not in reachable:
+        # Goal must be reachable (including through water)
+        full_reach = grid.flood_fill(agent_pos)
+        for gp in config.get("goal_positions", []):
+            if tuple(gp) not in full_reach:
                 return False
         return True
 

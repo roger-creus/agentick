@@ -103,8 +103,7 @@ class RecipeAssemblyTask(TaskSpec):
 
         used = {agent_pos, station_pos}
 
-        # Generate recipe: sequence of ingredient types
-        # Each step uses a different ingredient type (no repeats for clarity)
+        # Generate recipe: sequence of ingredient types (may repeat)
         recipe_types = list(rng.choice(len(_INGREDIENT_TYPES), size=recipe_length, replace=True))
         recipe = [_INGREDIENT_TYPES[i] for i in recipe_types]
 

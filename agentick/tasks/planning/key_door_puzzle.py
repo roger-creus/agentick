@@ -74,12 +74,18 @@ class KeyDoorPuzzleTask(TaskSpec):
 
     def generate(self, seed):
         """Generate with retry logic for validation failures."""
-        for attempt in range(50):
+        for attempt in range(100):
             result = self._try_generate(seed + attempt)
             if result is not None:
                 return result
-        # Fallback: return last attempt regardless of validation
-        return self._try_generate(seed, skip_validation=True)
+        # Last resort: return final attempt (still validated)
+        result = self._try_generate(seed + 100)
+        if result is not None:
+            return result
+        raise RuntimeError(
+            f"KeyDoorPuzzle: failed to generate solvable instance after 101 attempts "
+            f"(seed={seed}, difficulty={self.difficulty})"
+        )
 
     def _carve_rect(self, grid, x1, y1, x2, y2):
         """Carve a rectangular room. Returns list of carved cells."""

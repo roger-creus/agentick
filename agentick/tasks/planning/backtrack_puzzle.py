@@ -393,7 +393,15 @@ class BacktrackPuzzleTask(TaskSpec):
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def validate_instance(self, grid, config):
-        return True
+        agent_pos = tuple(config.get("agent_start", (1, 1)))
+        switch_positions = config.get("switch_positions", [])
+        reachable = grid.flood_fill(agent_pos)
+        # All switches must be reachable from agent (goal is behind the
+        # gate and becomes reachable only after switches are activated)
+        for sp in switch_positions:
+            if tuple(sp) not in reachable:
+                return False
+        return bool(switch_positions)
 
     def get_optimal_return(self, difficulty=None):
         return 1.0

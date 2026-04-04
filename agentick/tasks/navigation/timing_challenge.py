@@ -261,6 +261,12 @@ class TimingChallengeTask(TaskSpec):
         return bool(state["grid"].objects[y, x] == ObjectType.GOAL)
 
     def validate_instance(self, grid, config):
+        agent_pos = tuple(config.get("agent_start", (1, 1)))
+        goal_positions = config.get("goal_positions", [])
+        reachable = grid.flood_fill(agent_pos)
+        for gp in goal_positions:
+            if tuple(gp) not in reachable:
+                return False
         return True
 
     def get_optimal_return(self, difficulty=None):

@@ -212,7 +212,7 @@ class ResourceManagementTask(TaskSpec):
         stations = config.get("station_positions", [])
         levels = config.get("_energy_levels", [_FULL_ENERGY] * len(stations))
 
-        if step_count % drain_interval == 0:
+        if step_count > 0 and step_count % drain_interval == 0:
             for i in range(len(stations)):
                 amt = drain_amounts[i] if i < len(drain_amounts) else 1
                 levels[i] = max(0, levels[i] - amt)
@@ -285,6 +285,11 @@ class ResourceManagementTask(TaskSpec):
         return not config.get("_dead", False)
 
     def validate_instance(self, grid, config):
+        agent_pos = tuple(config.get("agent_start", (1, 1)))
+        reachable = grid.flood_fill(agent_pos)
+        for sp in config.get("station_positions", []):
+            if tuple(sp) not in reachable:
+                return False
         return True
 
     def get_optimal_return(self, difficulty=None):
