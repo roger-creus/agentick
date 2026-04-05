@@ -412,61 +412,78 @@ class ASCIIRenderer:
 
             output.append("".join(row_parts))
 
-        # Build dynamic legend based on symbols present in the grid
-        present_chars = set()
+        # Build dynamic legend based on object types actually present
+        from agentick.core.annotations import extract_annotations
+
+        ann = extract_annotations(grid, info)
+
+        present_objs = set()
         for y in range(grid.height):
             for x in range(grid.width):
-                ch = str(char_grid[y, x]).strip()
-                for c in ch:
-                    present_chars.add(c)
+                obj = int(grid.objects[y, x])
+                if obj != 0:
+                    present_objs.add(obj)
+                terrain = int(grid.terrain[y, x])
+                if terrain != 0:
+                    present_objs.add(-terrain)  # negative for terrain
 
-        # Full symbol → (description, color_key) mapping
-        _LEGEND_MAP: list[tuple[str, str, str]] = [
-            ("^ v < >" if self.config.use_ansi_colors else "A",
-             "Agent (facing direction)", "agent"),
-            ("#", "Wall", "wall"),
-            (".", "Empty space", ""),
-            (" ", "Fog (unexplored)", "wall"),
-            ("G", "Goal", "goal"),
-            ("K", "Key", "key"),
-            ("D", "Door (closed)", "door"),
-            ("d", "Door (open) / Gem", "gem"),
-            ("S", "Switch (off)", "wall"),
-            ("s", "Switch (on)", "goal"),
-            ("L", "Lever (off)", "lever"),
-            ("l", "Lever (on)", "goal"),
-            ("N", "NPC", "npc"),
-            ("F", "Follower NPC", "water"),
-            ("X", "Fearful NPC / Hazard", "hazard"),
-            ("M", "Mirror NPC", "scroll"),
-            ("C", "Contrarian NPC", "coin"),
-            ("B", "Box", "box"),
-            ("T", "Target", "goal"),
-            ("~", "Water", "water"),
-            ("E", "Enemy", "enemy"),
-            ("o", "Sheep", "goal"),
-            ("P", "Potion", "potion"),
-            ("?", "Scroll", "scroll"),
-            ("^ > v <", "Scroll (directional clue)", "scroll"),
-            ("c", "Coin", "coin"),
-            ("O", "Orb", "orb"),
-            ("t", "Tool", "key"),
-            ("r", "Resource (empty)", "key"),
-            ("1-9", "Resource (energy level) / Switch color", "coin"),
-            ("*", "Breadcrumb", "key"),
+        has_keys = ObjectType.KEY in present_objs
+        has_doors = ObjectType.DOOR in present_objs
+        has_scrolls = ObjectType.SCROLL in present_objs
+
+        _LEGEND_MAP: list[tuple[str, str, str, set]] = [
+            # (symbol, description, color_key, required_objs — empty = always)
+            ("A", "Agent (facing ^v<>)", "agent", set()),
+            ("#", "Wall", "wall", {-CellType.WALL}),
+            (".", "Empty", "", set()),
+            (" ", "Fog (unexplored)", "wall", set()),
+            ("G", "Goal", "goal", {ObjectType.GOAL}),
+            ("K", "Key", "key", {ObjectType.KEY}),
+            ("D", "Door (closed)", "door", {ObjectType.DOOR}),
+            ("d", "Door (open)", "goal", {ObjectType.DOOR}),
+            ("S", "Switch (off)", "wall", {ObjectType.SWITCH}),
+            ("s", "Switch (on)", "goal", {ObjectType.SWITCH}),
+            ("L", "Lever (off)", "lever", {ObjectType.LEVER}),
+            ("l", "Lever (on)", "goal", {ObjectType.LEVER}),
+            ("B", "Box", "box", {ObjectType.BOX}),
+            ("T", "Target", "goal", {ObjectType.TARGET}),
+            ("~", "Water", "water", {-CellType.WATER}),
+            ("X", "Hazard", "hazard", {-CellType.HAZARD}),
+            ("i", "Ice", "ice", {-CellType.ICE}),
+            ("E", "Enemy", "enemy", {ObjectType.ENEMY}),
+            ("N", "NPC", "npc", {ObjectType.NPC}),
+            ("o", "Sheep", "goal", {ObjectType.SHEEP}),
+            ("?", "Scroll", "scroll", {ObjectType.SCROLL}),
+            ("c", "Coin", "coin", {ObjectType.COIN}),
+            ("P", "Potion", "potion", {ObjectType.POTION}),
+            ("O", "Orb", "orb", {ObjectType.ORB}),
         ]
 
         legend_parts = ["\n--- Legend ---"]
-        for symbol, desc, color_key in _LEGEND_MAP:
-            # Agent line always included; others only if present
-            symbol_chars = set(symbol.replace(" ", ""))
-            if symbol_chars & present_chars or symbol in ("^ v < >", "A"):
-                line = f"{symbol}: {desc}"
-                if self.config.use_ansi_colors and color_key:
-                    color = ANSI_COLORS.get(color_key, "")
-                    reset = ANSI_COLORS["reset"]
-                    line = f"{color}{symbol}{reset}: {desc}"
-                legend_parts.append(line)
+        for symbol, desc, color_key, req in _LEGEND_MAP:
+            if req and not (req & present_objs):
+                continue
+            line = f"{symbol}: {desc}"
+            if self.config.use_ansi_colors and color_key:
+                color = ANSI_COLORS.get(color_key, "")
+                reset = ANSI_COLORS["reset"]
+                line = f"{color}{symbol}{reset}: {desc}"
+            legend_parts.append(line)
+
+        # Key/door color guide (only when keys or doors are present)
+        if has_keys or has_doors:
+            color_guide = []
+            all_colors = set(ann.key_colors.values()) | set(ann.door_colors.values())
+            _ASCII_COLOR_MAP = {"gold": "yellow", "red": "red", "blue": "blue", "green": "green"}
+            for color_name in sorted(all_colors):
+                ansi = _ASCII_COLOR_MAP.get(color_name, color_name)
+                color_guide.append(f"{color_name}")
+            if color_guide:
+                legend_parts.append(f"Colors: {', '.join(color_guide)} (keys/doors match by color)")
+
+        # Scroll direction guide (only when scrolls present)
+        if has_scrolls and ann.scroll_directions:
+            legend_parts.append("Scroll arrows: ^ N, > E, v S, < W (direction + distance clue)")
 
         output.extend(legend_parts)
 

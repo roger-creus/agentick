@@ -80,6 +80,8 @@ class AdvancedLanguageRenderer:
         info: dict[str, Any],
     ) -> str:
         """Render as narrative description."""
+        # Stash info for _describe_surroundings_relative (needs task_config)
+        self._last_info = info
         parts = []
 
         # Opening based on perspective
@@ -308,19 +310,18 @@ class AdvancedLanguageRenderer:
     ) -> str:
         """Describe surroundings using relative directions and distances.
 
-        Objects and hazards are high-priority and always included.  Walls are
-        low-priority: only mentioned when directly ahead at distance 1 (i.e. the
-        agent is blocked).  Water is low-priority within distance 2.
+        Objects are ALWAYS included regardless of distance — an agent using
+        text observations must see everything a pixel-observation agent sees.
+        Terrain (walls, water) is only mentioned when nearby.
         """
+        from agentick.core.annotations import extract_annotations
+
         ax, ay = agent.position
 
-        # Get viewing range based on verbosity
-        if self.config.verbosity == "minimal":
-            max_dist = 1
-        elif self.config.verbosity == "standard":
-            max_dist = 3
-        else:  # verbose
-            max_dist = 5
+        # Build annotations for metadata-aware descriptions
+        # (we need info dict for task_config; stash a minimal one)
+        ann_info = getattr(self, "_last_info", {})
+        ann = extract_annotations(grid, ann_info)
 
         # Compute the cell directly ahead for wall-blocking check
         fdx, fdy = agent.orientation.to_delta()
@@ -329,80 +330,78 @@ class AdvancedLanguageRenderer:
         high: list[str] = []  # objects, hazards, entities
         low: list[str] = []  # walls (only blocking), water (close)
 
-        _npc_names = {
-            1: "Follower NPC", 3: "Fearful NPC",
-            4: "Mirror NPC", 5: "Contrarian NPC",
-        }
+        # Terrain visibility range (walls/water are low-priority)
+        terrain_range = 2
 
-        # Scan grid cells
-        for dy in range(-max_dist, max_dist + 1):
-            for dx in range(-max_dist, max_dist + 1):
-                if dx == 0 and dy == 0:
+        # Scan the ENTIRE grid for objects (full parity with pixel mode)
+        for ny in range(grid.height):
+            for nx in range(grid.width):
+                if nx == ax and ny == ay:
                     continue
-
-                nx, ny = ax + dx, ay + dy
                 if not grid.in_bounds((nx, ny)):
                     continue
 
+                pos = (nx, ny)
+
                 # Skip fogged cells
-                meta_val = int(grid.metadata[ny, nx])
-                if meta_val == -1:
+                if pos in ann.fog_cells:
                     continue
 
-                dist = abs(dx) + abs(dy)  # Manhattan distance
+                dx = nx - ax
+                dy = ny - ay
+                dist = abs(dx) + abs(dy)
                 rel_dir = self._get_relative_direction(agent.orientation, dx, dy)
-                dist_desc = self._get_distance_description(dist)
+                dist_desc = f"{dist} steps"
 
-                # --- Terrain ---
-                terrain_type = CellType(grid.terrain[ny, nx])
-                if terrain_type == CellType.WALL:
-                    # Only mention walls directly ahead at distance 1 (blocking)
-                    if (nx, ny) == faced_pos:
+                # --- Terrain (nearby only) ---
+                if dist <= terrain_range:
+                    terrain_type = CellType(grid.terrain[ny, nx])
+                    if terrain_type == CellType.WALL and (nx, ny) == faced_pos:
                         low.append("a wall ahead (blocking)")
-                elif terrain_type == CellType.HAZARD:
-                    high.append(f"a hazard {rel_dir} ({dist_desc})")
-                elif terrain_type == CellType.WATER:
-                    if dist <= 2:
+                    elif terrain_type == CellType.HAZARD:
+                        high.append(f"a hazard {rel_dir} ({dist_desc})")
+                    elif terrain_type == CellType.WATER:
                         low.append(f"water {rel_dir} ({dist_desc})")
 
-                # --- Objects (always high priority) ---
+                # --- Objects (FULL GRID scan) ---
                 obj_type = ObjectType(grid.objects[ny, nx])
+                if obj_type == ObjectType.NONE:
+                    continue
+
                 if obj_type == ObjectType.GOAL:
                     high.append(f"a goal {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.KEY:
-                    color_name = _KEY_COLOR_NAMES.get(meta_val, "")
-                    high.append(f"a {color_name}key {rel_dir} ({dist_desc})")
+                    color = ann.key_colors.get(pos, "gold")
+                    high.append(f"a {color} key {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.DOOR:
-                    if meta_val >= 10:
-                        color_name = _DOOR_COLOR_NAMES.get(meta_val - 10, "")
-                        high.append(
-                            f"an open {color_name}door {rel_dir} ({dist_desc})"
-                        )
-                    else:
-                        color_name = _DOOR_COLOR_NAMES.get(meta_val, "")
-                        high.append(
-                            f"a closed {color_name}door {rel_dir} ({dist_desc})"
-                        )
+                    color = ann.door_colors.get(pos, "gold")
+                    state = ann.door_states.get(pos, "closed")
+                    high.append(f"a {state} {color} door {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.BOX:
-                    high.append(f"a box {rel_dir} ({dist_desc})")
+                    tile_num = ann.tile_numbers.get(pos)
+                    if tile_num is not None:
+                        high.append(f"tile {tile_num} {rel_dir} ({dist_desc})")
+                    else:
+                        high.append(f"a box {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.TARGET:
+                    slot_num = ann.target_slots.get(pos)
+                    if slot_num is not None:
+                        high.append(f"target slot {slot_num} {rel_dir} ({dist_desc})")
+                    else:
+                        high.append(f"a target {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.SWITCH:
-                    if meta_val >= 100:
-                        high.append(
-                            f"an activated switch {rel_dir} ({dist_desc})"
-                        )
-                    else:
-                        high.append(f"a switch {rel_dir} ({dist_desc})")
+                    state = ann.switch_states.get(pos, "off")
+                    color = ann.switch_colors.get(pos)
+                    label = f"{color} " if color else ""
+                    high.append(f"a {label}switch ({state}) {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.LEVER:
-                    if meta_val > 0:
-                        high.append(
-                            f"an activated lever {rel_dir} ({dist_desc})"
-                        )
-                    else:
-                        high.append(f"a lever {rel_dir} ({dist_desc})")
+                    state = ann.lever_states.get(pos, "off")
+                    high.append(f"a lever ({state}) {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.RESOURCE:
-                    if meta_val > 0:
+                    energy = ann.resource_energy.get(pos, 0)
+                    if energy > 0:
                         high.append(
-                            f"a resource station (energy: {meta_val}) "
+                            f"a resource station (energy: {energy}) "
                             f"{rel_dir} ({dist_desc})"
                         )
                     else:
@@ -410,33 +409,54 @@ class AdvancedLanguageRenderer:
                             f"an empty resource station {rel_dir} ({dist_desc})"
                         )
                 elif obj_type == ObjectType.NPC:
-                    npc_name = _npc_names.get(meta_val, "NPC")
-                    high.append(f"a {npc_name} {rel_dir} ({dist_desc})")
+                    npc_type = ann.npc_types.get(pos, "npc")
+                    high.append(f"a {npc_type} NPC {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.ENEMY:
-                    high.append(f"an enemy {rel_dir} ({dist_desc})")
+                    enemy_type = ann.enemy_types.get(pos, "enemy")
+                    high.append(f"a {enemy_type} enemy {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.SCROLL:
+                    sd = ann.scroll_directions.get(pos)
+                    if sd:
+                        high.append(
+                            f"a scroll (points {sd['direction']}, "
+                            f"distance {sd['distance']}) {rel_dir} ({dist_desc})"
+                        )
+                    else:
+                        high.append(f"a scroll {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.GEM:
                     high.append(f"a gem {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.ORB:
                     high.append(f"an orb {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.COIN:
+                    high.append(f"a coin {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.POTION:
+                    high.append(f"a potion {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.SHEEP:
+                    high.append(f"a sheep {rel_dir} ({dist_desc})")
+                elif obj_type == ObjectType.BLOCKER:
+                    high.append(f"a blocker {rel_dir} ({dist_desc})")
 
-        # Nearby entities
+        # Entities (NPCs/enemies not on grid objects layer)
         for entity in entities:
             ex, ey = entity.position
             dx = ex - ax
             dy = ey - ay
             dist = abs(dx) + abs(dy)
-
-            if dist <= max_dist:
-                rel_dir = self._get_relative_direction(agent.orientation, dx, dy)
-                dist_desc = self._get_distance_description(dist)
-                high.append(f"a {entity.entity_type} {rel_dir} ({dist_desc})")
+            rel_dir = self._get_relative_direction(agent.orientation, dx, dy)
+            dist_desc = f"{dist} steps"
+            etype = entity.entity_type
+            pos = (ex, ey)
+            npc_type = ann.npc_types.get(pos) or ann.enemy_types.get(pos)
+            if npc_type:
+                etype = f"{npc_type} {etype}"
+            high.append(f"a {etype} {rel_dir} ({dist_desc})")
 
         # Combine: high-priority first, then low-priority
         descriptions = high + low
 
         if descriptions:
             if self.config.verbosity == "minimal":
-                descriptions = descriptions[:3]
+                descriptions = descriptions[:5]
             return "You see: " + ", ".join(descriptions) + "."
         elif self.config.verbosity != "minimal":
             return "The area around you is empty."
