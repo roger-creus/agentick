@@ -213,21 +213,21 @@ class ASCIIRenderer:
                     color_grid[y, x] = "goal"
                 elif obj_val == ObjectType.KEY:
                     meta_val = int(grid.metadata[y, x])
-                    _KEY_COLORS = {0: "key", 1: "hazard", 2: "agent", 3: "goal"}
-                    char_grid[y, x] = "K"
-                    color_grid[y, x] = _KEY_COLORS.get(meta_val, "key")
+                    _KEY_ANSI = {0: "key", 1: "hazard", 2: "agent", 3: "goal"}
+                    _KEY_SUFFIX = {0: "g", 1: "r", 2: "b", 3: "n"}  # gold/red/blue/green
+                    char_grid[y, x] = "K" + _KEY_SUFFIX.get(meta_val, "")
+                    color_grid[y, x] = _KEY_ANSI.get(meta_val, "key")
                 elif obj_val == ObjectType.DOOR:
                     meta_val = int(grid.metadata[y, x])
-                    _DOOR_COLORS = {0: "door", 1: "hazard", 2: "agent", 3: "goal"}
+                    _DOOR_ANSI = {0: "door", 1: "hazard", 2: "agent", 3: "goal"}
+                    _DOOR_SUFFIX = {0: "g", 1: "r", 2: "b", 3: "n"}
                     if meta_val >= 10:
-                        # Open door: lowercase
-                        char_grid[y, x] = "d"
                         color_idx = meta_val - 10
-                        color_grid[y, x] = _DOOR_COLORS.get(color_idx, "goal")
+                        char_grid[y, x] = "d" + _DOOR_SUFFIX.get(color_idx, "")
+                        color_grid[y, x] = _DOOR_ANSI.get(color_idx, "goal")
                     else:
-                        # Closed door: uppercase
-                        char_grid[y, x] = "D"
-                        color_grid[y, x] = _DOOR_COLORS.get(meta_val, "door")
+                        char_grid[y, x] = "D" + _DOOR_SUFFIX.get(meta_val, "")
+                        color_grid[y, x] = _DOOR_ANSI.get(meta_val, "door")
                 elif obj_val == ObjectType.SWITCH:
                     meta_val = int(grid.metadata[y, x])
                     _GC_COLORS = {0: "key", 1: "hazard", 2: "agent", 3: "goal", 4: "coin"}
@@ -472,14 +472,10 @@ class ASCIIRenderer:
 
         # Key/door color guide (only when keys or doors are present)
         if has_keys or has_doors:
-            color_guide = []
-            all_colors = set(ann.key_colors.values()) | set(ann.door_colors.values())
-            _ASCII_COLOR_MAP = {"gold": "yellow", "red": "red", "blue": "blue", "green": "green"}
-            for color_name in sorted(all_colors):
-                ansi = _ASCII_COLOR_MAP.get(color_name, color_name)
-                color_guide.append(f"{color_name}")
-            if color_guide:
-                legend_parts.append(f"Colors: {', '.join(color_guide)} (keys/doors match by color)")
+            legend_parts.append(
+                "Color suffixes: g=gold, r=red, b=blue, n=green "
+                "(e.g. Kr=red key, Db=blue door)"
+            )
 
         # Scroll direction guide (only when scrolls present)
         if has_scrolls and ann.scroll_directions:
