@@ -9,8 +9,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 # Make the example script importable as a module
 SFT_DIR = Path(__file__).resolve().parents[2] / "examples" / "data_and_finetuning"
 sys.path.insert(0, str(SFT_DIR))
