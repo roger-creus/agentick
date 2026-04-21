@@ -37,6 +37,52 @@ from pathlib import Path
 from agentick.agents.prompt_templates import SYSTEM_PROMPT, format_observation_to_text
 
 
+def _patch_chat_template_for_assistant_mask(tokenizer) -> bool:
+    """Wrap assistant-content emissions in `{% generation %}...{% endgeneration %}`.
+
+    TRL's `assistant_only_loss=True` relies on the chat template emitting
+    `{% generation %}` blocks so it can mask every non-assistant token from the
+    loss. Qwen3.5's stock chat template does NOT include these markers, so
+    TRL can't find any assistant tokens and raises a RuntimeError.
+
+    This function patches the in-memory tokenizer's chat template by wrapping
+    every place that renders assistant text content with the required Jinja
+    markers. The patch is scoped to this process (no files on disk change).
+
+    Returns True if the template was patched, False if no patchable sites were
+    found (in which case the caller should warn or fall back).
+    """
+    tmpl = tokenizer.chat_template
+    if tmpl is None:
+        return False
+    if "{% generation %}" in tmpl or "{%- generation %}" in tmpl:
+        return True  # Already patched / already supports it
+
+    # Target the two concrete places where the Qwen template emits assistant
+    # textual content. We wrap each `{{- ... + content }}` emission with a
+    # `{% generation %}...{% endgeneration %}` pair so TRL's assistant-mask
+    # detector sees the content tokens.
+    sites = [
+        (
+            "{{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content + '\\n</think>\\n\\n' + content }}",  # noqa: E501
+            "{{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content + '\\n</think>\\n\\n' }}{% generation %}{{- content }}{% endgeneration %}",  # noqa: E501
+        ),
+        (
+            "{{- '<|im_start|>' + message.role + '\\n' + content }}",
+            "{{- '<|im_start|>' + message.role + '\\n' }}{% generation %}{{- content }}{% endgeneration %}",  # noqa: E501
+        ),
+    ]
+    patched_any = False
+    for old, new in sites:
+        if old in tmpl:
+            tmpl = tmpl.replace(old, new)
+            patched_any = True
+
+    if patched_any:
+        tokenizer.chat_template = tmpl
+    return patched_any
+
+
 def build_chat_dataset(dataset, modality: str, max_steps_per_episode: int | None):
     """Convert flat per-step rows into chat-format messages for SFT.
 
@@ -131,6 +177,10 @@ def main():
 
     # Training
     parser.add_argument("--epochs", type=int, default=3, help="Training epochs")
+    parser.add_argument(
+        "--max-steps", type=int, default=-1,
+        help="Max training steps (-1 = use epochs)",
+    )
     parser.add_argument("--lr", type=float, default=4e-5, help="Learning rate")
     parser.add_argument("--batch-size", type=int, default=4, help="Per-device batch size")
     parser.add_argument("--grad-accum", type=int, default=4, help="Gradient accumulation steps")
@@ -209,6 +259,18 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Patch chat template so TRL's `assistant_only_loss=True` can locate
+    # assistant tokens via the `{% generation %}` Jinja keyword. Qwen3.5's
+    # stock template lacks these markers; without the patch SFTTrainer raises
+    # "at least one example has no assistant tokens".
+    if not _patch_chat_template_for_assistant_mask(tokenizer):
+        print(
+            "WARNING: could not patch chat template for assistant masking. "
+            "`assistant_only_loss=True` will likely fail — check that your "
+            "tokenizer's chat template has an assistant branch matching the "
+            "expected shape."
+        )
+
     # -------------------------------------------------------------------------
     # LoRA config
     # -------------------------------------------------------------------------
@@ -251,6 +313,7 @@ def main():
     training_args = SFTConfig(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
+        max_steps=args.max_steps,
         learning_rate=args.lr,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
