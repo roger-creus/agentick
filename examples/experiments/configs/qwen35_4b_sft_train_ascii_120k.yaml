@@ -3,7 +3,7 @@ description: SFT training job — Qwen3.5-4B LoRA on 120k ASCII oracle trajector
 job_type: sft_train
 training:
   dataset: rogercc/agentick-oracle-trajectories-120k
-  base_model: Qwen/Qwen3.5-4B
+  model: Qwen/Qwen3.5-4B
   modality: ascii
   epochs: 3
   lr: 4.0e-5
