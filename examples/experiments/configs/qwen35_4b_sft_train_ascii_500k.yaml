@@ -10,8 +10,8 @@ training:
   lora_r: 16
   lora_alpha: 32
   lora_dropout: 0.05
-  batch_size: 1
-  grad_accum: 8
+  batch_size: 4
+  grad_accum: 4
   max_seq_length: 2048
   packing: true
   warmup_ratio: 0.05
