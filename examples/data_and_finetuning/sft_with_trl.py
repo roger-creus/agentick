@@ -157,6 +157,16 @@ def main():
         "--no-gradient-checkpointing", dest="gradient_checkpointing", action="store_false",
     )
 
+    # Eval
+    parser.add_argument(
+        "--skip-eval", action="store_true", default=True,
+        help="Skip per-epoch eval during training (default: skip — eval on full test split is slow)",
+    )
+    parser.add_argument(
+        "--no-skip-eval", dest="skip_eval", action="store_false",
+        help="Run eval during training (SLOW for large test splits)",
+    )
+
     # Logging
     parser.add_argument("--logging-steps", type=int, default=10, help="Log every N steps")
     parser.add_argument(
@@ -307,22 +317,29 @@ def main():
         ddp_find_unused_parameters=not args.no_lora,
         # Model loading kwargs
         model_init_kwargs=model_kwargs,
-        # Eval config (enabled when test split is available)
+        # Eval config: only enabled if a test split is present AND the user
+        # asked for it. Running eval on the full 120k+ test split takes hours
+        # even with sdpa+bf16, so default to skip. See --no-skip-eval.
         **({
             "eval_strategy": args.save_strategy,
             "per_device_eval_batch_size": args.batch_size,
-        } if eval_dataset is not None else {}),
+        } if (eval_dataset is not None and not args.skip_eval) else {}),
     )
 
     # -------------------------------------------------------------------------
     # Train
     # -------------------------------------------------------------------------
     print("Initializing SFTTrainer...")
+    # When eval is skipped, don't pass the test dataset at all — otherwise
+    # SFTTrainer tokenizes + packs it upfront (~3 min for 120k rows), which
+    # is wasted work. Load only train.
+    effective_eval_dataset = eval_dataset if not args.skip_eval else None
+
     trainer = SFTTrainer(
         model=args.model,
         args=training_args,
         train_dataset=chat_dataset,
-        eval_dataset=eval_dataset,
+        eval_dataset=effective_eval_dataset,
         processing_class=tokenizer,
         peft_config=peft_config,
     )
