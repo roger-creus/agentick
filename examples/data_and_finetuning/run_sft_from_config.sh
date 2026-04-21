@@ -50,9 +50,30 @@ accelerate launch --num_processes 1 \
     $SFT_ARGS \
     --output-dir "$OUT/adapter"
 
-python3 examples/data_and_finetuning/merge_and_push.py \
-    --base-model "$BASE_MODEL" \
-    --adapter-dir "$OUT/adapter" \
-    --push-to-hub "$PUSH_TO"
+echo "=== SFT training complete. Adapter at: $OUT/adapter ==="
+ls -lh "$OUT/adapter"
 
-echo "=== SFT complete: pushed $PUSH_TO ==="
+# Merge + push to HF Hub. Compute nodes on Alliance Canada are typically
+# offline, so push is best-effort: if it fails, the adapter is still on
+# /scratch and can be pulled + pushed from a login node or local machine.
+if [ -f "/scratch/rogercc/.hf_token" ]; then
+    export HF_TOKEN=$(cat /scratch/rogercc/.hf_token)
+fi
+
+unset HF_HUB_OFFLINE TRANSFORMERS_OFFLINE || true
+
+echo "=== Attempting merge + push to $PUSH_TO (best-effort) ==="
+if python3 examples/data_and_finetuning/merge_and_push.py \
+        --base-model "$BASE_MODEL" \
+        --adapter-dir "$OUT/adapter" \
+        --push-to-hub "$PUSH_TO" 2>&1; then
+    echo "=== SFT complete: pushed $PUSH_TO ==="
+else
+    echo "=== WARN: merge_and_push failed (likely offline compute node)."
+    echo "=== Adapter saved at $OUT/adapter — pull + push manually:"
+    echo "===   rsync -avz <cluster>:$OUT/adapter/ /tmp/adapter/"
+    echo "===   python3 examples/data_and_finetuning/merge_and_push.py \\"
+    echo "===       --base-model $BASE_MODEL --adapter-dir /tmp/adapter --push-to-hub $PUSH_TO"
+    echo "=== Exiting 0 so cluster sees the training portion as successful."
+    exit 0
+fi
