@@ -6,6 +6,7 @@ training:
   model: Qwen/Qwen3.5-4B
   modality: ascii
   epochs: 3
+  max_steps: 1500
   lr: 4.0e-5
   lora_r: 16
   lora_alpha: 32
