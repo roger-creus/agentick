@@ -17,3 +17,50 @@ sys.path.insert(0, str(SFT_DIR))
 def test_sft_module_imports():
     """Sanity: sft_with_trl.py imports without errors."""
     import sft_with_trl  # noqa: F401
+
+
+def test_sft_user_template_matches_eval_prompt_format():
+    """SFT user message must match what eval harness produces.
+
+    The SFT script's USER_TEMPLATE and the eval harness's
+    format_observation_to_text must produce identical strings for the
+    same (task_name, step, obs_text) inputs.
+    """
+    import sft_with_trl
+
+    from agentick.agents.prompt_templates import format_observation_to_text
+
+    task_name = "GoToGoal-v0"
+    step = 3
+    obs_text = "....\n.A..\n....\n...G"
+
+    # SFT builds user content via .format()
+    sft_user = sft_with_trl.USER_TEMPLATE.format(
+        task_name=task_name,
+        step=step,
+        observation=obs_text,
+    )
+
+    # Eval builds user content via format_observation_to_text with
+    # observation_mode='ascii'. ASCII path in that function does
+    # ANSI strip then format into the SAME f-string template. We pass
+    # already-stripped text to isolate the template match.
+    info = {"task_name": task_name, "step": step}
+    eval_user = format_observation_to_text(obs_text, info, "ascii")
+
+    assert sft_user == eval_user, (
+        f"SFT user template diverges from eval prompt:\n"
+        f"SFT:\n{sft_user!r}\n\nEVAL:\n{eval_user!r}"
+    )
+
+
+def test_sft_system_prompt_matches_eval_system_prompt():
+    """SFT SYSTEM_PROMPT must match the eval harness SYSTEM_PROMPT."""
+    import sft_with_trl
+
+    from agentick.agents.prompt_templates import SYSTEM_PROMPT as EVAL_SYSTEM
+
+    assert sft_with_trl.SYSTEM_PROMPT == EVAL_SYSTEM, (
+        "SFT SYSTEM_PROMPT drifted from agentick.agents.prompt_templates.SYSTEM_PROMPT — "
+        "training/eval will see different system messages"
+    )
