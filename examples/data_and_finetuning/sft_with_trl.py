@@ -179,10 +179,22 @@ def main():
     from datasets import load_dataset, load_from_disk
     from transformers import AutoTokenizer
 
-    # Load dataset
+    # Load dataset. Three shapes are supported:
+    # 1. HF Hub repo ID (e.g. "rogercc/agentick-oracle-trajectories-120k")
+    # 2. Local path in `save_to_disk` layout (has dataset_info.json/dataset_dict.json)
+    # 3. Local path in HF Hub snapshot layout (has data/*.parquet but no info JSON) —
+    #    typical when pointing at a pre-resolved snapshot dir to avoid Hub calls.
     print(f"Loading dataset: {args.dataset}")
-    if Path(args.dataset).exists():
-        raw_dataset = load_from_disk(args.dataset)
+    ds_path = Path(args.dataset)
+    if ds_path.exists():
+        has_info = (ds_path / "dataset_info.json").exists()
+        has_dict = (ds_path / "dataset_dict.json").exists()
+        if has_info or has_dict:
+            raw_dataset = load_from_disk(args.dataset)
+        else:
+            # Snapshot layout: use load_dataset with the local directory so
+            # it builds from parquet files directly (no Hub call).
+            raw_dataset = load_dataset(args.dataset)
     else:
         raw_dataset = load_dataset(args.dataset)
 

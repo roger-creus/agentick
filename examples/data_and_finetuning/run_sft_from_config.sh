@@ -38,6 +38,32 @@ SFT_ARGS=$(cat /tmp/sft_args.sh)
 
 PUSH_TO=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['push_to_hub'])")
 BASE_MODEL=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['training']['model'])")
+DATASET_ID=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['training']['dataset'])")
+
+# Resolve the HF dataset ID to a local snapshot path so load_dataset
+# doesn't try to hit the Hub. Requires the dataset to have already been
+# rsynced into HF_HOME by ./cm.py setup --datasets.
+RESOLVED_DATASET=$(python3 - "$DATASET_ID" <<'PYEOF'
+import sys
+from huggingface_hub import snapshot_download
+try:
+    path = snapshot_download(
+        repo_id=sys.argv[1],
+        repo_type="dataset",
+        local_files_only=True,
+    )
+    print(path)
+except Exception as e:
+    print(f"# failed to resolve locally: {e}", file=sys.stderr)
+    # Fall back to the original ID; load_dataset will try to use cache.
+    print(sys.argv[1])
+PYEOF
+)
+echo "Resolved dataset: $DATASET_ID -> $RESOLVED_DATASET"
+
+# Rewrite SFT_ARGS to replace the HF repo ID with the local snapshot path.
+# This lets load_dataset operate on a local parquet dir without any Hub call.
+SFT_ARGS=$(echo "$SFT_ARGS" | sed "s|--dataset $DATASET_ID|--dataset $RESOLVED_DATASET|")
 
 echo "=== SFT run ==="
 echo "Config: $CFG"
@@ -50,10 +76,17 @@ echo "Push:   $PUSH_TO"
 # the library-specific offline flags instead:
 # - HF_DATASETS_OFFLINE=1 → datasets uses cache, no Hub check
 # - TRANSFORMERS_OFFLINE=1 → transformers uses cache, no Hub check
-# (Both already present, we just unset the global HUB_OFFLINE.)
-unset HF_HUB_OFFLINE || true
+# Explicit HF_HUB_OFFLINE=0 overrides any inherited value.
+export HF_HUB_OFFLINE=0
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+
+echo "=== env (post-override) ==="
+echo "HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-unset}"
+echo "HF_DATASETS_OFFLINE=${HF_DATASETS_OFFLINE:-unset}"
+echo "TRANSFORMERS_OFFLINE=${TRANSFORMERS_OFFLINE:-unset}"
+echo "HF_HOME=${HF_HOME:-unset}"
+echo "==="
 
 accelerate launch --num_processes 1 \
     examples/data_and_finetuning/sft_with_trl.py \
