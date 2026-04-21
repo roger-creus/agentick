@@ -17,7 +17,7 @@ training:
   warmup_ratio: 0.05
   weight_decay: 0.01
   lr_scheduler: cosine
-  attn_implementation: flash_attention_2
+  attn_implementation: sdpa
   gradient_checkpointing: true
   wandb_project: agentick-sft
   run_name: sft-qwen35-4b-ascii-pilot
