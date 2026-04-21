@@ -45,6 +45,16 @@ echo "Output: $OUT"
 echo "Args:   $SFT_ARGS"
 echo "Push:   $PUSH_TO"
 
+# HF_HUB_OFFLINE=1 (set by the eval sbatch template) makes load_dataset
+# raise OfflineModeIsEnabled even when the dataset is cached. Swap to
+# the library-specific offline flags instead:
+# - HF_DATASETS_OFFLINE=1 → datasets uses cache, no Hub check
+# - TRANSFORMERS_OFFLINE=1 → transformers uses cache, no Hub check
+# (Both already present, we just unset the global HUB_OFFLINE.)
+unset HF_HUB_OFFLINE || true
+export HF_DATASETS_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+
 accelerate launch --num_processes 1 \
     examples/data_and_finetuning/sft_with_trl.py \
     $SFT_ARGS \
