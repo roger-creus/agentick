@@ -68,3 +68,26 @@ def test_sft_system_prompt_matches_eval_system_prompt():
         "SFT SYSTEM_PROMPT drifted from agentick.agents.prompt_templates.SYSTEM_PROMPT — "
         "training/eval will see different system messages"
     )
+
+
+def test_sft_config_uses_assistant_only_loss():
+    """SFTConfig must be configured with assistant_only_loss (or equivalent).
+
+    Either TRL's newer `assistant_only_loss=True` flag or explicit
+    completion-only data collator must be in the training_args.
+    """
+    import inspect
+
+    import sft_with_trl
+
+    src = inspect.getsource(sft_with_trl.main)
+
+    # Accept either the modern TRL kwarg or an explicit data collator.
+    has_assistant_only = "assistant_only_loss=True" in src
+    has_completion_collator = "DataCollatorForCompletionOnlyLM" in src
+
+    assert has_assistant_only or has_completion_collator, (
+        "SFT training must mask non-assistant tokens from the loss. "
+        "Add `assistant_only_loss=True` to SFTConfig or pass a "
+        "DataCollatorForCompletionOnlyLM to SFTTrainer."
+    )

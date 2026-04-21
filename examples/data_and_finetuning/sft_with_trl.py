@@ -256,6 +256,7 @@ def main():
         gradient_accumulation_steps=args.grad_accum,
         max_length=args.max_seq_length,
         packing=args.packing,
+        assistant_only_loss=True,
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
         lr_scheduler_type=args.lr_scheduler,
