@@ -33,7 +33,8 @@ COPY . .
 ENV UV_SYSTEM_PYTHON=1
 RUN uv pip install --system -e ".[all]" --no-deps 2>/dev/null || true && \
     uv pip install --system stable-baselines3 gymnasium pygame pillow pyyaml pydantic filelock tensorboard && \
-    python3 -c "import agentick; print('agentick OK')"
+    uv pip install --system "trl>=0.29" "peft>=0.11" "datasets>=2.20" && \
+    python3 -c "import agentick; import trl; import peft; import datasets; print('agentick OK', 'trl', trl.__version__, 'peft', peft.__version__, 'datasets', datasets.__version__)"
 
 # --- Verify ---
 RUN python3 -c "\
