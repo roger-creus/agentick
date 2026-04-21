@@ -1,0 +1,25 @@
+name: qwen35_4b_sft_train_ascii_pilot
+description: Pilot SFT — 200 steps only, pushes to -pilot repo, validates the full pipeline
+job_type: sft_train
+training:
+  dataset: rogercc/agentick-oracle-trajectories-120k
+  model: Qwen/Qwen3.5-4B
+  modality: ascii
+  max_steps: 200
+  lr: 4.0e-5
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  batch_size: 4
+  grad_accum: 4
+  max_seq_length: 8192
+  packing: true
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  lr_scheduler: cosine
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  wandb_project: agentick-sft
+  run_name: sft-qwen35-4b-ascii-pilot
+push_to_hub: rogercc/agentick-qwen35-4b-sft-ascii-pilot
+tags: [sft, qwen35-4b, ascii, pilot]

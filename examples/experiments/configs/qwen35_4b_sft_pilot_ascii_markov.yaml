@@ -1,0 +1,45 @@
+name: qwen35_4b_sft_pilot_ascii_markov
+description: Pilot eval of the 200-step SFT adapter — 1 task, 1 diff, 5 seeds
+agent:
+  type: llm
+  hyperparameters:
+    backend: vllm_llm
+    model: rogercc/agentick-qwen35-4b-sft-ascii-pilot
+    harness: markovian_zero_shot
+    observation_modes:
+    - ascii
+    dtype: float16
+    max_new_tokens: 8192
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 20
+    min_p: 0.0
+    gpu_memory_utilization: 0.9
+    enable_prefix_caching: true
+    tensor_parallel_size: 1
+tasks:
+- GoToGoal-v0
+difficulties:
+- easy
+training: null
+n_episodes: 1
+n_seeds: 5
+render_modes:
+- ascii
+record_trajectories: false
+record_videos: false
+output_dir: results/llm_benchmarks
+tags:
+- llm
+- qwen35-4b-sft-pilot
+- benchmark
+- ascii
+- markov
+- pilot
+metrics:
+- mean_return
+- success_rate
+- mean_length
+- mean_latency
+- total_tokens
+split: eval
