@@ -91,3 +91,34 @@ def test_sft_config_uses_assistant_only_loss():
         "Add `assistant_only_loss=True` to SFTConfig or pass a "
         "DataCollatorForCompletionOnlyLM to SFTTrainer."
     )
+
+
+def test_patch_chat_template_on_qwen35():
+    """patch_chat_template_for_assistant_mask must succeed on Qwen3.5's template.
+
+    Guards against silent Qwen template drift that would break
+    assistant_only_loss=True at training-start.
+    """
+    from transformers import AutoTokenizer
+
+    from agentick.agents.prompt_templates import (
+        patch_chat_template_for_assistant_mask,
+    )
+
+    tok = AutoTokenizer.from_pretrained("Qwen/Qwen3.5-0.8B", trust_remote_code=True)
+    assert patch_chat_template_for_assistant_mask(tok) is True
+    assert "{% generation %}" in tok.chat_template
+    # Idempotent second call
+    assert patch_chat_template_for_assistant_mask(tok) is True
+
+    # Template still renders and produces valid assistant block
+    rendered = tok.apply_chat_template(
+        [
+            {"role": "system", "content": "s"},
+            {"role": "user", "content": "u"},
+            {"role": "assistant", "content": "4"},
+        ],
+        tokenize=False,
+    )
+    assert "<|im_start|>assistant" in rendered
+    assert "4<|im_end|>" in rendered

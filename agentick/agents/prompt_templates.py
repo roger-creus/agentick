@@ -319,3 +319,58 @@ def create_cot_prompt(observation: Any, info: dict[str, Any], observation_mode: 
     obs_text = str(observation)
 
     return COT_PROMPT.format(observation=obs_text)
+
+
+def patch_chat_template_for_assistant_mask(tokenizer) -> bool:
+    """Patch a tokenizer's chat template to emit TRL assistant-mask markers.
+
+    TRL's `SFTConfig(assistant_only_loss=True)` requires the tokenizer's chat
+    template to wrap assistant-emitted content in `{% generation %}...{% endgeneration %}`
+    so it can build a mask of which tokens belong to the assistant. Qwen3.5's
+    stock template does not include these markers, so without this patch
+    `assistant_only_loss=True` silently fails at training-start with
+    "at least one example has no assistant tokens".
+
+    This function mutates `tokenizer.chat_template` in-memory (no files written).
+    It is idempotent: if markers are already present it's a no-op.
+
+    Currently supports Qwen3.5-family templates (exact string match on the
+    emission sites). Returns True if the template now contains the required
+    markers (either pre-existing or patched here); False if the template was
+    unrecognized.
+
+    Callers should treat False as a hard error when using `assistant_only_loss=True`.
+    """
+    tmpl = getattr(tokenizer, "chat_template", None)
+    if tmpl is None:
+        return False
+
+    # Already patched (either by us or natively).
+    if "{% generation %}" in tmpl or "{%- generation %}" in tmpl:
+        return True
+
+    # Qwen3.5 family: content is emitted via a local `content` variable.
+    sites = [
+        # Reasoning-content branch
+        (
+            "{{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content + '\\n</think>\\n\\n' + content }}",  # noqa: E501
+            "{{- '<|im_start|>' + message.role + '\\n<think>\\n' + reasoning_content + '\\n</think>\\n\\n' }}{% generation %}{{- content }}{% endgeneration %}",  # noqa: E501
+        ),
+        # Plain assistant content branch
+        (
+            "{{- '<|im_start|>' + message.role + '\\n' + content }}",
+            "{{- '<|im_start|>' + message.role + '\\n' }}{% generation %}{{- content }}{% endgeneration %}",  # noqa: E501
+        ),
+    ]
+
+    patched_any = False
+    for old, new in sites:
+        if old in tmpl:
+            tmpl = tmpl.replace(old, new, 1)
+            patched_any = True
+
+    if not patched_any:
+        return False
+
+    tokenizer.chat_template = tmpl
+    return True
