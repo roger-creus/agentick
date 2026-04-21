@@ -40,30 +40,46 @@ PUSH_TO=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['push_to_h
 BASE_MODEL=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['training']['model'])")
 DATASET_ID=$(python3 -c "import yaml; print(yaml.safe_load(open('$CFG'))['training']['dataset'])")
 
-# Resolve the HF dataset ID to a local snapshot path so load_dataset
-# doesn't try to hit the Hub. Requires the dataset to have already been
-# rsynced into HF_HOME by ./cm.py setup --datasets.
-RESOLVED_DATASET=$(python3 - "$DATASET_ID" <<'PYEOF'
+# Resolve the HF dataset ID AND model ID to local snapshot paths so
+# load_dataset / AutoTokenizer / AutoModel don't try to hit the Hub.
+# Requires the dataset and model to already be in HF_HOME (via ./cm.py setup).
+RESOLVED_DATASET=$(python3 - "$DATASET_ID" "dataset" <<'PYEOF'
 import sys
 from huggingface_hub import snapshot_download
 try:
     path = snapshot_download(
         repo_id=sys.argv[1],
-        repo_type="dataset",
+        repo_type=sys.argv[2],
         local_files_only=True,
     )
     print(path)
 except Exception as e:
     print(f"# failed to resolve locally: {e}", file=sys.stderr)
-    # Fall back to the original ID; load_dataset will try to use cache.
     print(sys.argv[1])
 PYEOF
 )
 echo "Resolved dataset: $DATASET_ID -> $RESOLVED_DATASET"
 
-# Rewrite SFT_ARGS to replace the HF repo ID with the local snapshot path.
-# This lets load_dataset operate on a local parquet dir without any Hub call.
+RESOLVED_MODEL=$(python3 - "$BASE_MODEL" "model" <<'PYEOF'
+import sys
+from huggingface_hub import snapshot_download
+try:
+    path = snapshot_download(
+        repo_id=sys.argv[1],
+        repo_type=sys.argv[2],
+        local_files_only=True,
+    )
+    print(path)
+except Exception as e:
+    print(f"# failed to resolve locally: {e}", file=sys.stderr)
+    print(sys.argv[1])
+PYEOF
+)
+echo "Resolved model:   $BASE_MODEL -> $RESOLVED_MODEL"
+
+# Rewrite SFT_ARGS: replace HF IDs with local snapshot paths.
 SFT_ARGS=$(echo "$SFT_ARGS" | sed "s|--dataset $DATASET_ID|--dataset $RESOLVED_DATASET|")
+SFT_ARGS=$(echo "$SFT_ARGS" | sed "s|--model $BASE_MODEL|--model $RESOLVED_MODEL|")
 
 echo "=== SFT run ==="
 echo "Config: $CFG"
