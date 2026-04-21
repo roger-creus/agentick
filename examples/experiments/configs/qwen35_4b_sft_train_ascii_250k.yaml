@@ -1,0 +1,25 @@
+name: qwen35_4b_sft_train_ascii_250k
+description: SFT training job — Qwen3.5-4B LoRA on 250k ASCII oracle trajectories
+job_type: sft_train
+training:
+  dataset: rogercc/agentick-oracle-trajectories-250k
+  base_model: Qwen/Qwen3.5-4B
+  modality: ascii
+  epochs: 3
+  lr: 4.0e-5
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  batch_size: 4
+  grad_accum: 4
+  max_seq_length: 8192
+  packing: true
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  lr_scheduler: cosine
+  attn_implementation: flash_attention_2
+  gradient_checkpointing: true
+  wandb_project: agentick-sft
+  run_name: sft-qwen35-4b-ascii-250k
+push_to_hub: rogercc/agentick-qwen35-4b-sft-ascii-250k
+tags: [sft, qwen35-4b, ascii, 250k]
