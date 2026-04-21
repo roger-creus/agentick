@@ -32,43 +32,9 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 from pathlib import Path
 
-# Regex to strip ANSI escape sequences (same as prompt_templates.py)
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
-# Must match the system prompt in agentick/leaderboard/adapters/prompt_templates.py
-SYSTEM_PROMPT = """You are an AI agent playing grid-world tasks in the Agentick benchmark.
-
-Your goal is to navigate the grid and complete the task objective by selecting the best action at each step.
-
-## Action Space
-The available actions are:
-0: NOOP (no operation, stay in place)
-1: MOVE_UP
-2: MOVE_DOWN
-3: MOVE_LEFT
-4: MOVE_RIGHT
-5: INTERACT (interact with objects like switches, levers — walk onto them first, then INTERACT)
-
-## Task Objective
-{task_description}
-
-## Instructions
-1. Observe the current grid state
-2. Reason about the best action to take
-3. Output your selected action as a single integer (0-5)
-
-Respond with ONLY the action number, nothing else."""
-
-# Matches format_observation_to_text in prompt_templates.py
-USER_TEMPLATE = """Task: {task_name}
-Step: {step}
-
-{observation}
-
-Select the best action (respond with just the action number):"""
+from agentick.agents.prompt_templates import SYSTEM_PROMPT, format_observation_to_text
 
 
 def build_chat_dataset(dataset, modality: str, max_steps_per_episode: int | None):
@@ -98,20 +64,18 @@ def build_chat_dataset(dataset, modality: str, max_steps_per_episode: int | None
         # System message (matches eval harness exactly)
         system_content = SYSTEM_PROMPT.format(task_description=task_desc)
 
-        # Observation text
+        # Pick the raw render from the dataset row for the requested modality.
         if modality == "ascii":
-            obs_text = _ANSI_RE.sub("", str(example["ascii_render"]))
+            raw_obs = str(example["ascii_render"])
         elif modality == "language":
-            obs_text = str(example["language_render"])
+            raw_obs = str(example["language_render"])
         else:
             raise ValueError(f"Unsupported modality for text SFT: {modality}")
 
-        # User message (matches format_observation_to_text)
-        user_content = USER_TEMPLATE.format(
-            task_name=task_name,
-            step=example["step"],
-            observation=obs_text,
-        )
+        # Delegate prompt assembly + ANSI stripping to the eval source of truth
+        # so training and inference are guaranteed to use identical formatting.
+        info = {"task_name": task_name, "step": example["step"]}
+        user_content = format_observation_to_text(raw_obs, info, modality)
 
         # Assistant = just the action number (matches what parse_action_from_text expects)
         assistant_content = str(example["action_int"])

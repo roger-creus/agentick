@@ -19,37 +19,41 @@ def test_sft_module_imports():
     import sft_with_trl  # noqa: F401
 
 
-def test_sft_user_template_matches_eval_prompt_format():
-    """SFT user message must match what eval harness produces.
-
-    The SFT script's USER_TEMPLATE and the eval harness's
-    format_observation_to_text must produce identical strings for the
-    same (task_name, step, obs_text) inputs.
+def test_sft_build_chat_dataset_matches_eval_prompt():
+    """End-to-end: SFT-built user content must match eval-time prompt byte-for-byte,
+    including ANSI-color stripping for ASCII observations.
     """
     import sft_with_trl
 
     from agentick.agents.prompt_templates import format_observation_to_text
 
+    # ASCII observation with ANSI color codes — the realistic dataset content
+    raw_ascii = "\x1b[31m#\x1b[0m\x1b[32m.\x1b[0m.A\n....\n..G."
     task_name = "GoToGoal-v0"
-    step = 3
-    obs_text = "....\n.A..\n....\n...G"
+    step = 7
 
-    # SFT builds user content via .format()
-    sft_user = sft_with_trl.USER_TEMPLATE.format(
-        task_name=task_name,
-        step=step,
-        observation=obs_text,
-    )
+    # Build a one-row fake HF dataset
+    from datasets import Dataset
+    fake_ds = Dataset.from_list([{
+        "task": task_name,
+        "step": step,
+        "ascii_render": raw_ascii,
+        "language_render": "ignored",
+        "action_int": 4,
+    }])
 
-    # Eval builds user content via format_observation_to_text with
-    # observation_mode='ascii'. ASCII path in that function does
-    # ANSI strip then format into the SAME f-string template. We pass
-    # already-stripped text to isolate the template match.
+    chat_ds = sft_with_trl.build_chat_dataset(fake_ds, modality="ascii", max_steps_per_episode=None)
+    assert len(chat_ds) == 1
+    messages = chat_ds[0]["messages"]
+    assert messages[1]["role"] == "user"
+    sft_user = messages[1]["content"]
+
+    # Eval would call format_observation_to_text on the same raw ASCII with ANSI codes
     info = {"task_name": task_name, "step": step}
-    eval_user = format_observation_to_text(obs_text, info, "ascii")
+    eval_user = format_observation_to_text(raw_ascii, info, "ascii")
 
     assert sft_user == eval_user, (
-        f"SFT user template diverges from eval prompt:\n"
+        f"SFT-built user content diverges from eval prompt:\n"
         f"SFT:\n{sft_user!r}\n\nEVAL:\n{eval_user!r}"
     )
 
