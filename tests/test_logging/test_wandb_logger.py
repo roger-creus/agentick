@@ -32,44 +32,33 @@ class TestWandbLogger:
             logger.close()
 
     @patch("agentick.training.logger.MultiBackendLogger._try_import_wandb")
-    @patch("wandb.init")
-    @patch("wandb.log")
-    @patch("wandb.finish")
-    def test_wandb_logs_scalar(
-        self, mock_wandb_finish, mock_wandb_log, mock_wandb_init, mock_try_import
-    ):
+    def test_wandb_logs_scalar(self, mock_try_import):
         """Test wandb logs scalar values correctly."""
-        # Mock wandb as available
         mock_try_import.return_value = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("wandb.init"):
-                # Create mock wandb module
-                mock_wandb = MagicMock()
-                mock_wandb.log = MagicMock()
-                mock_wandb.finish = MagicMock()
+            mock_wandb = MagicMock()
+            mock_wandb.log = MagicMock()
+            mock_wandb.finish = MagicMock()
 
-                with patch.dict("sys.modules", {"wandb": mock_wandb}):
-                    logger = MultiBackendLogger(
-                        log_dir=tmpdir,
-                        use_stdout=False,
-                        use_json=False,
-                        use_wandb=True,
-                        wandb_config={"project": "test_project"},
-                    )
+            with patch.dict("sys.modules", {"wandb": mock_wandb}):
+                logger = MultiBackendLogger(
+                    log_dir=tmpdir,
+                    use_stdout=False,
+                    use_json=False,
+                    use_wandb=True,
+                    wandb_config={"project": "test_project"},
+                )
 
-                    # Log a metric
-                    logger.log("test_metric", 42.0, step=100)
+                logger.log("test_metric", 42.0, step=100)
 
-                    # Verify wandb.log was called
-                    mock_wandb.log.assert_called_once()
-                    call_args = mock_wandb.log.call_args
-                    assert call_args[0][0]["test_metric"] == 42.0
-                    assert call_args[1]["step"] == 100
+                mock_wandb.log.assert_called_once()
+                call_args = mock_wandb.log.call_args
+                assert call_args[0][0]["test_metric"] == 42.0
+                assert call_args[1]["step"] == 100
 
-                    # Close logger
-                    logger.close()
-                    mock_wandb.finish.assert_called_once()
+                logger.close()
+                mock_wandb.finish.assert_called_once()
 
     @patch("agentick.training.logger.MultiBackendLogger._try_import_wandb")
     def test_wandb_logs_dict(self, mock_try_import):
