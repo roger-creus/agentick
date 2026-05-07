@@ -2,6 +2,7 @@
 Examples that don't need API keys must run to completion."""
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -39,7 +40,7 @@ def should_skip_execution(example: Path) -> bool:
 def test_example_imports(example):
     """Every example must import without ModuleNotFoundError."""
     result = subprocess.run(
-        ["uv", "run", "python", "-c",
+        [sys.executable, "-c",
          f"import importlib.util; "
          f"spec = importlib.util.spec_from_file_location('test_mod', '{example}'); "
          f"import types; mod = types.ModuleType('test_mod'); "
@@ -65,7 +66,7 @@ def get_basic_examples():
 def test_basic_examples_run(example):
     """Basic examples must run to completion."""
     result = subprocess.run(
-        ["uv", "run", "python", str(example)],
+        [sys.executable, str(example)],
         capture_output=True, text=True, timeout=60, env=clean_subprocess_env()
     )
     assert result.returncode == 0, \
