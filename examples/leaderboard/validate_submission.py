@@ -199,9 +199,9 @@ def main():
         print("\n✓ Submission is valid!")
         print(f"\nSubmission name: {data.get('name', 'Unknown')}")
         print(f"Model: {data.get('agent', {}).get('model', 'Unknown')}")
-        print(
-            f"Contact: {data.get('contact', {}).get('email', data.get('contact', {}).get('github', 'Unknown'))}"
-        )
+        contact = data.get("contact", {}) or {}
+        contact_value = contact.get("email", contact.get("github", "Unknown"))
+        print(f"Contact: {contact_value}")
         print("\n💡 Next steps:")
         print("  1. Test your submission locally with run_evaluation.py")
         print("  2. Submit to the leaderboard (instructions at https://agentick.dev)")

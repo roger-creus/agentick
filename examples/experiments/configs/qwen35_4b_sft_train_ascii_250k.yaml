@@ -6,20 +6,28 @@ training:
   model: Qwen/Qwen3.5-4B
   modality: ascii
   epochs: 3
-  max_steps: 1500
   lr: 4.0e-5
   lora_r: 16
   lora_alpha: 32
   lora_dropout: 0.05
-  batch_size: 2
-  grad_accum: 8
-  max_seq_length: 2048
-  packing: true
+  batch_size: 4
+  grad_accum: 1
+  max_seq_length: 1536
+  packing: false
   warmup_ratio: 0.05
   weight_decay: 0.01
   lr_scheduler: cosine
+  optim: adamw_torch_fused
   attn_implementation: sdpa
   gradient_checkpointing: true
+  dataset_num_proc: 2
+  dataloader_num_workers: 2
+  logging_steps: 10
+  report_to: tensorboard
+  save_strategy: steps
+  save_steps: 2000
+  save_total_limit: 8
+  resume_from_checkpoint: auto
   wandb_project: agentick-sft
   run_name: sft-qwen35-4b-ascii-250k
 push_to_hub: rogercc/agentick-qwen35-4b-sft-ascii-250k

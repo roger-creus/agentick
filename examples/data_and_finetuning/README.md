@@ -1,96 +1,88 @@
-# Data Collection and Fine-tuning
+# Data Collection And Fine-Tuning
 
-Scripts for collecting multi-task oracle trajectory datasets, pushing to HuggingFace,
-and fine-tuning LLMs with SFT (LoRA) on the collected data.
+Scripts for collecting oracle trajectories, fine-tuning language models with
+TRL + LoRA, and merging adapters for evaluation.
 
 ## Prerequisites
 
 ```bash
-uv sync                    # base install for data collection
-uv sync --extra finetune   # sft_with_trl.py (transformers, torch, trl, peft)
+uv sync --extra finetune
 ```
 
-## Pipeline
+## Collect Oracle Trajectories
 
-### Step 1: Collect oracle trajectories
-
-`collect_oracle_trajectories.py` runs oracle agents on all task-difficulty pairs
-and produces a flat per-step HuggingFace dataset with columns: `task`, `episode_id`,
-`difficulty`, `step`, `ascii_render`, `language_render`, `image` (isometric),
-`action_name`, `action_int`, `reward`, `done`.
+`collect_oracle_trajectories.py` runs oracle agents on task-difficulty pairs
+and writes per-step rows with `task`, `episode_id`, `difficulty`, `step`,
+`ascii_render`, `language_render`, `action_name`, `action_int`, `reward`, and
+`done`.
 
 ```bash
-# All tasks, all difficulties, 10 episodes each -> push to HF
-python collect_oracle_trajectories.py \
-    --n-episodes 10 --push-to-hub user/agentick-oracle-trajectories
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --n-episodes 10 \
+    --output-dir trajectories/oracle
 
-# Specific tasks
-python collect_oracle_trajectories.py \
-    --tasks GoToGoal-v0 KeyDoorPuzzle-v0 --difficulties easy medium \
-    --n-episodes 5 --push-to-hub user/agentick-oracle-trajectories
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py \
+    --tasks GoToGoal-v0 KeyDoorPuzzle-v0 \
+    --difficulties easy medium \
+    --n-episodes 5 \
+    --push-to-hub your-org/agentick-oracle-trajectories
 ```
 
-### Step 2: SFT with LoRA
+## Fine-Tune With TRL
 
-`sft_with_trl.py` loads the HF dataset, converts rows to chat format matching the
-eval harness prompts (system + observation + action), and trains with TRL + LoRA.
-After training it merges LoRA into the base model and uploads the merged checkpoint.
-
-The default modality is **ascii**. Use `--modality language` for language observations.
+The SFT script loads a local dataset or HuggingFace dataset, converts each row
+to the same chat format used by the evaluation harness, and saves a LoRA adapter
+to `--output-dir`.
 
 ```bash
-accelerate launch --num_processes 8 \
-    examples/data_and_finetuning/sft_with_trl.py \
-    --dataset rogercc/agentick-oracle-trajectories \
+uv run python examples/data_and_finetuning/sft_with_trl.py \
+    --dataset rogercc/agentick-oracle-trajectories-120k \
     --model Qwen/Qwen3.5-4B \
     --modality ascii \
-    --report-to wandb \
-    --wandb-project agentick-sft \
-    --output-dir $HF_HOME \
-    --push-to-hub rogercc/agentick-qwen35-4b-sft-ascii 
+    --output-dir models/qwen35-4b-sft-agentick
+
+torchrun --standalone --nnodes=1 --nproc_per_node 8 \
+    examples/data_and_finetuning/sft_with_trl.py \
+    --dataset rogercc/agentick-oracle-trajectories-120k \
+    --model Qwen/Qwen3.5-4B \
+    --modality ascii \
+    --output-dir models/qwen35-4b-sft-agentick
 ```
 
-### Step 3: Evaluate
-
-The merged model works directly with the existing eval configs — just change the
-`model:` field:
-
-```yaml
-# e.g. configs/qwen35_4b_ascii_markov.yaml
-agent:
-  hyperparameters:
-    model: user/agentick-qwen35-4b-sft-ascii  # <- your merged model
-```
-
-Then run:
-
-```bash
-python -m agentick.experiments.run --config path/to/config.yaml
-```
-
-## SFT Arguments Reference
+Key options:
 
 | Argument | Default | Description |
-|----------|---------|-------------|
-| `--dataset` | (required) | HF dataset ID or local path |
-| `--modality` | ascii | Observation modality (`ascii` or `language`) |
-| `--model` | Qwen/Qwen3.5-4B | Base model name |
-| `--epochs` | 3 | Training epochs |
-| `--lr` | 2e-4 | Learning rate |
-| `--batch-size` | 4 | Per-device batch size |
-| `--grad-accum` | 4 | Gradient accumulation steps |
-| `--max-seq-length` | 2048 | Max sequence length |
-| `--lora-r` | 16 | LoRA rank |
-| `--lora-alpha` | 32 | LoRA alpha |
-| `--lora-dropout` | 0.05 | LoRA dropout |
-| `--no-lora` | off | Full fine-tune instead of LoRA |
-| `--packing` | off | Sequence packing |
-| `--gradient-checkpointing` | on | Gradient checkpointing |
-| `--report-to` | none | `wandb` or `tensorboard` |
-| `--push-to-hub` | none | Merge LoRA + push to HF Hub |
+|---|---|---|
+| `--dataset` | required | HuggingFace dataset ID or local path |
+| `--modality` | `ascii` | Observation modality: `ascii` or `language` |
+| `--model` | `Qwen/Qwen3.5-4B` | Base model name or local path |
+| `--epochs` | `3` | Training epochs |
+| `--lr` | `2e-4` | Learning rate |
+| `--batch-size` | `4` | Per-device batch size |
+| `--grad-accum` | `4` | Gradient accumulation steps |
+| `--max-seq-length` | `2048` | Maximum sequence length |
+| `--lora-r` | `16` | LoRA rank |
+| `--packing` | off | Enable sequence packing |
+| `--report-to` | `none` | Reporting backend, for example `wandb` or `tensorboard` |
 
-## Other Training Scripts
+## Merge And Push
 
-- **behavior_cloning_training.py** -- Train Nature CNN from pixel observations.
-- **tinker_sft_training.py** -- SFT via Tinker's remote LoRA infrastructure.
-- **tinker_rl_training.py** -- RL (PPO/REINFORCE) via Tinker on live env.
+```bash
+uv run python examples/data_and_finetuning/merge_and_push.py \
+    --base-model Qwen/Qwen3.5-4B \
+    --adapter-dir models/qwen35-4b-sft-agentick \
+    --push-to-hub your-org/agentick-qwen35-4b-sft
+```
+
+Use `--skip-upload` to save the merged model locally without pushing to the Hub.
+
+## Config-Driven Runs
+
+The training configs under `examples/experiments/configs/qwen35_4b_sft_train_*`
+can be run through:
+
+```bash
+examples/data_and_finetuning/run_sft_from_config.sh \
+    examples/experiments/configs/qwen35_4b_sft_train_ascii_pilot.yaml \
+    results/sft-pilot
+```

@@ -27,7 +27,7 @@ grid.flood_fill((x, y))
 
 **entity.py** — `Entity` and `Agent` data classes (position, orientation, inventory).
 
-**actions.py** — `ActionSpace` with basic actions (MOVE\_\*, NOOP, PICKUP, DROP, USE, INTERACT) and optional extended actions (ROTATE\_\*, MOVE\_FORWARD). `env.get_valid_actions()` returns a binary mask.
+**actions.py** — `ActionSpace` with basic actions (NOOP, MOVE\_\*, INTERACT) and optional extended actions (ROTATE\_\*, MOVE\_FORWARD). `env.get_valid_actions()` returns a binary mask.
 
 **renderer.py** — Dispatches to the configured renderer based on `render_mode`:
 

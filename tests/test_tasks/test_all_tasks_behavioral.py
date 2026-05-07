@@ -291,7 +291,9 @@ def test_dynamic_obstacles_can_succeed():
     # Try multiple seeds; find one where agent can navigate safely
     # The agent waits (noop) up to 3 steps when an obstacle is directly adjacent
     for seed in [5, 10, 15, 20, 25]:
-        env = agentick.make("DynamicObstacles-v0", difficulty="easy", seed=seed, reward_mode="sparse")
+        env = agentick.make(
+            "DynamicObstacles-v0", difficulty="easy", seed=seed, reward_mode="sparse"
+        )
         env.reset(seed=seed)
         cfg = env.task_config
         goal = tuple(cfg["goal_positions"][0])
@@ -370,7 +372,9 @@ def test_chase_evade_success_condition():
             break
         obs, rew, term, trunc, info = env.step(0)  # NOOP
     env.close()
-    assert info.get("success"), f"ChaseEvade: survival didn't trigger success after {survival_steps} steps"
+    assert info.get("success"), (
+        f"ChaseEvade: survival didn't trigger success after {survival_steps} steps"
+    )
 
 
 @pytest.mark.timeout(60)
@@ -751,9 +755,16 @@ def _bfs_nobox(env, tx, ty):
             return path
         for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
             nx, ny = cx + dx, cy + dy
-            if (nx, ny) not in vis and 0 <= ny < env.grid.height and 0 <= nx < env.grid.width:
+            if (
+                (nx, ny) not in vis
+                and 0 <= ny < env.grid.height
+                and 0 <= nx < env.grid.width
+            ):
                 from agentick.core.types import CellType
-                if env.grid.terrain[ny, nx] != CellType.WALL and env.grid.objects[ny, nx] != ObjectType.BOX:
+                if (
+                    env.grid.terrain[ny, nx] != CellType.WALL
+                    and env.grid.objects[ny, nx] != ObjectType.BOX
+                ):
                     vis.add((nx, ny))
                     q.append(((nx, ny), path + [(nx, ny)]))
     return None
@@ -826,7 +837,9 @@ def test_program_synthesis_can_succeed():
     # Try a handful of seeds; the oracle should solve at least one on easy.
     success = False
     for seed in range(10):
-        env = agentick.make("ProgramSynthesis-v0", difficulty="easy", seed=seed, reward_mode="sparse")
+        env = agentick.make(
+            "ProgramSynthesis-v0", difficulty="easy", seed=seed, reward_mode="sparse"
+        )
         obs, info = env.reset(seed=seed)
         oracle = get_oracle("ProgramSynthesis-v0", env)
         oracle.reset(obs, info)

@@ -34,6 +34,27 @@ class TreasureHuntTask(TaskSpec):
     name = "TreasureHunt-v0"
     description = "Find invisible treasures by reading directional scroll clues"
     capability_tags = ["exploration", "memory", "reasoning"]
+    public_config_exclude = {"goal_positions"}
+
+    def get_public_config(self, config):
+        """Expose read clues, but not hidden treasure positions or unread clue internals."""
+        public = super().get_public_config(config)
+        clue_info = config.get("_clue_info", {})
+        read_clues = []
+        for cpos in config.get("_clues_read", []):
+            key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
+            ci = clue_info.get(tuple(cpos), clue_info.get(key, {}))
+            if ci:
+                read_clues.append(
+                    {
+                        "position": list(cpos) if isinstance(cpos, tuple) else cpos,
+                        "direction": int(ci.get("direction", 0)),
+                        "distance": int(ci.get("distance", 0)),
+                    }
+                )
+        public["read_clues"] = read_clues
+        public["treasures_collected"] = len(config.get("_collected_treasures", []))
+        return public
 
     difficulty_configs = {
         "easy": DifficultyConfig(
@@ -143,7 +164,12 @@ class TreasureHuntTask(TaskSpec):
             misleading_indices = set()
             if n_misleading > 0:
                 misleading_indices = set(
-                    int(i) for i in rng.choice(n_clues, size=min(n_misleading, n_clues), replace=False)
+                    int(i)
+                    for i in rng.choice(
+                        n_clues,
+                        size=min(n_misleading, n_clues),
+                        replace=False,
+                    )
                 )
 
             for ci in range(n_clues):

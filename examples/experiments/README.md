@@ -1,63 +1,50 @@
 # Experiments
 
-Scripts and configs for running reproducible benchmark experiments.
+Scripts and configs for reproducible benchmark runs.
 
 ## Prerequisites
 
 ```bash
-uv sync --extra all   # experiment runner, yaml support
+uv sync
 ```
+
+Install extras for the agent type you plan to run, for example
+`uv sync --extra llm`, `uv sync --extra rl`, or `uv sync --extra all`.
 
 ## Scripts
 
-- **run_predefined.py** -- Load an experiment configuration from a YAML file
-  and run it through `ExperimentRunner`. Accepts `--config` and `--output-dir`
-  arguments. Prints reward, step, and success-rate statistics on completion.
-- **run_single_benchmark.py** -- CLI wrapper that runs a single benchmark
-  config and saves results to a JSON file. Accepts `--config`, `--output`,
-  and `--suite` arguments.
+- `run_predefined.py` loads a YAML config and runs it with `ExperimentRunner`.
+- `run_single_benchmark.py` is a small CLI wrapper around a single config.
+- `train_and_eval_ppo.py` trains and evaluates a PPO baseline.
 
-## configs/
+## Configs
 
-46 pre-built YAML experiment configs covering:
+`examples/experiments/configs/` contains ready-made configs for:
 
-| Group | Configs |
-|-------|---------|
-| Random baseline | `random_agent.yaml` |
-| Oracle baseline | `oracle_agent.yaml` |
-| PPO (pixel RL) | `ppo_pixels_dense.yaml`, `ppo_pixels_sparse.yaml` |
-| OpenAI GPT-4o | `gpt4o_ascii.yaml`, `gpt4o_language.yaml`, `gpt4o_vision.yaml` |
-| Anthropic Claude | `claude_sonnet_ascii.yaml`, `claude_sonnet_language.yaml`, `claude_sonnet_vision.yaml` |
-| Qwen3 (30B-A3B) | 8 configs (ascii/lang × markov/nonmarkov/reasoner variants) |
-| Qwen3 (4B) | 8 configs |
-| Qwen3-VL (4B, 8B) | 16 configs |
-
-## slurm/
-
-SLURM job launcher for running experiments on a compute cluster:
-
-- **launch.py** -- Submits one SLURM job per task in a config. Supports `--dry-run`,
-  `--configs` glob filter, and `--partition` selection.
-- **profiles.yaml** -- Cluster resource profiles (CPU/GPU, memory, time limits).
-- **job_template.sh** -- SBATCH script template used by `launch.py`.
+- random and oracle baselines
+- PPO pixel baselines
+- OpenAI, Gemini, and open-weight model evaluations
+- Qwen SFT model evaluation and training recipes
 
 ## Running
 
 ```bash
-# Run a quick baseline
-uv run python examples/experiments/run_predefined.py \
+uv run python -m agentick.experiments.run \
     --config examples/experiments/configs/random_agent.yaml
 
-# Run a single benchmark with output
-uv run python examples/experiments/run_single_benchmark.py \
-    examples/experiments/configs/oracle_agent.yaml
-
-# Run on SLURM cluster (dry run first)
-python examples/experiments/slurm/launch.py --dry-run
-python examples/experiments/slurm/launch.py --configs "oracle_agent" --partition gpu
+uv run python examples/experiments/run_predefined.py \
+    --config examples/experiments/configs/random_agent.yaml
 ```
 
-## Notes
+## SLURM
 
-- `results/`: Generated experiment outputs (not committed to git).
-- Analyze results with `examples/debug_results.ipynb`.
+The `slurm/` directory contains a generic job launcher and resource profile
+template. Adjust `slurm/profiles.yaml` for your cluster partitions before
+submitting jobs.
+
+```bash
+python examples/experiments/slurm/launch.py --dry-run
+python examples/experiments/slurm/launch.py --configs "oracle_agent" --partition cpu
+```
+
+Generated `results/` and `slurm_logs/` directories are ignored by git.

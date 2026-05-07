@@ -2,7 +2,8 @@
 CleanRL-style DQN with CNN Q-network for Agentick pixel observations.
 
 Adapted from https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/dqn_atari.py
-Uses the standard Atari preprocessing pipeline: 512x512 isometric -> 84x84 grayscale -> 4-frame stack.
+Uses the standard Atari preprocessing pipeline:
+512x512 isometric -> 84x84 grayscale -> 4-frame stack.
 
 Requirements:
     uv sync --extra rl
@@ -13,7 +14,6 @@ Usage:
     uv run python examples/rl/dqn_cleanrl.py --total-timesteps 500000 --track
 """
 
-import os
 import random
 import time
 from dataclasses import dataclass
@@ -22,11 +22,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as functional
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-import agentick
 from agentick.wrappers import make_atari_env
 
 
@@ -208,10 +207,10 @@ if __name__ == "__main__":
         )
 
     writer = SummaryWriter(f"runs/{run_name}")
+    hparams = "\n".join(f"|{key}|{value}|" for key, value in vars(args).items())
     writer.add_text(
         "hyperparameters",
-        "|param|value|\n|-|-|\n%s"
-        % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
+        f"|param|value|\n|-|-|\n{hparams}",
     )
 
     # Seeding
@@ -327,7 +326,7 @@ if __name__ == "__main__":
                     target_max, _ = target_network(s_next_obs).max(dim=1)
                     td_target = s_rewards + args.gamma * target_max * (1 - s_dones)
                 old_val = q_network(s_obs).gather(1, s_actions.unsqueeze(1)).squeeze()
-                loss = F.mse_loss(td_target, old_val)
+                loss = functional.mse_loss(td_target, old_val)
 
                 if global_step % 100 == 0:
                     writer.add_scalar("losses/td_loss", loss, global_step)

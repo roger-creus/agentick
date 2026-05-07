@@ -1,6 +1,6 @@
 """Verify that every task generates solvable, valid instances across difficulties.
 
-Tests 38 tasks x 4 difficulties x 20 seeds = 3040 test cases.
+Tests 37 tasks x 4 difficulties x 20 seeds = 2960 test cases.
 Each test verifies:
   1. env.reset(seed=s) succeeds without error
   2. validate_instance() returns True

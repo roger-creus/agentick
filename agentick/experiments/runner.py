@@ -119,7 +119,9 @@ def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
 
                 # Save episode data
                 if config.record_trajectories:
-                    episode_file = episodes_dir / f"diff_{difficulty}_seed_{seed_idx}_ep_{ep_idx}.json"
+                    episode_file = (
+                        episodes_dir / f"diff_{difficulty}_seed_{seed_idx}_ep_{ep_idx}.json"
+                    )
                     with open(episode_file, "w") as f:
                         json.dump(trajectory, f, indent=2)
 
@@ -565,7 +567,10 @@ class ExperimentRunner:
 
         # Get git hash
         try:
-            git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+            git_hash = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            ).decode().strip()
             metadata["git_hash"] = git_hash
         except Exception:
             metadata["git_hash"] = None

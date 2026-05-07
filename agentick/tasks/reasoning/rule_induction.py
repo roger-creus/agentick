@@ -57,6 +57,16 @@ class RuleInductionTask(TaskSpec):
         "and craft the target object"
     )
     capability_tags = ["reasoning", "rule_learning"]
+    public_config_include_private = {
+        "_target_type",
+        "_n_trials",
+        "_current_trial",
+        "_trial_steps_used",
+        "_trial_step_budget",
+        "_target_crafted",
+        "_valid_combos_made",
+        "_destructive_combos_made",
+    }
 
     difficulty_configs = {
         "easy": DifficultyConfig(

@@ -14,6 +14,8 @@ from agentick.tasks.registry import get_task_class, list_tasks, make, register_t
 class TestTask(TaskSpec):
     """Simple test task for registry testing."""
 
+    __test__ = False
+
     difficulty_configs = {
         "easy": DifficultyConfig(
             name="easy",

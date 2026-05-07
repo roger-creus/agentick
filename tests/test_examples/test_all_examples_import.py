@@ -1,7 +1,6 @@
 """Test that every example file is valid Python (syntax check only)."""
 
 import ast
-import sys
 from pathlib import Path
 
 import pytest

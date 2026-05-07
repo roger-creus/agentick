@@ -8,11 +8,20 @@ import pytest
 
 EXAMPLES_DIR = Path("examples")
 # Examples that need API keys — test import only, not execution
-API_EXAMPLES = {"openai", "anthropic", "compare_llms", "cot_agent"}
+API_EXAMPLES = {"openai"}
 # Examples that need GPU — test import only
 GPU_EXAMPLES = {"sft_with_trl", "huggingface_local"}
 # Examples that need long training — test import only
-TRAINING_EXAMPLES = {"ppo_cleanrl", "dqn_cleanrl", "sb3_ppo", "sb3_dqn", "curriculum", "ppo_pixels", "dqn_pixels"}
+TRAINING_EXAMPLES = {"ppo_cleanrl", "dqn_cleanrl", "sb3_ppo", "sb3_dqn"}
+
+
+def clean_subprocess_env() -> dict[str, str]:
+    """Return env vars for subprocesses without local uv env-file overrides."""
+    import os
+
+    env = dict(os.environ)
+    env.pop("UV_ENV_FILE", None)
+    return env
 
 
 def get_all_examples():
@@ -37,7 +46,7 @@ def test_example_imports(example):
          f"exec(compile(open('{example}').read(), '{example}', 'exec'), "
          f"{{'__name__': 'not___main__', '__file__': '{example}'}})"],
         capture_output=True, text=True, timeout=60,
-        env={**dict(__import__('os').environ), "TESTING_IMPORTS_ONLY": "1"}
+        env={**clean_subprocess_env(), "TESTING_IMPORTS_ONLY": "1"}
     )
     # Allow failures from missing API keys, but NOT from missing modules
     if result.returncode != 0:
@@ -57,7 +66,7 @@ def test_basic_examples_run(example):
     """Basic examples must run to completion."""
     result = subprocess.run(
         ["uv", "run", "python", str(example)],
-        capture_output=True, text=True, timeout=60
+        capture_output=True, text=True, timeout=60, env=clean_subprocess_env()
     )
     assert result.returncode == 0, \
         f"Failed to run {example}:\nSTDOUT: {result.stdout[-500:]}\nSTDERR: {result.stderr[-500:]}"

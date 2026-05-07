@@ -21,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from agentick.core.entity import Agent, Entity
 from agentick.core.grid import Grid
-from agentick.core.types import CellType, Direction, ObjectType
+from agentick.core.types import CellType, ObjectType
 from agentick.rendering.iso_math import (
     calculate_canvas_size,
     calculate_offset,
@@ -150,7 +150,7 @@ class IsometricRenderer:
                 self._label_font = ImageFont.truetype(
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size
                 )
-            except (OSError, IOError):
+            except OSError:
                 self._label_font = ImageFont.load_default()
         return self._label_font
 
@@ -188,7 +188,7 @@ class IsometricRenderer:
             self._label_font = ImageFont.truetype(
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", label_size
             )
-        except (OSError, IOError):
+        except OSError:
             self._label_font = ImageFont.load_default()
 
         self._last_grid_shape = grid_shape
@@ -594,7 +594,7 @@ class IsometricRenderer:
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                 max(10, int(14 * (self._atlas._tile_scale if self._atlas else 1.0))),
             )
-        except (OSError, IOError):
+        except OSError:
             font = ImageFont.load_default()
 
         # Compute diamond corner positions (center of each corner tile)
@@ -670,7 +670,7 @@ class IsometricRenderer:
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                 max(10, int(13 * (atlas._tile_scale if atlas else 1.0))),
             )
-        except (OSError, IOError):
+        except OSError:
             font = ImageFont.load_default()
 
         # Position: top-right corner with generous spacing
@@ -772,7 +772,7 @@ class IsometricRenderer:
             font = ImageFont.truetype(
                 "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 14
             )
-        except (OSError, IOError):
+        except OSError:
             font = ImageFont.load_default()
 
         draw.text((8, 8), text, fill=(255, 255, 255, 255), font=font)
@@ -863,20 +863,27 @@ class IsometricRenderer:
 
         # TreasureHunt: show discovered clues
         if "TreasureHunt" in task_name_str:
-            clue_info = task_config.get("_clue_info", {})
-            clues_read = task_config.get("_clues_read", [])
             dir_labels = {0: "N", 1: "E", 2: "S", 3: "W"}
             clue_parts = []
-            for cpos in clues_read:
-                key = (
-                    f"{cpos[0]},{cpos[1]}"
-                    if isinstance(cpos, (list, tuple)) else cpos
-                )
-                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
-                if ci:
+            public_clues = task_config.get("read_clues")
+            if public_clues is not None:
+                for ci in public_clues:
                     d = dir_labels.get(ci.get("direction", 0), "?")
                     dist = ci.get("distance", "?")
                     clue_parts.append(f"{d}{dist}")
+            else:
+                clue_info = task_config.get("_clue_info", {})
+                clues_read = task_config.get("_clues_read", [])
+                for cpos in clues_read:
+                    key = (
+                        f"{cpos[0]},{cpos[1]}"
+                        if isinstance(cpos, (list, tuple)) else cpos
+                    )
+                    ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                    if ci:
+                        d = dir_labels.get(ci.get("direction", 0), "?")
+                        dist = ci.get("distance", "?")
+                        clue_parts.append(f"{d}{dist}")
             if clue_parts:
                 # Wrap clues: max 5 per line to avoid running off-screen.
                 max_per_line = 5

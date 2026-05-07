@@ -199,9 +199,14 @@ def collect_all(
     test_rows = []
     if n_test_episodes and n_test_episodes > 0:
         print(f"\n=== Collecting TEST split ({n_test_episodes} episodes/combo) ===")
+        episode_offset = len({r["episode_id"] for r in train_rows})
         test_rows = _collect_split(
-            tasks, difficulties, n_test_episodes, split="eval",
-            include_images=include_images, episode_offset=len(set(r["episode_id"] for r in train_rows)),
+            tasks,
+            difficulties,
+            n_test_episodes,
+            split="eval",
+            include_images=include_images,
+            episode_offset=episode_offset,
         )
 
     # --- Build dataset(s) ---

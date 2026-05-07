@@ -53,7 +53,7 @@ Use predefined suites instead of listing tasks:
 tasks: "full"           # All tasks
 tasks: "navigation"     # 8 navigation tasks
 tasks: "planning"       # 9 planning tasks
-tasks: "reasoning"      # 9 reasoning tasks
+tasks: "reasoning"      # 8 reasoning tasks
 tasks: "memory"         # 4 memory tasks
 tasks: "generalization" # 3 generalization tasks
 tasks: "multi_agent"    # 5 multi-agent tasks
@@ -80,10 +80,10 @@ seeds = generate_task_seeds("GoToGoal-v0", "medium", "eval", 10)  # Custom count
 
 | Suite | Tasks |
 |---|---|
-| `agentick-full-v2` | 38 |
+| `agentick-full-v2` | 37 |
 | `agentick-navigation-v2` | 8 |
 | `agentick-planning-v2` | 9 |
-| `agentick-reasoning-v2` | 9 |
+| `agentick-reasoning-v2` | 8 |
 | `agentick-memory-v2` | 4 |
 | `agentick-generalization-v2` | 3 |
 | `agentick-multiagent-v2` | 5 |

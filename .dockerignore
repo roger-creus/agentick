@@ -22,7 +22,7 @@ tests/test_output
 models/
 sft_output
 sft_model
-data
+/data
 trajectories
 paper_figures
 benchmark_results
@@ -53,3 +53,7 @@ node_modules
 tmp
 hf_cache
 hf_cache*
+AgenTick*.pdf
+AgenTick*.zip
+AgenTick_draft/
+docs/superpowers/

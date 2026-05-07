@@ -115,17 +115,24 @@ class ASCIIRenderer:
             output.append(f"GEM:[{r_bar}] {red:.2f}  ORB:[{b_bar}] {blue:.2f}")
 
         if "TreasureHunt" in task_name:
-            clue_info = task_config.get("_clue_info", {})
-            clues_read = task_config.get("_clues_read", [])
             dirs = {0: "N", 1: "E", 2: "S", 3: "W"}
             clue_parts = []
-            for cpos in clues_read:
-                key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
-                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
-                if ci:
+            public_clues = task_config.get("read_clues")
+            if public_clues is not None:
+                for ci in public_clues:
                     d = dirs.get(ci.get("direction", 0), "?")
                     dist = ci.get("distance", "?")
                     clue_parts.append(f"{d}{dist}")
+            else:
+                clue_info = task_config.get("_clue_info", {})
+                clues_read = task_config.get("_clues_read", [])
+                for cpos in clues_read:
+                    key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
+                    ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                    if ci:
+                        d = dirs.get(ci.get("direction", 0), "?")
+                        dist = ci.get("distance", "?")
+                        clue_parts.append(f"{d}{dist}")
             # Wrap clues: max 5 per line to avoid overflow
             max_per_line = 5
             for row_start in range(0, len(clue_parts), max_per_line):
@@ -154,7 +161,7 @@ class ASCIIRenderer:
                 "box_push": "BoxPush",
             }
             type_label = phase_type_names.get(phase_type, phase_type)
-            remap = task_config.get("_action_remap")
+            remap = task_config.get("_action_remap") or task_config.get("action_remapped")
             line = f"Phase: {phase}/{n_phases}  Task: {type_label}"
             if remap:
                 line += "  [REMAPPED]"
@@ -420,6 +427,8 @@ class ASCIIRenderer:
         present_objs = set()
         for y in range(grid.height):
             for x in range(grid.width):
+                if (x, y) in ann.fog_cells:
+                    continue
                 obj = int(grid.objects[y, x])
                 if obj != 0:
                     present_objs.add(obj)
@@ -480,6 +489,9 @@ class ASCIIRenderer:
         # Scroll direction guide (only when scrolls present)
         if has_scrolls and ann.scroll_directions:
             legend_parts.append("Scroll arrows: ^ N, > E, v S, < W (direction + distance clue)")
+
+        if ann.typed_target_objects:
+            legend_parts.append("Typed targets show the required object symbol.")
 
         output.extend(legend_parts)
 
@@ -592,10 +604,16 @@ class StateDictRenderer:
             annotations["target_slots"] = {
                 f"{p[0]},{p[1]}": n for p, n in ann.target_slots.items()
             }
+        if ann.typed_target_objects:
+            annotations["typed_target_objects"] = {
+                f"{p[0]},{p[1]}": name for p, name in ann.typed_target_objects.items()
+            }
         if ann.scroll_directions:
             annotations["scroll_directions"] = {
                 f"{p[0]},{p[1]}": d for p, d in ann.scroll_directions.items()
             }
+        if ann.fog_cells:
+            annotations["fog_cells"] = [f"{p[0]},{p[1]}" for p in sorted(ann.fog_cells)]
 
         # Task-level annotations
         task_ann: dict[str, Any] = {}
@@ -616,15 +634,31 @@ class StateDictRenderer:
         if task_ann:
             annotations["task"] = task_ann
 
+        terrain = grid.terrain
+        objects = grid.objects
+        agents = grid.agents
+        metadata = grid.metadata
+
+        if ann.fog_cells:
+            # State dict is an observation mode, not privileged debug state:
+            # fogged cells must not leak hidden terrain/object contents.
+            terrain = terrain.copy()
+            objects = objects.copy()
+            agents = agents.copy()
+            for x, y in ann.fog_cells:
+                terrain[y, x] = CellType.EMPTY
+                objects[y, x] = ObjectType.NONE
+                agents[y, x] = 0
+
         if self.fast_mode:
             return {
                 "grid": {
                     "height": grid.height,
                     "width": grid.width,
-                    "terrain": grid.terrain,
-                    "objects": grid.objects,
-                    "agents": grid.agents,
-                    "metadata": grid.metadata,
+                    "terrain": terrain,
+                    "objects": objects,
+                    "agents": agents,
+                    "metadata": metadata,
                 },
                 "agent": {
                     "position": agent.position,
@@ -642,10 +676,10 @@ class StateDictRenderer:
                 "grid": {
                     "height": grid.height,
                     "width": grid.width,
-                    "terrain": grid.terrain.tolist(),
-                    "objects": grid.objects.tolist(),
-                    "agents": grid.agents.tolist(),
-                    "metadata": grid.metadata.tolist(),
+                    "terrain": terrain.tolist(),
+                    "objects": objects.tolist(),
+                    "agents": agents.tolist(),
+                    "metadata": metadata.tolist(),
                 },
                 "agent": {
                     "position": agent.position,

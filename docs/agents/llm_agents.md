@@ -39,7 +39,9 @@ env.close()
 
 **OpenAI**: `examples/llm/openai_text_agent.py`
 
-**Google Gemini**: Use `backend: gemini` with `api_key_env: GOOGLE_API_KEY`
+**Google Gemini**: Use `backend: gemini` with `api_key_env: GEMINI_API_KEY`
+
+**Anthropic**: Use `backend: anthropic` with `api_key_env: ANTHROPIC_API_KEY`
 
 **HuggingFace (local)**: See `examples/llm/huggingface_local_agent.py` for custom inference with Qwen, Llama, etc.
 

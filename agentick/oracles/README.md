@@ -55,7 +55,7 @@ Key lifecycle: `reset(obs, info)` -> `plan()` -> `act(obs, info)` (repeats) -> `
 | `meta_oracles.py`             | Meta           |
 | `multi_agent_oracles.py`      | Multi-agent    |
 
-Each module contains one oracle class per task in that category (~38 oracles total). The standard pattern is:
+Each module contains one oracle class per task in that category (~37 oracles total). The standard pattern is:
 
 ```python
 @register_oracle("TaskName-v0")

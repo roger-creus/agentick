@@ -2,28 +2,28 @@
 
 Loads the flat per-step dataset produced by collect_oracle_trajectories.py,
 converts it to chat format matching the eval harness prompts, and fine-tunes
-a causal LM with LoRA using TRL + accelerate for multi-GPU training.
+a causal LM with LoRA using TRL.
 
 Saves LoRA adapter weights to --output-dir. Use merge_and_push.py afterwards
 to merge adapters into the base model and upload to HuggingFace Hub.
 
 Usage:
     # ASCII modality (default), 8 GPUs
-    accelerate launch --num_processes 8 \
+    torchrun --standalone --nnodes=1 --nproc_per_node 8 \
         examples/data_and_finetuning/sft_with_trl.py \
-        --dataset rogercreus/agentick-oracle-trajectories \
+        --dataset rogercc/agentick-oracle-trajectories-120k \
         --model Qwen/Qwen3.5-4B
 
     # Language modality
-    accelerate launch --num_processes 8 \
+    torchrun --standalone --nnodes=1 --nproc_per_node 8 \
         examples/data_and_finetuning/sft_with_trl.py \
-        --dataset rogercreus/agentick-oracle-trajectories \
+        --dataset rogercc/agentick-oracle-trajectories-120k \
         --modality language \
         --model Qwen/Qwen3.5-4B
 
     # Single GPU, wandb logging
     python examples/data_and_finetuning/sft_with_trl.py \
-        --dataset rogercreus/agentick-oracle-trajectories \
+        --dataset rogercc/agentick-oracle-trajectories-120k \
         --model Qwen/Qwen2.5-0.5B \
         --report-to wandb --wandb-project agentick-sft
 """
@@ -31,6 +31,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -47,8 +48,9 @@ def build_chat_dataset(dataset, modality: str, max_steps_per_episode: int | None
     Each row becomes one independent (system, user, assistant) conversation
     matching the MarkovianZeroShot harness format used at eval time.
     """
-    from agentick.tasks.descriptions import get_task_description
     from datasets import Dataset
+
+    from agentick.tasks.descriptions import get_task_description
 
     # Cache task descriptions
     desc_cache: dict[str, str] = {}
@@ -114,6 +116,18 @@ def main():
         "--max-steps-per-episode", type=int, default=None,
         help="Max steps per episode to include (None = all)",
     )
+    parser.add_argument(
+        "--max-train-examples",
+        type=int,
+        default=None,
+        help="Cap train rows before chat conversion (for smoke tests)",
+    )
+    parser.add_argument(
+        "--max-eval-examples",
+        type=int,
+        default=None,
+        help="Cap eval rows before chat conversion (for smoke tests)",
+    )
 
     # Model
     parser.add_argument("--model", default="Qwen/Qwen3.5-4B", help="Base model name")
@@ -150,6 +164,23 @@ def main():
     parser.add_argument("--no-bf16", dest="bf16", action="store_false")
     parser.add_argument("--lr-scheduler", default="cosine", help="LR scheduler type")
     parser.add_argument(
+        "--optim",
+        default="adamw_torch_fused",
+        help="Transformers optimizer name",
+    )
+    parser.add_argument(
+        "--dataset-num-proc",
+        type=int,
+        default=None,
+        help="Number of processes for TRL dataset preprocessing",
+    )
+    parser.add_argument(
+        "--dataloader-num-workers",
+        type=int,
+        default=4,
+        help="Training dataloader worker processes",
+    )
+    parser.add_argument(
         "--gradient-checkpointing", action="store_true", default=True,
         help="Gradient checkpointing to save memory (default: on)",
     )
@@ -160,7 +191,10 @@ def main():
     # Eval
     parser.add_argument(
         "--skip-eval", action="store_true", default=True,
-        help="Skip per-epoch eval during training (default: skip — eval on full test split is slow)",
+        help=(
+            "Skip per-epoch eval during training "
+            "(default: skip; full test split eval is slow)"
+        ),
     )
     parser.add_argument(
         "--no-skip-eval", dest="skip_eval", action="store_false",
@@ -179,9 +213,19 @@ def main():
     # Saving / upload
     parser.add_argument("--output-dir", default="models/sft", help="Output directory")
     parser.add_argument("--save-strategy", default="epoch", help="Checkpoint save strategy")
-    parser.add_argument("--save-total-limit", type=int, default=2, help="Max checkpoints to keep")
+    parser.add_argument("--save-steps", type=int, default=2000, help="Checkpoint save interval")
+    parser.add_argument("--save-total-limit", type=int, default=4, help="Max checkpoints to keep")
+    parser.add_argument(
+        "--resume-from-checkpoint",
+        default=None,
+        help="Checkpoint path to resume from, or 'auto' to use the latest output-dir checkpoint",
+    )
 
     args = parser.parse_args()
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with open(output_dir / "sft_args.json", "w") as f:
+        json.dump(vars(args), f, indent=2, sort_keys=True)
 
     # -------------------------------------------------------------------------
     # Setup
@@ -220,6 +264,17 @@ def main():
         raw_test = None
         print(f"Raw dataset: {len(raw_train)} rows (no test split)")
 
+    if args.max_train_examples is not None and len(raw_train) > args.max_train_examples:
+        raw_train = raw_train.select(range(args.max_train_examples))
+        print(f"Capped train dataset to {len(raw_train)} rows")
+    if (
+        raw_test is not None
+        and args.max_eval_examples is not None
+        and len(raw_test) > args.max_eval_examples
+    ):
+        raw_test = raw_test.select(range(args.max_eval_examples))
+        print(f"Capped test dataset to {len(raw_test)} rows")
+
     # Convert to chat format
     print(f"Building chat dataset (modality={args.modality})...")
     chat_dataset = build_chat_dataset(raw_train, args.modality, args.max_steps_per_episode)
@@ -227,9 +282,11 @@ def main():
     chat_dataset = chat_dataset.shuffle(seed=42)
 
     eval_dataset = None
-    if raw_test is not None:
+    if raw_test is not None and not args.skip_eval:
         eval_dataset = build_chat_dataset(raw_test, args.modality, args.max_steps_per_episode)
         print(f"Test chat dataset: {len(eval_dataset)} examples")
+    elif raw_test is not None:
+        print("Skipping test chat dataset construction (--skip-eval)")
 
     # -------------------------------------------------------------------------
     # Model & tokenizer
@@ -294,6 +351,7 @@ def main():
 
     training_args = SFTConfig(
         output_dir=args.output_dir,
+        logging_dir=str(output_dir / "logs"),
         num_train_epochs=args.epochs,
         max_steps=args.max_steps,
         learning_rate=args.lr,
@@ -305,11 +363,19 @@ def main():
         warmup_ratio=args.warmup_ratio,
         weight_decay=args.weight_decay,
         lr_scheduler_type=args.lr_scheduler,
+        optim=args.optim,
         bf16=args.bf16,
         gradient_checkpointing=args.gradient_checkpointing,
-        gradient_checkpointing_kwargs={"use_reentrant": False} if args.gradient_checkpointing else None,
+        gradient_checkpointing_kwargs=(
+            {"use_reentrant": False} if args.gradient_checkpointing else None
+        ),
+        dataloader_num_workers=args.dataloader_num_workers,
+        dataset_num_proc=args.dataset_num_proc,
         logging_steps=args.logging_steps,
+        logging_first_step=True,
+        include_num_input_tokens_seen=True,
         save_strategy=args.save_strategy,
+        save_steps=args.save_steps,
         save_total_limit=args.save_total_limit,
         report_to=args.report_to,
         run_name=run_name,
@@ -330,25 +396,38 @@ def main():
     # Train
     # -------------------------------------------------------------------------
     print("Initializing SFTTrainer...")
-    # When eval is skipped, don't pass the test dataset at all — otherwise
-    # SFTTrainer tokenizes + packs it upfront (~3 min for 120k rows), which
-    # is wasted work. Load only train.
-    effective_eval_dataset = eval_dataset if not args.skip_eval else None
-
     trainer = SFTTrainer(
         model=args.model,
         args=training_args,
         train_dataset=chat_dataset,
-        eval_dataset=effective_eval_dataset,
+        eval_dataset=eval_dataset,
         processing_class=tokenizer,
         peft_config=peft_config,
     )
 
+    resume_from_checkpoint = None
+    if args.resume_from_checkpoint:
+        if args.resume_from_checkpoint == "auto":
+            from transformers.trainer_utils import get_last_checkpoint
+
+            resume_from_checkpoint = get_last_checkpoint(args.output_dir)
+            if resume_from_checkpoint:
+                print(f"Resuming from latest checkpoint: {resume_from_checkpoint}")
+            else:
+                print("No existing checkpoint found; starting from scratch.")
+        else:
+            resume_from_checkpoint = args.resume_from_checkpoint
+            print(f"Resuming from checkpoint: {resume_from_checkpoint}")
+
     print("Starting training...")
-    result = trainer.train()
+    result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     # Log final metrics
     metrics = result.metrics
+    trainer.log_metrics("train", metrics)
+    trainer.save_metrics("train", metrics)
+    trainer.save_state()
+
     print("\n" + "=" * 80)
     print("TRAINING COMPLETE")
     print("=" * 80)

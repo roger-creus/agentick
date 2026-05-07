@@ -17,8 +17,14 @@ training:
   warmup_ratio: 0.05
   weight_decay: 0.01
   lr_scheduler: cosine
+  optim: adamw_torch_fused
   attn_implementation: sdpa
   gradient_checkpointing: true
+  dataset_num_proc: 8
+  dataloader_num_workers: 4
+  logging_steps: 5
+  report_to: tensorboard
+  save_total_limit: 4
   wandb_project: agentick-sft
   run_name: sft-qwen35-4b-ascii-pilot
 push_to_hub: rogercc/agentick-qwen35-4b-sft-ascii-pilot

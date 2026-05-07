@@ -103,6 +103,8 @@ class FewShotAdaptationTask(TaskSpec):
     name = "FewShotAdaptation-v0"
     description = "Learn hidden rule from demo trials, apply to new targets"
     capability_tags = ["meta_learning", "adaptation", "few_shot"]
+    public_config_exclude = {"goal_positions", "true_goal", "trials", "rule_name", "target_type"}
+    public_config_include_private = {"_current_trial", "_trial_step"}
 
     difficulty_configs = {
         "easy": DifficultyConfig(

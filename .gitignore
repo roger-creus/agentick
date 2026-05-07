@@ -6,7 +6,7 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -44,13 +44,13 @@ htmlcov/
 # Project specific
 *.log
 *.mp4
-results*/
+/results*/
 checkpoints/
 wandb/
-leaderboard_site/
+/leaderboard_site/
 /site/
 trajectories/
-data/
+/data/
 test_output/
 *.pkl
 *.h5
@@ -64,9 +64,10 @@ notebooks/
 Thumbs.db
 
 # uv
-uv.lock
+# Keep uv.lock tracked for reproducible development installs.
 
 .claude
+.cache/
 .config/
 .triton/
 
@@ -112,10 +113,21 @@ examples/experiments/configs/gemini_31_flash_lite_*
 # Haiku configs (Azure credentials, local only)
 examples/experiments/configs/haiku_*
 
+# Intermediate checkpoint eval configs (local analysis only)
+examples/experiments/configs/*_ckpt*.yaml
+
 # Cluster/SLURM infrastructure (private)
-cluster_manager/
+/cluster_manager/
 slurm_account_template.sbatch
 *.sbatch
 
 # NVIDIA cache
 .nv/
+
+# Local paper/review artifacts
+/AgenTick*.pdf
+/AgenTick*.zip
+/AgenTick_draft/
+
+# Internal agent planning artifacts
+/docs/superpowers/

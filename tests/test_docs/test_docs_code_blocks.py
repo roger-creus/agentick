@@ -29,7 +29,10 @@ def extract_python_code_blocks(md_file: Path) -> list[tuple[int, str]]:
             if non_empty_lines:
                 min_indent = min(len(line) - len(line.lstrip()) for line in non_empty_lines)
                 # Remove that indentation from all lines
-                code = "\n".join(line[min_indent:] if len(line) > min_indent else line for line in lines)
+                code = "\n".join(
+                    line[min_indent:] if len(line) > min_indent else line
+                    for line in lines
+                )
 
         # Find line number of this block
         line_num = content[: match.start()].count("\n") + 1
@@ -61,7 +64,10 @@ def test_python_code_blocks_syntax(doc_file: Path):
             continue
 
         # Skip blocks that are just import statements (very common in docs)
-        lines = [line for line in code.split("\n") if line.strip() and not line.strip().startswith("#")]
+        lines = [
+            line for line in code.split("\n")
+            if line.strip() and not line.strip().startswith("#")
+        ]
         if all(
             line.strip().startswith(("import ", "from "))
             or line.strip().startswith("...")

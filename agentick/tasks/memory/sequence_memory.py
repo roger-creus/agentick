@@ -32,6 +32,8 @@ class SequenceMemoryTask(TaskSpec):
     name = "SequenceMemory-v0"
     description = "Memorize shown positions, then visit them in order"
     capability_tags = ["memory", "pattern_recognition"]
+    public_config_exclude = {"goal_positions", "sequence", "distractors"}
+    public_config_include_private = {"_phase", "_show_step", "_seq_progress", "_current_shown"}
 
     difficulty_configs = {
         "easy": DifficultyConfig(

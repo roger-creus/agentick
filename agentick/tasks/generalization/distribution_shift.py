@@ -447,6 +447,17 @@ class DistributionShiftTask(TaskSpec):
     name = "DistributionShift-v0"
     description = "Complete sequential mini-tasks across shifting maze layouts"
     capability_tags = ["adversarial", "adaptation"]
+    public_config_include_private = {
+        "_n_phases",
+        "_phases_completed",
+        "_current_phase_idx",
+        "_current_phase_type",
+    }
+
+    def get_public_config(self, config):
+        public = super().get_public_config(config)
+        public["action_remapped"] = bool(config.get("_action_remap"))
+        return public
 
     difficulty_configs = {
         "easy": DifficultyConfig(

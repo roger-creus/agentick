@@ -23,7 +23,11 @@ echo "Config: {config_display} | Profile: {profile_name} | Started: $(date)"
 # Write inline config to a temporary file (self-contained, no external deps)
 {inline_config_block}
 
-uv run --env-file .env {runner_command}
+if [ -f .env ]; then
+    uv run --env-file .env {runner_command}
+else
+    uv run {runner_command}
+fi
 _exit=$?
 
 {cleanup_block}

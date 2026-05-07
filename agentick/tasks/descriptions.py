@@ -621,7 +621,11 @@ _td(
         ("easy", "7x7 grid, 1 chaser, survive 30 steps, 1 freeze switch. Open layout."),
         ("medium", "10x10, chaser + ambusher, survive 50 steps, 1 freeze switch, 3 obstacles."),
         ("hard", "13x13, chaser + ambusher + flanker, 80 steps, 1 switch, 5 obstacles."),
-        ("expert", "15x15, 4 enemies (chaser+ambusher+flanker+trapper), 100 steps, 2 switches, 8 obstacles."),
+        (
+            "expert",
+            "15x15, 4 enemies (chaser+ambusher+flanker+trapper), "
+            "100 steps, 2 switches, 8 obstacles.",
+        ),
     ],
     tags=["reactive_control", "prediction"],
 )

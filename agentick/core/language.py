@@ -113,18 +113,25 @@ class AdvancedLanguageRenderer:
                 f"Orb meter: {blue:.2f}/{threshold:.1f}."
             )
         if "TreasureHunt" in task_name:
-            clue_info = task_config.get("_clue_info", {})
-            clues_read = task_config.get("_clues_read", [])
             dir_names = {0: "North", 1: "East", 2: "South", 3: "West"}
-            for cpos in clues_read:
-                key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
-                ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
-                if ci:
+            public_clues = task_config.get("read_clues")
+            if public_clues is not None:
+                for ci in public_clues:
                     d = dir_names.get(ci.get("direction", 0), "unknown")
                     dist = ci.get("distance", "?")
-                    parts.append(
-                        f"A scroll pointed {d}, {dist} tiles away."
-                    )
+                    parts.append(f"A scroll pointed {d}, {dist} tiles away.")
+            else:
+                clue_info = task_config.get("_clue_info", {})
+                clues_read = task_config.get("_clues_read", [])
+                for cpos in clues_read:
+                    key = f"{cpos[0]},{cpos[1]}" if isinstance(cpos, (list, tuple)) else cpos
+                    ci = clue_info.get(key, clue_info.get(tuple(cpos), {}))
+                    if ci:
+                        d = dir_names.get(ci.get("direction", 0), "unknown")
+                        dist = ci.get("distance", "?")
+                        parts.append(
+                            f"A scroll pointed {d}, {dist} tiles away."
+                        )
         if "RuleInduction" in task_name:
             trial = task_config.get("_current_trial", 0) + 1
             n_trials = task_config.get("_n_trials", 1)
@@ -385,8 +392,13 @@ class AdvancedLanguageRenderer:
                         high.append(f"a box {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.TARGET:
                     slot_num = ann.target_slots.get(pos)
+                    target_obj = ann.typed_target_objects.get(pos)
                     if slot_num is not None:
                         high.append(f"target slot {slot_num} {rel_dir} ({dist_desc})")
+                    elif target_obj:
+                        high.append(
+                            f"a {target_obj} target slot {rel_dir} ({dist_desc})"
+                        )
                     else:
                         high.append(f"a target {rel_dir} ({dist_desc})")
                 elif obj_type == ObjectType.SWITCH:
@@ -566,7 +578,10 @@ class AdvancedLanguageRenderer:
 
     def _describe_goals(self, grid: Grid, agent: Agent, info: dict[str, Any]) -> str:
         """Describe goals and objectives."""
+        from agentick.core.annotations import extract_annotations
+
         ax, ay = agent.position
+        ann = extract_annotations(grid, info)
 
         # Find nearest goal
         min_dist = float("inf")
@@ -574,6 +589,8 @@ class AdvancedLanguageRenderer:
 
         for y in range(grid.height):
             for x in range(grid.width):
+                if (x, y) in ann.fog_cells:
+                    continue
                 if grid.objects[y, x] == ObjectType.GOAL:
                     dist = abs(x - ax) + abs(y - ay)
                     if dist < min_dist:
@@ -597,7 +614,10 @@ class AdvancedLanguageRenderer:
 
     def _describe_threats(self, grid: Grid, agent: Agent, entities: list[Entity]) -> str:
         """Describe nearby threats or dangers."""
+        from agentick.core.annotations import extract_annotations
+
         ax, ay = agent.position
+        ann = extract_annotations(grid, getattr(self, "_last_info", {}))
         threats = []
 
         # Check for hazards nearby
@@ -608,6 +628,8 @@ class AdvancedLanguageRenderer:
 
                 nx, ny = ax + dx, ay + dy
                 if not grid.in_bounds((nx, ny)):
+                    continue
+                if (nx, ny) in ann.fog_cells:
                     continue
 
                 if grid.terrain[ny, nx] == CellType.HAZARD:
@@ -691,6 +713,8 @@ class AdvancedLanguageRenderer:
                     entry["tile_number"] = ann.tile_numbers[pos]
                 if pos in ann.target_slots:
                     entry["slot_number"] = ann.target_slots[pos]
+                if pos in ann.typed_target_objects:
+                    entry["accepts"] = ann.typed_target_objects[pos]
                 if pos in ann.scroll_directions:
                     sd = ann.scroll_directions[pos]
                     entry["direction"] = sd["direction"]
@@ -731,6 +755,10 @@ class AdvancedLanguageRenderer:
             task_annotations["clues"] = ann.clues
         if ann.lights_out:
             task_annotations["lights_out"] = True
+        if ann.fog_cells:
+            task_annotations["fog_cells"] = [
+                [x, y] for x, y in sorted(ann.fog_cells)
+            ]
 
         return {
             "description": f"A {grid.width}x{grid.height} gridworld environment",

@@ -2,7 +2,8 @@
 CleanRL-style PPO with CNN policy for Agentick pixel observations.
 
 Adapted from https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_atari.py
-Uses the standard Atari preprocessing pipeline: 512x512 isometric -> 84x84 grayscale -> 4-frame stack.
+Uses the standard Atari preprocessing pipeline:
+512x512 isometric -> 84x84 grayscale -> 4-frame stack.
 
 Requirements:
     uv sync --extra rl
@@ -13,7 +14,6 @@ Usage:
     uv run python examples/rl/ppo_cleanrl.py --total-timesteps 1000000 --track
 """
 
-import os
 import random
 import time
 from dataclasses import dataclass
@@ -26,7 +26,6 @@ import torch.optim as optim
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-import agentick
 from agentick.wrappers import make_atari_env
 
 
@@ -190,10 +189,10 @@ if __name__ == "__main__":
         )
 
     writer = SummaryWriter(f"runs/{run_name}")
+    hparams = "\n".join(f"|{key}|{value}|" for key, value in vars(args).items())
     writer.add_text(
         "hyperparameters",
-        "|param|value|\n|-|-|\n%s"
-        % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
+        f"|param|value|\n|-|-|\n{hparams}",
     )
 
     # Seeding

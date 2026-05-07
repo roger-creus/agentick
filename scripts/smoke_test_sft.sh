@@ -3,6 +3,7 @@
 # Trains for 2 steps, writes LoRA adapter to /tmp/sft_smoke_out, succeeds if
 # the adapter_config.json exists at the end.
 set -euo pipefail
+unset UV_ENV_FILE || true
 
 OUT=/tmp/sft_smoke_out
 rm -rf "$OUT"
@@ -12,12 +13,15 @@ uv run python examples/data_and_finetuning/sft_with_trl.py \
     --model Qwen/Qwen3.5-0.8B \
     --modality ascii \
     --max-steps 2 \
+    --max-train-examples 64 \
+    --max-eval-examples 16 \
     --batch-size 1 \
     --grad-accum 1 \
     --max-seq-length 2048 \
     --output-dir "$OUT" \
     --logging-steps 1 \
     --save-strategy no \
+    --save-total-limit 1 \
     --report-to none
 
 if [ ! -f "$OUT/adapter_config.json" ]; then

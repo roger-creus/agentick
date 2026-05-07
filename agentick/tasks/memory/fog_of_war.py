@@ -41,6 +41,7 @@ class FogOfWarExplorationTask(TaskSpec):
     name = "FogOfWarExploration-v0"
     description = "Navigate under persistent fog using spatial memory"
     capability_tags = ["memory", "spatial_memory"]
+    public_config_exclude = {"goal_positions"}
 
     difficulty_configs = {
         # n_decoys: fake TARGET lures (not real goal) | n_guards: patrol

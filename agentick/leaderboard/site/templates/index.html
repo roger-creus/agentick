@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Agentick Leaderboard</h1>
 <p>Universal benchmark for evaluating AI agents.</p>
-<p style="font-size: 13px;"><strong>ONS</strong> (Oracle-Normalized Score) = (agent &minus; random) / (oracle &minus; random), where 0% = random baseline and 100% = oracle upper bound.</p>
+<p style="font-size: 13px;"><strong>ONS</strong> (Oracle-Normalized Score) = (agent &minus; random) / (oracle &minus; random), where 0.0 = random baseline and 1.0 = oracle upper bound.</p>
 
 {% if rankings or all_rankings %}
 
@@ -306,7 +306,7 @@ function barConfig(labels, data, title) {
                     min: 0, max: 1,
                     grid: { color: '#30363d22' },
                     border: { color: '#30363d' },
-                    ticks: { callback: v => (v * 100).toFixed(0) + '%' },
+                    ticks: { callback: v => v.toFixed(1) },
                 },
                 y: {
                     grid: { display: false },

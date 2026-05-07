@@ -11,7 +11,8 @@ Requirements:
 
 Usage:
     uv run python examples/experiments/run_predefined.py
-    uv run python examples/experiments/run_predefined.py --config examples/experiments/configs/oracle_agent.yaml
+    uv run python examples/experiments/run_predefined.py \
+        --config examples/experiments/configs/oracle_agent.yaml
 """
 
 import argparse

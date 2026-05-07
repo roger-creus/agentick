@@ -17,6 +17,21 @@ logger = logging.getLogger(__name__)
 _TASK_REGISTRY: dict[str, type[TaskSpec]] = {}
 
 
+def _snapshot_config_value(value: Any) -> Any:
+    """Copy mutable task-config values for reward-state snapshots."""
+    if isinstance(value, np.random.Generator):
+        return value
+    if isinstance(value, dict):
+        return {k: _snapshot_config_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_snapshot_config_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_snapshot_config_value(v) for v in value)
+    if isinstance(value, set):
+        return {_snapshot_config_value(v) for v in value}
+    return value
+
+
 def register_task(
     name: str,
     tags: list[str] | None = None,
@@ -273,21 +288,51 @@ class TaskEnv(AgentickEnv):
             self.agent.position = config["agent_start"]
 
     def step(self, action):
-        """Step with optional post-action task hook (e.g. moving obstacles)."""
-        obs, reward, terminated, truncated, info = super().step(action)
-        # Fix info["success"]: base class sets terminated=True for ANY check_done(),
-        # but tasks may terminate without success (e.g. decoy-taken in DelayedGratification).
-        # _last_success was set in _check_success() to reflect true goal achievement.
+        """Execute a step, including task dynamics before returning observation.
+
+        Dynamic tasks move NPCs, guards, or transient objects in ``on_env_step``.
+        That hook must run before reward, termination, observation, and info are
+        produced; otherwise agents see a stale state while the next action is
+        applied to a different internal world.
+        """
+        if self.done:
+            raise RuntimeError("Episode is done. Call reset() to start new episode.")
+
+        self.step_count += 1
+
+        old_state = self._get_state_for_reward()
+        action_type = self.action_space_obj.get_action_type(action)
+        self._execute_action(action_type)
+
+        self._valid_actions_dirty = True
+
+        if hasattr(self.task, "on_env_step"):
+            self.task.on_env_step(self.agent, self.grid, self.task_config, self.step_count)
+            self._valid_actions_dirty = True
+
+        new_state = self._get_state_for_reward()
+        reward = self._compute_reward(old_state, action_type, new_state)
+        self.episode_reward += reward
+
+        terminated = self._check_success()
+        truncated = self.step_count >= self.max_steps
+        self.done = terminated or truncated
+
+        obs = self._get_observation()
+        info = self._get_info()
+
         if terminated and hasattr(self, "_last_success"):
-            info["success"] = self._last_success
-        # For survival tasks (no explicit done): check success on truncation too
-        if truncated and not terminated:
+            info["success"] = bool(self._last_success)
+        elif truncated:
             state = self._get_state_for_reward()
             state.update({"grid": self.grid, "agent": self.agent, "config": self.task_config})
             info["success"] = bool(self.task.check_success(state))
-        # Allow task to update world after agent acts (NPCs, obstacles, etc.)
-        if hasattr(self.task, "on_env_step"):
-            self.task.on_env_step(self.agent, self.grid, self.task_config, self.step_count)
+        else:
+            info["success"] = False
+
+        if truncated:
+            info["truncated_reason"] = "max_steps_reached"
+
         return obs, reward, terminated, truncated, info
 
     def _reset_state(
@@ -408,7 +453,7 @@ class TaskEnv(AgentickEnv):
             {
                 "grid": self.grid,
                 "agent": self.agent,
-                "config": self.task_config,
+                "config": _snapshot_config_value(self.task_config),
             }
         )
         return state
@@ -420,11 +465,7 @@ class TaskEnv(AgentickEnv):
         we strip non-comparable objects (RNG instances) from the copy.
         """
         info = super()._get_info()
-        info["task_config"] = {
-            k: v
-            for k, v in self.task_config.items()
-            if not isinstance(v, np.random.Generator)
-        }
+        info["task_config"] = self.task.get_public_config(self.task_config)
         return info
 
     def _compute_reward(

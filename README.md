@@ -9,15 +9,15 @@
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+  <a href="#citation"><img src="https://img.shields.io/badge/paper-coming_soon-lightgrey" alt="Paper coming soon"></a>
   <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-agentick.ai-4051b5" alt="Docs"></a>
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
-  <a href="https://doi.org/10.5281/zenodo.19104717"><img src="https://zenodo.org/badge/1155852082.svg" alt="DOI"></a>
 </p>
 
 Universal benchmark for evaluating AI agents. Train and evaluate any agent type — RL, LLM, VLM, hybrid, or human — across procedurally generated gridworld tasks.
 
 <p align="center">
-  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
+  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="#citation">Paper (coming soon)</a> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
 </p>
 
 <p align="center">
@@ -41,8 +41,8 @@ The fastest way to explore Agentick is the **interactive webapp** — play tasks
 
 ```bash
 git clone https://github.com/roger-creus/agentick.git && cd agentick
-uv sync --extra all
-uv run python -m agentick.human.webapp   # Opens http://localhost:5000
+uv sync --extra webapp
+uv run python -m agentick.human.webapp   # Opens http://127.0.0.1:8080
 ```
 
 ## Quick Start
@@ -68,7 +68,7 @@ env.close()
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv
 git clone https://github.com/roger-creus/agentick.git
 cd agentick
-uv sync --extra all
+uv sync
 uv run agentick --version
 ```
 
@@ -77,7 +77,7 @@ uv run agentick --version
 ```bash
 uv sync                     # Core only (gymnasium, numpy, pygame, Pillow)
 uv sync --extra rl          # RL training (torch, stable-baselines3)
-uv sync --extra llm         # LLM agents (openai, transformers, google-genai)
+uv sync --extra llm         # LLM agents (openai, anthropic, google-genai, transformers)
 uv sync --extra vllm        # vLLM serving
 uv sync --extra finetune    # Fine-tuning (trl, peft, datasets)
 uv sync --extra tracking    # Experiment tracking (wandb)
@@ -120,17 +120,17 @@ env = agentick.make("MazeNavigation-v0", render_mode="language")   # Natural lan
 # Basic usage
 uv run python examples/basics/01_make_and_step.py
 
-# RL training with SB3
+# RL training with SB3 (requires `uv sync --extra rl`; long-running)
 uv run python examples/rl/sb3_ppo.py
 
-# LLM agent (requires API key)
-export OPENAI_API_KEY="your-key"
+# LLM agent (requires `uv sync --extra llm` and an API key)
+export OPENAI_API_KEY="your-openai-api-key"
 uv run python examples/llm/openai_text_agent.py
 
-# Data collection from oracles
-uv run python examples/data_and_finetuning/collect_oracle_trajectories.py
+# Data collection from oracles (requires `uv sync --extra finetune`)
+uv run python examples/data_and_finetuning/collect_oracle_trajectories.py --tasks GoToGoal-v0 --difficulties easy --n-episodes 1 --output-dir trajectories/oracle-smoke
 
-# Run a full benchmark experiment
+# Run a full benchmark experiment (long-running)
 uv run python -m agentick.experiments.run --config examples/experiments/configs/random_agent.yaml
 ```
 
@@ -162,11 +162,11 @@ uv run python -m agentick.experiments.run --config config.yaml
 
 Pre-built datasets of expert trajectories for SFT fine-tuning:
 
-| Dataset | Train | Test |
-|---------|-------|------|
-| [`agentick-oracle-trajectories-120k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) | 120K episodes |
-| [`agentick-oracle-trajectories-250k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K episodes |
-| [`agentick-oracle-trajectories-500k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K episodes |
+| Dataset | Rows |
+|---------|------|
+| [`agentick-oracle-trajectories-120k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) | 120K per-step rows |
+| [`agentick-oracle-trajectories-250k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K per-step rows |
+| [`agentick-oracle-trajectories-500k`](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K per-step rows |
 
 Each row: `task`, `difficulty`, `ascii_render`, `language_render`, `action_int`, `reward`, `done`. Train/test use different deterministic seeds. See [Fine-Tuning docs](docs/agents/finetuning.md) for SFT training with TRL.
 
@@ -236,8 +236,7 @@ Features on the `dev` branch for future releases:
   title={Agentick: Universal Benchmark for AI Agents},
   author={Creus Castanyer, Roger},
   year={2025},
-  url={https://github.com/roger-creus/agentick},
-  doi={10.5281/zenodo.19104717}
+  url={https://github.com/roger-creus/agentick}
 }
 ```
 

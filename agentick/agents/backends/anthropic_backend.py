@@ -17,8 +17,8 @@ class AnthropicBackend(ModelBackend):
     def __init__(
         self,
         model: str = "claude-haiku-4-5",
-        api_key_env: str = "CLAUDE_API_KEY",
-        base_url_env: str = "CLAUDE_ENDPOINT",
+        api_key_env: str = "ANTHROPIC_API_KEY",
+        base_url_env: str = "ANTHROPIC_BASE_URL",
         max_tokens: int = 4096,
         temperature: float = 1.0,
         max_retries: int = 3,
@@ -30,15 +30,19 @@ class AnthropicBackend(ModelBackend):
         self.max_retries = max_retries
 
         api_key = os.environ.get(api_key_env)
+        if not api_key and api_key_env == "ANTHROPIC_API_KEY":
+            api_key = os.environ.get("CLAUDE_API_KEY")
         if not api_key:
             raise ValueError(f"API key not found. Set the {api_key_env} environment variable.")
 
         base_url = os.environ.get(base_url_env, "")
+        if not base_url and base_url_env == "ANTHROPIC_BASE_URL":
+            base_url = os.environ.get("CLAUDE_ENDPOINT", "")
 
         try:
             from anthropic import AnthropicFoundry
         except ImportError:
-            raise ImportError("anthropic package not installed. Run: pip install anthropic")
+            raise ImportError("anthropic package not installed. Run: uv sync --extra llm")
 
         client_kwargs: dict[str, Any] = {"api_key": api_key}
         if base_url:

@@ -6,7 +6,7 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv (if needed)
 git clone https://github.com/roger-creus/agentick.git
 cd agentick
-uv sync --extra all                                  # All dependencies
+uv sync                                              # Core dependencies
 ```
 
 Install only what you need:
@@ -14,7 +14,7 @@ Install only what you need:
 ```bash
 uv sync                     # Core only
 uv sync --extra rl          # RL training (torch, stable-baselines3)
-uv sync --extra llm         # LLM agents (openai, transformers)
+uv sync --extra llm         # LLM agents (openai, anthropic, google-genai, transformers)
 uv sync --extra vllm        # vLLM serving
 uv sync --extra finetune    # Fine-tuning (trl, peft)
 uv sync --extra viz         # Visualization (matplotlib)

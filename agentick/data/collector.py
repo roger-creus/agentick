@@ -486,7 +486,7 @@ class CollectedDataset:
             from datasets import Dataset
         except ImportError:
             raise ImportError(
-                "datasets package required: pip install datasets"
+                "datasets package required. Run: uv sync --extra finetune"
             )
 
         output_path = Path(output_path)
@@ -532,7 +532,7 @@ class CollectedDataset:
             from datasets import Dataset
         except ImportError:
             raise ImportError(
-                "datasets package required: pip install datasets"
+                "datasets package required. Run: uv sync --extra finetune"
             )
 
         if observation_mode is None:

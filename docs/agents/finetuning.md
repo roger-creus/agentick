@@ -6,11 +6,11 @@ Fine-tune language models on expert trajectories from Agentick oracles.
 
 Oracle trajectory datasets are available on HuggingFace:
 
-| Dataset | Episodes | Link |
+| Dataset | Rows | Link |
 |---------|----------|------|
-| `rogercc/agentick-oracle-trajectories-120k` | 120K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) |
-| `rogercc/agentick-oracle-trajectories-250k` | 250K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) |
-| `rogercc/agentick-oracle-trajectories-500k` | 500K | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) |
+| `rogercc/agentick-oracle-trajectories-120k` | 120K per-step rows | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) |
+| `rogercc/agentick-oracle-trajectories-250k` | 250K per-step rows | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) |
+| `rogercc/agentick-oracle-trajectories-500k` | 500K per-step rows | [HuggingFace](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) |
 
 Each dataset is a DatasetDict with train/test splits (using different deterministic seeds). Per-step records with `ascii_render`, `language_render`, `action_int`, `action_name`, `task`, `difficulty`, `reward`, and `done` columns.
 
@@ -51,18 +51,18 @@ Use TRL's `SFTTrainer` directly with LoRA. The script in `examples/data_and_fine
 ```bash
 # Single GPU
 uv run python examples/data_and_finetuning/sft_with_trl.py \
-    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --dataset rogercc/agentick-oracle-trajectories-120k \
     --model Qwen/Qwen2.5-0.5B
 
-# Multi-GPU with accelerate
-accelerate launch --num_processes 8 \
+# Multi-GPU
+torchrun --standalone --nnodes=1 --nproc_per_node 8 \
     examples/data_and_finetuning/sft_with_trl.py \
-    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --dataset rogercc/agentick-oracle-trajectories-120k \
     --model Qwen/Qwen3.5-4B
 
 # Language modality instead of ASCII
 uv run python examples/data_and_finetuning/sft_with_trl.py \
-    --dataset rogercc/agentick-oracle-trajectories-100k \
+    --dataset rogercc/agentick-oracle-trajectories-120k \
     --modality language \
     --model Qwen/Qwen3.5-4B
 ```
@@ -80,7 +80,7 @@ After training, merge LoRA adapters and evaluate:
 ```bash
 # Merge adapters into base model
 uv run python examples/data_and_finetuning/merge_and_push.py \
-    --adapter-path models/sft \
+    --adapter-dir models/sft \
     --base-model Qwen/Qwen2.5-0.5B \
     --push-to-hub rogercc/agentick-qwen-sft
 

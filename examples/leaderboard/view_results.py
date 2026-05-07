@@ -105,7 +105,8 @@ def display_capability_analysis(results: list[dict]):
         category_scores.items(), key=lambda x: x[1]["success"], reverse=True
     ):
         print(
-            f"{category:<20} {scores['count']:>8} {scores['reward']:>12.2f} {scores['success']:>13.1%}"
+            f"{category:<20} {scores['count']:>8} "
+            f"{scores['reward']:>12.2f} {scores['success']:>13.1%}"
         )
 
 

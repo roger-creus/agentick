@@ -203,11 +203,14 @@ def main():
 
         success_str = "✓" if info.get("success", False) else "✗"
         print(
-            f"Episode {episode + 1:2d}: {success_str} Steps: {steps:3d}, Reward: {total_reward:6.2f}"
+            f"Episode {episode + 1:2d}: {success_str} "
+            f"Steps: {steps:3d}, Reward: {total_reward:6.2f}"
         )
 
     print("\nFinal Results:")
-    print(f"  Mean return: {sum(returns) / len(returns):.2f} ± {(max(returns) - min(returns)) / 2:.2f}")
+    mean_return = sum(returns) / len(returns)
+    return_half_range = (max(returns) - min(returns)) / 2
+    print(f"  Mean return: {mean_return:.2f} +/- {return_half_range:.2f}")
     print(f"  Mean length: {sum(lengths) / len(lengths):.2f}")
 
     if WANDB_AVAILABLE and run is not None:

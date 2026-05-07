@@ -437,7 +437,7 @@ class PlayWebApp:
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8080):
         if Flask is None:
-            raise ImportError("Flask is required: pip install flask")
+            raise ImportError("Flask is required. Run: uv sync --extra webapp")
         self.app = Flask(__name__)
         self.app.secret_key = os.urandom(24)
         self.host = host

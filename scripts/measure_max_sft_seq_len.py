@@ -1,7 +1,9 @@
-"""Measure the maximum tokenized SFT sequence length across all tasks/difficulties.
+"""Measure tokenized SFT sequence lengths on the actual HF datasets.
 
-Runs the oracle for ~5 steps per (task, difficulty), builds the full
-SFT chat row, applies the Qwen3.5 tokenizer, and reports the max length.
+The SFT/eval formatter strips ANSI color codes before tokenization, so raw
+`ascii_render` byte length substantially overstates model context length. This
+script streams each split, keeps the longest raw ASCII rows, then tokenizes
+those candidates with the same chat template used by training.
 
 Usage:
     uv run python scripts/measure_max_sft_seq_len.py
@@ -9,65 +11,82 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 
-def main():
+DEFAULT_DATASETS = [
+    "rogercc/agentick-oracle-trajectories-120k",
+    "rogercc/agentick-oracle-trajectories-250k",
+    "rogercc/agentick-oracle-trajectories-500k",
+]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--datasets", nargs="+", default=DEFAULT_DATASETS)
+    parser.add_argument("--split", default="train")
+    parser.add_argument("--model", default="Qwen/Qwen3.5-4B")
+    parser.add_argument("--top-k", type=int, default=40)
+    args = parser.parse_args()
+
+    from datasets import load_dataset
     from transformers import AutoTokenizer
 
-    import agentick
     from agentick.agents.prompt_templates import (
         SYSTEM_PROMPT,
         format_observation_to_text,
     )
-    from agentick.oracles import get_oracle, list_oracles
     from agentick.tasks.descriptions import get_task_description
 
-    tok = AutoTokenizer.from_pretrained("Qwen/Qwen3.5-4B", trust_remote_code=True)
+    tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
 
-    max_len = 0
-    max_row = None
-    for task in list_oracles():
-        for diff in ["easy", "medium", "hard", "expert"]:
-            try:
-                env = agentick.make(task, difficulty=diff, render_mode="ascii")
-            except Exception:
-                continue
-            try:
-                oracle = get_oracle(task, env)
-            except Exception:
-                env.close()
-                continue
+    global_max: tuple[int, tuple] | None = None
+    for repo in args.datasets:
+        longest = []
+        ds = load_dataset(repo, split=args.split, streaming=True)
+        for i, example in enumerate(ds):
+            raw_len = len(str(example["ascii_render"]))
+            if len(longest) < args.top_k or raw_len > longest[0][0]:
+                longest.append((raw_len, i, example))
+                longest = sorted(longest, key=lambda x: x[0])[-args.top_k:]
+            if (i + 1) % 100_000 == 0:
+                print(f"{repo}: scanned {i + 1}, raw max={longest[-1][0]}", flush=True)
 
-            obs, info = env.reset(seed=0)
-            oracle.reset(obs, info)
-
-            for _ in range(5):
-                ascii_render = env.unwrapped.render_in_mode("ascii")
-                sys_msg = SYSTEM_PROMPT.format(task_description=get_task_description(task))
-                user_msg = format_observation_to_text(
-                    str(ascii_render),
-                    {"task_name": task, "step": 0},
-                    "ascii",
-                )
-                messages = [
+        repo_max: tuple[int, tuple] | None = None
+        for raw_len, idx, example in longest:
+            sys_msg = SYSTEM_PROMPT.format(
+                task_description=get_task_description(example["task"])
+            )
+            user_msg = format_observation_to_text(
+                str(example["ascii_render"]),
+                {"task_name": example["task"], "step": example["step"]},
+                "ascii",
+            )
+            rendered = tok.apply_chat_template(
+                [
                     {"role": "system", "content": sys_msg},
                     {"role": "user", "content": user_msg},
-                    {"role": "assistant", "content": "0"},
-                ]
-                rendered = tok.apply_chat_template(messages, tokenize=False)
-                n = len(tok.encode(rendered))
-                if n > max_len:
-                    max_len = n
-                    max_row = (task, diff)
+                    {"role": "assistant", "content": str(example["action_int"])},
+                ],
+                tokenize=False,
+            )
+            n_tokens = len(tok.encode(rendered))
+            item = (
+                repo,
+                idx,
+                example["task"],
+                example["difficulty"],
+                example["step"],
+                raw_len,
+                len(user_msg),
+            )
+            if repo_max is None or n_tokens > repo_max[0]:
+                repo_max = (n_tokens, item)
+            if global_max is None or n_tokens > global_max[0]:
+                global_max = (n_tokens, item)
 
-                action = oracle.act(obs, info)
-                obs, _, done, trunc, info = env.step(action)
-                oracle.update(obs, info)
-                if done or trunc:
-                    break
-            env.close()
+        print(f"{repo}: max tokenized length = {repo_max[0]} | {repo_max[1]}")
 
-    print(f"Max tokenized SFT sequence length: {max_len} tokens")
-    print(f"Worst-case task/difficulty: {max_row}")
+    print(f"global max tokenized length = {global_max[0]} | {global_max[1]}")
 
 
 if __name__ == "__main__":

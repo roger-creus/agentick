@@ -46,6 +46,7 @@ rl = [
 # LLM/VLM agents
 llm = [
     "openai>=1.0",
+    "anthropic>=0.34",
     "google-genai>=1.66.0",
     "transformers>=4.40",
     "torch>=2.0",
@@ -60,6 +61,11 @@ finetune = [
     "trl>=0.8",
     "peft",
     "datasets",
+    "transformers>=5.0",
+    "torch>=2.0",
+    "accelerate",
+    "huggingface-hub",
+    "safetensors",
 ]
 # Experiment tracking
 tracking = [
@@ -100,9 +106,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["agentick"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"agentick/rendering/tiles" = "agentick/rendering/tiles"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -110,6 +113,10 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 timeout = 60
+markers = [
+    "slow: tests that exercise longer-running flows",
+    "benchmark: performance/throughput checks",
+]
 
 [tool.ruff]
 line-length = 100
@@ -122,6 +129,12 @@ ignore = []
 [tool.ruff.lint.per-file-ignores]
 "examples/debug/_shared.py" = ["E501"]
 "agentick/human/webapp.py" = ["E501"]
+"agentick/agents/prompt_templates.py" = ["E501"]
+"agentick/core/env.py" = ["N806"]
+"agentick/core/renderer.py" = ["N806"]
+"agentick/oracles/reasoning_oracles.py" = ["N806"]
+"agentick/tasks/planning/backtrack_puzzle.py" = ["N802"]
+"agentick/tasks/registry.py" = ["E501", "N806", "N817"]
 
 [tool.mypy]
 python_version = "3.11"

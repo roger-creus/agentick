@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+
 class EpisodeResult(BaseModel):
     """Result for a single episode."""
 
@@ -79,7 +80,10 @@ class EvaluationResult(BaseModel):
         lines = [
             f"=== Evaluation Results: {self.submission.agent_name} ===",
             f"Suite: {self.suite_name}",
-            f"Agentick Score: {self.agentick_score:.3f} ({self.agentick_score_ci[0]:.3f}-{self.agentick_score_ci[1]:.3f})",
+            (
+                f"Agentick Score: {self.agentick_score:.3f} "
+                f"({self.agentick_score_ci[0]:.3f}-{self.agentick_score_ci[1]:.3f})"
+            ),
             f"Wall Time: {self.wall_time_seconds:.1f}s",
             "",
             "Per-Capability Scores:",

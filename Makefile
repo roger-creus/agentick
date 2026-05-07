@@ -17,7 +17,7 @@ help:
 	@echo "  make all        - Run all checks"
 
 install:
-	uv pip install -e ".[dev]"
+	uv sync --group dev
 
 docs:
 	mkdocs build

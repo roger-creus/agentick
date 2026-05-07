@@ -10,6 +10,7 @@
 #
 # Must be run AFTER scripts/smoke_test_sft.sh has produced the adapter.
 set -euo pipefail
+unset UV_ENV_FILE || true
 
 SMOKE_OUT=/tmp/sft_smoke_out
 LOG=/tmp/merge_smoke.log
@@ -25,6 +26,7 @@ uv run python examples/data_and_finetuning/merge_and_push.py \
     --base-model Qwen/Qwen3.5-0.8B \
     --adapter-dir "$SMOKE_OUT" \
     --push-to-hub rogercc/__merge_smoke_test__ \
+    --skip-upload \
     --dtype bfloat16 2>&1 | tee "$LOG" || true
 
 if grep -q "ZERO weight changes" "$LOG"; then

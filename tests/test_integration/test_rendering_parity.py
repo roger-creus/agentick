@@ -11,6 +11,7 @@ import pytest
 
 import agentick
 from agentick.core.annotations import extract_annotations
+from agentick.core.types import CellType, ObjectType
 from agentick.tasks.registry import list_tasks
 
 ALL_TASKS = list_tasks()
@@ -149,4 +150,78 @@ def test_structured_entity_count_matches_grid(task_name):
         f"{task_name}: structured has {len(struct_grid_objects)} grid objects "
         f"but grid has {grid_objects}"
     )
+    env.close()
+
+
+def test_fogged_state_dict_cells_do_not_leak_hidden_grid_contents():
+    """state_dict observations must mask objects/terrain under fog."""
+    env = agentick.make("FogOfWarExploration-v0", difficulty="easy", render_mode="state_dict")
+    obs, info = env.reset(seed=42)
+
+    fog_cells = obs["annotations"].get("fog_cells", [])
+    assert fog_cells, "FogOfWarExploration should expose explicit fog cell annotations"
+
+    for key in fog_cells:
+        x, y = map(int, key.split(","))
+        assert obs["grid"]["objects"][y][x] == int(ObjectType.NONE)
+        assert obs["grid"]["terrain"][y][x] == int(CellType.EMPTY)
+
+    assert "goal_positions" not in info["task_config"]
+    env.close()
+
+
+@pytest.mark.parametrize(
+    "task_name,hidden_keys",
+    [
+        ("FewShotAdaptation-v0", {"goal_positions", "true_goal", "trials", "rule_name"}),
+        ("SequenceMemory-v0", {"goal_positions", "sequence", "distractors"}),
+        ("TreasureHunt-v0", {"goal_positions", "_treasure_positions", "_clue_info"}),
+        ("RuleInduction-v0", {"_rule_table_list", "_original_objects"}),
+        ("DistributionShift-v0", {"_phase_configs", "_action_remap"}),
+    ],
+)
+def test_public_info_omits_hidden_task_solution_state(task_name, hidden_keys):
+    """Public Gymnasium info must not expose hidden solutions or future phases."""
+    env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
+    _obs, info = env.reset(seed=42)
+    public_keys = set(info["task_config"])
+    assert public_keys.isdisjoint(hidden_keys)
+    env.close()
+
+
+@pytest.mark.parametrize("task_name", ["PackingPuzzle-v0", "RecipeAssembly-v0"])
+def test_typed_target_requirements_are_exposed_across_structured_modes(task_name):
+    """Typed target slots need explicit semantics, not just raw metadata values."""
+    env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
+    obs, _info = env.reset(seed=42)
+    typed_targets = obs["annotations"].get("typed_target_objects", {})
+    assert typed_targets, f"{task_name}: state_dict missing typed target annotations"
+
+    structured = env.render_in_mode("language_structured")
+    structured_targets = [
+        e for e in structured["visible_entities"]
+        if e["type"] == "target" and "accepts" in e
+    ]
+    assert len(structured_targets) == len(typed_targets)
+    env.close()
+
+
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "DynamicObstacles-v0",
+        "TimingChallenge-v0",
+        "ChaseEvade-v0",
+        "NoisyObservation-v0",
+        "TagHunt-v0",
+        "TaskInterference-v0",
+    ],
+)
+def test_dynamic_step_observation_matches_post_step_world(task_name):
+    """Returned observations must include task dynamics applied during the step."""
+    env = agentick.make(task_name, difficulty="easy", seed=42, render_mode="state_dict")
+    env.reset(seed=42)
+    obs, _reward, _terminated, _truncated, _info = env.step(0)
+    assert obs["grid"]["objects"] == env.grid.objects.tolist()
+    assert obs["grid"]["metadata"] == env.grid.metadata.tolist()
     env.close()

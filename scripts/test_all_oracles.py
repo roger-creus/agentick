@@ -2,7 +2,6 @@
 """Test all oracle bots across all tasks and difficulties using eval seeds."""
 
 import argparse
-import sys
 
 import agentick
 from agentick.leaderboard.seeds import generate_task_seeds

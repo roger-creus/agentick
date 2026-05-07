@@ -685,7 +685,10 @@ class TrainingBenchmarkRunner:
         }
 
         try:
-            git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+            git_hash = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            ).decode().strip()
             metadata["git_hash"] = git_hash
         except Exception:
             metadata["git_hash"] = None

@@ -77,7 +77,6 @@ def _fix_adapter_key_mismatch(adapter_dir: Path, base_model) -> None:
         return
 
     # Check if adapter modules match base model modules
-    matched = adapter_modules & base_modules
     unmatched = adapter_modules - base_modules
     if not unmatched:
         print("  Adapter keys match base model — no remapping needed.")
@@ -169,7 +168,12 @@ def main():
     )
     parser.add_argument(
         "--base-model", required=True,
-        help="Base model name on HuggingFace (e.g. Qwen/Qwen3.5-4B)",
+        help="Base model name or local snapshot path (e.g. Qwen/Qwen3.5-4B)",
+    )
+    parser.add_argument(
+        "--base-model-id",
+        default=None,
+        help="Original HuggingFace base model ID when --base-model is a local path",
     )
     parser.add_argument(
         "--adapter-dir", required=True,
@@ -187,10 +191,16 @@ def main():
         "--output-dir", default=None,
         help="Directory to save merged model (default: <adapter-dir>/merged)",
     )
+    parser.add_argument(
+        "--skip-upload",
+        action="store_true",
+        help="Merge and save locally without uploading to HuggingFace Hub",
+    )
     args = parser.parse_args()
 
     adapter_dir = Path(args.adapter_dir)
     merged_dir = Path(args.output_dir) if args.output_dir else adapter_dir / "merged"
+    base_model_id = args.base_model_id or args.base_model
 
     # -------------------------------------------------------------------------
     # Step 1: Verify adapter files exist
@@ -316,8 +326,12 @@ def main():
     # -------------------------------------------------------------------------
     # Step 5: Upload to HuggingFace Hub
     # -------------------------------------------------------------------------
+    if args.skip_upload:
+        print(f"\nSkipping upload. Merged model saved at: {merged_dir}")
+        return
+
     print(f"\nUploading to HuggingFace Hub: {args.push_to_hub}")
-    _upload_to_hub(args.base_model, args.push_to_hub, merged_dir)
+    _upload_to_hub(base_model_id, args.push_to_hub, merged_dir)
 
     print(f"\nDone! https://huggingface.co/{args.push_to_hub}")
 
@@ -353,11 +367,16 @@ def _repackage_as_vl_checkpoint(base_model_id: str, merged_dir: Path) -> None:
 
     # Step 2: Add vision + MTP weights from base model
     print("  Step 2/3: Adding vision/MTP weights from base model...")
-    base_dir = Path(snapshot_download(
-        base_model_id,
-        allow_patterns=["*.safetensors", "config.json", "preprocessor_config.json",
-                        "video_preprocessor_config.json"],
-    ))
+    base_path = Path(base_model_id)
+    if base_path.exists():
+        base_dir = base_path
+    else:
+        base_dir = Path(snapshot_download(
+            base_model_id,
+            allow_patterns=["*.safetensors", "config.json", "preprocessor_config.json",
+                            "video_preprocessor_config.json"],
+            local_files_only=os.environ.get("HF_HUB_OFFLINE") == "1",
+        ))
     extra_count = 0
     for sf in sorted(base_dir.glob("*.safetensors")):
         shard = load_file(str(sf))

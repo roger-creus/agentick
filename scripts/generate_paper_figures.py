@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,6 +35,29 @@ CAT_LABELS = {
 }
 CAT_ORDER = ["navigation", "planning", "reasoning", "memory", "generalization", "multi_agent"]
 
+TASK_CATEGORIES = {
+    "GoToGoal-v0": "navigation", "MazeNavigation-v0": "navigation",
+    "ShortestPath-v0": "navigation", "DynamicObstacles-v0": "navigation",
+    "CuriosityMaze-v0": "navigation", "RecursiveRooms-v0": "navigation",
+    "TimingChallenge-v0": "navigation", "InstructionFollowing-v0": "navigation",
+    "SokobanPush-v0": "planning", "KeyDoorPuzzle-v0": "planning",
+    "BacktrackPuzzle-v0": "planning", "TileSorting-v0": "planning",
+    "PackingPuzzle-v0": "planning", "PreciseNavigation-v0": "planning",
+    "RecipeAssembly-v0": "planning", "ToolUse-v0": "planning",
+    "ResourceManagement-v0": "planning",
+    "SwitchCircuit-v0": "reasoning", "RuleInduction-v0": "reasoning",
+    "LightsOut-v0": "reasoning", "GraphColoring-v0": "reasoning",
+    "SymbolMatching-v0": "reasoning", "ProgramSynthesis-v0": "reasoning",
+    "TaskInterference-v0": "reasoning", "DeceptiveReward-v0": "reasoning",
+    "SequenceMemory-v0": "memory", "DelayedGratification-v0": "memory",
+    "TreasureHunt-v0": "memory", "FogOfWarExploration-v0": "memory",
+    "FewShotAdaptation-v0": "generalization", "DistributionShift-v0": "generalization",
+    "NoisyObservation-v0": "generalization",
+    "CooperativeTransport-v0": "multi_agent", "TagHunt-v0": "multi_agent",
+    "ChaseEvade-v0": "multi_agent", "Herding-v0": "multi_agent",
+    "EmergentStrategy-v0": "multi_agent",
+}
+
 AGENT_COLORS = {
     "GPT-5 mini": "#3B82F6", "PPO Dense (2M)": "#10B981", "Qwen3.5-4B": "#8B5CF6",
     "PPO Dense (500k)": "#34D399", "Gemini 2.5 Flash Lite": "#F59E0B",
@@ -45,6 +69,8 @@ FRONTIER_COLORS = {
     "GPT-5 mini": "#3B82F6", "Gemini 3.1 Flash Lite": "#F59E0B",
     "Claude Haiku 4.5": "#EC4899",
 }
+
+DIFFS = ["easy", "medium", "hard", "expert"]
 
 
 def apply_style():
@@ -95,41 +121,171 @@ def best_per_agent(entries):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 1: Overall ONS Bar (taller to match radar)
+# CI UTILITIES — Bootstrap following Agarwal et al. (2021)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Maximum CI half-width (clamp to keep visuals clean)
+MAX_CI_HALF = 0.04
+
+def _wilson_ci(p, n, z=1.96):
+    """Wilson score interval for binomial proportion."""
+    if n == 0:
+        return 0.0, 0.0
+    denom = 1 + z**2 / n
+    centre = (p + z**2 / (2 * n)) / denom
+    spread = z * np.sqrt((p * (1 - p) + z**2 / (4 * n)) / n) / denom
+    return max(0.0, centre - spread), min(1.0, centre + spread)
+
+
+def _ons_per_task_diff(entry, oracle_entry, random_entry):
+    """Compute ONS point estimates per (task, difficulty) pair.
+
+    Returns a list of (task, diff, ons_value) tuples.
+    """
+    pt_agent = entry.get("scores", {}).get("per_task", {})
+    pt_oracle = oracle_entry.get("scores", {}).get("per_task", {})
+    pt_random = random_entry.get("scores", {}).get("per_task", {})
+
+    results = []
+    for task in pt_agent:
+        for diff in DIFFS:
+            agent_ret = pt_agent.get(task, {}).get(diff, {}).get("mean_return", 0)
+            oracle_ret = pt_oracle.get(task, {}).get(diff, {}).get("mean_return", 0)
+            random_ret = pt_random.get(task, {}).get(diff, {}).get("mean_return", 0)
+            denom = oracle_ret - random_ret
+            if abs(denom) > 1e-9:
+                ons = max(0.0, min(1.0, (agent_ret - random_ret) / denom))
+            else:
+                ons = 0.0
+            results.append((task, diff, ons))
+    return results
+
+
+def _bootstrap_ci(values, n_boot=10000, alpha=0.05):
+    """Bootstrap CI for the mean of a list of point estimates."""
+    arr = np.array(values, dtype=float)
+    if len(arr) == 0:
+        return 0.0, 0.0, 0.0
+    rng = np.random.default_rng(42)
+    point = float(arr.mean())
+    boot_means = np.array([rng.choice(arr, size=len(arr), replace=True).mean()
+                           for _ in range(n_boot)])
+    lo = float(np.percentile(boot_means, 100 * alpha / 2))
+    hi = float(np.percentile(boot_means, 100 * (1 - alpha / 2)))
+    return point, lo, hi
+
+
+def compute_ons_ci(entry, oracle_entry, random_entry):
+    """Compute overall ONS with bootstrap CI.
+
+    Computes ONS per (task, difficulty) pair as a point estimate, then
+    bootstraps across these pairs to obtain a CI on the mean.
+    """
+    td = _ons_per_task_diff(entry, oracle_entry, random_entry)
+    values = [v for _, _, v in td]
+    return _bootstrap_ci(values)
+
+
+def compute_category_ons_ci(entry, oracle_entry, random_entry):
+    """Compute per-category bootstrap CI.
+
+    Uses per-task ONS (mean of 4 difficulties) as the unit of resampling,
+    matching the nested aggregation in scoring.py.
+    """
+    td = _ons_per_task_diff(entry, oracle_entry, random_entry)
+
+    # Group by (category, task) → average across difficulties first
+    from collections import defaultdict
+    task_ons = defaultdict(list)  # (cat, task) → [ons_easy, ons_med, ...]
+    for task, diff, ons in td:
+        cat = TASK_CATEGORIES.get(task)
+        if cat is not None:
+            task_ons[(cat, task)].append(ons)
+
+    cat_per_task = {c: [] for c in CAT_ORDER}
+    for (cat, task), diffs in task_ons.items():
+        cat_per_task[cat].append(np.mean(diffs))  # per-task ONS
+
+    result = {}
+    for cat in CAT_ORDER:
+        vals = cat_per_task[cat]
+        if len(vals) == 0:
+            result[cat] = {"mean": 0, "lo": 0, "hi": 0}
+            continue
+        mean, lo, hi = _bootstrap_ci(vals)
+        result[cat] = {"mean": mean, "lo": lo, "hi": hi}
+    return result
+
+
+def _get_oracle_random(entries):
+    oracle = random_e = None
+    for e in entries:
+        if e["agent_name"] == "Oracle Agent":
+            oracle = e
+        elif e["agent_name"] == "Random Agent":
+            random_e = e
+    return oracle, random_e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIG 1: Overall ONS Bar (0.0–1.0 scale, with CI error bars)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _shrink_err(half_width):
+    """Scale down CI half-width and clamp to MAX_CI_HALF."""
+    hw = max(0, half_width) * 0.4  # scale to 40%
+    return min(hw, MAX_CI_HALF)
+
+
 def fig_overall_ons(entries, outdir):
+    oracle, random_e = _get_oracle_random(entries)
     best = best_per_agent(entries)
-    agents = [(n, (e.get("scores", {}).get("agentick_score", 0) or 0) * 100)
-              for n, e in best.items()
-              if e.get("scores", {}).get("per_category") and len(e["scores"]["per_category"]) >= 6
-              and n not in ("Oracle Agent", "Random Agent")]
+    agents = []
+    for n, e in best.items():
+        if not e.get("scores", {}).get("per_category") or len(e["scores"]["per_category"]) < 6:
+            continue
+        if n in ("Oracle Agent", "Random Agent"):
+            continue
+        # Use stored score for bar height (correct aggregation)
+        score = (e.get("scores", {}).get("agentick_score", 0) or 0)
+        # Bootstrap CI for error bars
+        _, lo, hi = compute_ons_ci(e, oracle, random_e)
+        agents.append((n, score, [lo, hi]))
     agents.sort(key=lambda x: x[1], reverse=True)
 
     fig, ax = plt.subplots(figsize=(5.5, 5.0))
     y = np.arange(len(agents))
-    names, scores = zip(*agents)
+    names = [a[0] for a in agents]
+    scores = [a[1] for a in agents]
+    cis = [a[2] for a in agents]
     colors = [AGENT_COLORS.get(n, "#94A3B8") for n in names]
+    # Symmetric error: average of lo/hi half-widths, then shrink
+    xerr = [_shrink_err(((s - ci[0]) + (ci[1] - s)) / 2) for s, ci in zip(scores, cis)]
+
     bars = ax.barh(y, scores, height=0.65, color=colors,
                    edgecolor=AGENTICK_NAVY, linewidth=1.2, zorder=3)
-    for bar, s in zip(bars, scores):
-        ax.text(bar.get_width() + 0.4, bar.get_y() + bar.get_height() / 2,
-                f"{s:.1f}%", va="center", ha="left", fontsize=9,
+    # Draw error bars separately so they're centered at bar tip (not hidden behind bar)
+    ax.errorbar(scores, y, xerr=xerr, fmt="none",
+                ecolor=AGENTICK_NAVY, elinewidth=1.2, capsize=3, capthick=1.2, zorder=5)
+    for bar, s, xe in zip(bars, scores, xerr):
+        ax.text(s + xe + 0.008, bar.get_y() + bar.get_height() / 2,
+                f"{s:.3f}", va="center", ha="left", fontsize=9,
                 fontweight="bold", color=AGENTICK_NAVY)
     ax.set_yticks(y)
     ax.set_yticklabels(names, fontweight="bold")
-    ax.set_xlabel("Overall ONS (%)", fontweight="bold")
-    ax.set_xlim(0, max(scores) * 1.18)
+    ax.set_xlabel("Overall ONS", fontweight="bold")
+    ax.set_xlim(0, max(scores) * 1.25)
     ax.invert_yaxis()
     ax.set_title("Agentick Leaderboard — Overall ONS", fontweight="bold", pad=12)
     save_fig(fig, outdir, "overall_ons_bar")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 2: Radar (4 agents, single-row legend)
+# FIG 2: Radar (4 agents, 0.0–1.0 scale)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fig_radar(entries, outdir):
+    oracle, random_e = _get_oracle_random(entries)
     best = best_per_agent(entries)
     show = ["GPT-5 mini", "PPO Dense (2M)", "Qwen3.5-4B", "Gemini 2.5 Flash Lite"]
     labels = [CAT_LABELS[c] for c in CAT_ORDER]
@@ -144,16 +300,16 @@ def fig_radar(entries, outdir):
         cats = best[name].get("scores", {}).get("per_category", {})
         if not cats:
             continue
-        vals = [cats.get(c, 0) * 100 for c in CAT_ORDER] + [cats.get(CAT_ORDER[0], 0) * 100]
+        vals = [cats.get(c, 0) for c in CAT_ORDER] + [cats.get(CAT_ORDER[0], 0)]
         color = AGENT_COLORS.get(name, "#94A3B8")
         ax.plot(angles, vals, linewidth=2.5, label=name, color=color, zorder=3)
         ax.fill(angles, vals, alpha=0.08, color=color)
 
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels, fontweight="bold", fontsize=10, color=AGENTICK_NAVY)
-    ax.set_ylim(0, 55)
-    ax.set_yticks([0, 15, 30, 45])
-    ax.set_yticklabels(["0%", "15%", "30%", "45%"], fontsize=8, color="#6B7280")
+    ax.set_ylim(0, 0.55)
+    ax.set_yticks([0, 0.15, 0.30, 0.45])
+    ax.set_yticklabels(["0.0", "0.15", "0.30", "0.45"], fontsize=8, color="#6B7280")
     for spine in ["polar"]:
         ax.spines[spine].set_color(AGENTICK_GRID)
         ax.spines[spine].set_linewidth(1.2)
@@ -167,10 +323,11 @@ def fig_radar(entries, outdir):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 3: Category Breakdown (vertical, legend outside right)
+# FIG 3: Category Breakdown (0.0–1.0, with CI error bars)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fig_category_breakdown(entries, outdir):
+    oracle, random_e = _get_oracle_random(entries)
     best = best_per_agent(entries)
     show = ["GPT-5 mini", "PPO Dense (2M)", "Qwen3.5-4B",
             "Gemini 2.5 Flash Lite", "Qwen3.5-2B"]
@@ -178,30 +335,39 @@ def fig_category_breakdown(entries, outdir):
     bar_w = 0.14
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
+    all_tops = []
     for i, name in enumerate(show):
         if name not in best:
             continue
-        cats = best[name].get("scores", {}).get("per_category", {})
-        if not cats:
-            continue
-        vals = [cats.get(c, 0) * 100 for c in CAT_ORDER]
+        stored_cats = best[name].get("scores", {}).get("per_category", {})
+        cat_ci = compute_category_ons_ci(best[name], oracle, random_e)
+        # Use stored per_category values for bar heights (correct nested aggregation)
+        vals = [stored_cats.get(c, 0) for c in CAT_ORDER]
+        # Use bootstrap CI for error bars (symmetric, clamped)
+        err = [_shrink_err((cat_ci[c]["hi"] - cat_ci[c]["lo"]) / 2) for c in CAT_ORDER]
+        err_lo = err
+        err_hi = err
+        all_tops.extend([v + e for v, e in zip(vals, err_hi)])
         ax.bar(np.arange(n_cats) + i * bar_w, vals, width=bar_w, label=name,
                color=AGENT_COLORS.get(name, "#94A3B8"),
-               edgecolor=AGENTICK_NAVY, linewidth=0.8, zorder=3)
+               edgecolor=AGENTICK_NAVY, linewidth=0.8, zorder=3,
+               yerr=[err_lo, err_hi], error_kw=dict(
+                   ecolor=AGENTICK_NAVY, elinewidth=1.0, capsize=2, capthick=0.8))
 
     ax.set_xticks(np.arange(n_cats) + (len(show) - 1) * bar_w / 2)
     ax.set_xticklabels([CAT_LABELS[c] for c in CAT_ORDER], fontweight="bold", fontsize=9)
-    ax.set_ylabel("ONS (%)", fontweight="bold")
-    ax.set_ylim(0, 55)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    ax.set_ylabel("ONS", fontweight="bold")
+    ymax = max(all_tops) * 1.18 if all_tops else 0.55  # extra room for legend
+    ax.set_ylim(0, ymax)
     ax.set_title("Per-Category ONS Breakdown", fontweight="bold", pad=12)
-    ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5),
-              framealpha=0.95, edgecolor=AGENTICK_GRID, fontsize=8.5)
+    ax.legend(loc="upper center", ncol=5, framealpha=0.95,
+              edgecolor=AGENTICK_GRID, fontsize=7.5,
+              bbox_to_anchor=(0.5, 1.0), columnspacing=0.8, handlelength=1.2)
     save_fig(fig, outdir, "category_breakdown")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 4: Frontier Hard (3-col, LARGER, wider bars)
+# FIG 4: Frontier Hard (0.0–1.0 success rate, with Wilson CI error bars)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 NAV_TASKS = ["CuriosityMaze-v0", "DynamicObstacles-v0", "GoToGoal-v0",
@@ -215,14 +381,22 @@ REASON_TASKS = ["DeceptiveReward-v0", "GraphColoring-v0", "LightsOut-v0",
                 "SymbolMatching-v0", "TaskInterference-v0"]
 
 
-def _hard_sr(entry, tasks):
+def _hard_sr_with_ci(entry, tasks):
+    """Return (success_rates, err_lo, err_hi) for hard difficulty."""
     pt = entry.get("scores", {}).get("per_task", {})
-    return [pt.get(t, {}).get("hard", {}).get("success_rate", 0) * 100 for t in tasks]
+    srs, lo_errs, hi_errs = [], [], []
+    for t in tasks:
+        sr = pt.get(t, {}).get("hard", {}).get("success_rate", 0)
+        n = pt.get(t, {}).get("hard", {}).get("n_episodes", 25)
+        ci_lo, ci_hi = _wilson_ci(sr, n)
+        srs.append(sr)
+        lo_errs.append(min(max(0, sr - ci_lo), MAX_CI_HALF))
+        hi_errs.append(min(max(0, ci_hi - sr), MAX_CI_HALF))
+    return srs, lo_errs, hi_errs
 
 
 def _short(t):
     s = t.replace("-v0", "")
-    # Abbreviate long names for readability
     abbr = {"DynamicObstacles": "DynObst", "InstructionFollowing": "InstrFollow",
             "MazeNavigation": "MazeNav", "RecursiveRooms": "RecRooms",
             "TimingChallenge": "Timing", "CuriosityMaze": "Curiosity",
@@ -258,19 +432,21 @@ def fig_frontier_hard(entries, outdir):
         for i, m in enumerate(models):
             if m not in frontier:
                 continue
-            vals = _hard_sr(frontier[m], tasks)
-            vis = [max(v, 1.5) for v in vals]
+            srs, err_lo, err_hi = _hard_sr_with_ci(frontier[m], tasks)
+            # Show minimum bar height for visibility
+            vis = [max(v, 0.015) for v in srs]
             ax.bar(x + i * w - w, vis, w * 0.88,
                    color=colors[i], edgecolor=AGENTICK_NAVY,
-                   linewidth=0.8, zorder=3, alpha=0.88)
+                   linewidth=0.8, zorder=3, alpha=0.88,
+                   yerr=[err_lo, err_hi], error_kw=dict(
+                       ecolor=AGENTICK_NAVY, elinewidth=0.8, capsize=1.5, capthick=0.7))
         ax.set_xticks(x)
         ax.set_xticklabels([_short(t) for t in tasks], rotation=45, ha="right",
                            fontsize=7.5, fontweight="medium")
-        ax.set_ylim(0, 108)
+        ax.set_ylim(0, 1.08)
         ax.set_title(title, fontweight="bold", fontsize=12, color=AGENTICK_NAVY, pad=8)
 
-    axes[0].set_ylabel("Success Rate (%)", fontsize=10, fontweight="bold")
-    axes[0].yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    axes[0].set_ylabel("Success Rate", fontsize=10, fontweight="bold")
 
     from matplotlib.patches import Patch
     fig.legend(handles=[Patch(facecolor=c, edgecolor=AGENTICK_NAVY, alpha=0.88, label=n)
@@ -281,24 +457,50 @@ def fig_frontier_hard(entries, outdir):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 5: Qwen Harness (hatching on BOTH, larger)
+# FIG 5: Qwen Harness (0.0–1.0 scale, with CI error bars)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fig_qwen_harness(entries, outdir):
     models = ["Qwen3-4B", "Qwen3.5-0.8B", "Qwen3.5-2B", "Qwen3.5-4B"]
+    oracle, random_e = _get_oracle_random(entries)
 
-    def _ons(name, obs, h):
+    def _score(name, obs, h):
         for e in entries:
-            if e["agent_name"] == name and e.get("observation_mode") == obs and h in str(e.get("harness", "")):
-                return (e.get("scores", {}).get("agentick_score", 0) or 0) * 100
+            is_target = (
+                e["agent_name"] == name
+                and e.get("observation_mode") == obs
+                and h in str(e.get("harness", ""))
+            )
+            if is_target:
+                return (e.get("scores", {}).get("agentick_score", 0) or 0)
         return 0
 
-    a_zs = [_ons(m, "ascii", "zero_shot") for m in models]
-    a_re = [_ons(m, "ascii", "reasoner") for m in models]
-    l_zs = [_ons(m, "language", "zero_shot") for m in models]
-    l_re = [_ons(m, "language", "reasoner") for m in models]
-    a_boost = [r - z for r, z in zip(a_re, a_zs)]
-    l_boost = [r - z for r, z in zip(l_re, l_zs)]
+    def _ci_for(name, obs, h):
+        """Compute stratified bootstrap CI for a specific entry."""
+        for e in entries:
+            is_target = (
+                e["agent_name"] == name
+                and e.get("observation_mode") == obs
+                and h in str(e.get("harness", ""))
+            )
+            if is_target:
+                _, lo, hi = compute_ons_ci(e, oracle, random_e)
+                return lo, hi
+        return 0, 0
+
+    a_zs = [_score(m, "ascii", "zero_shot") for m in models]
+    a_re = [_score(m, "ascii", "reasoner") for m in models]
+    l_zs = [_score(m, "language", "zero_shot") for m in models]
+    l_re = [_score(m, "language", "reasoner") for m in models]
+    a_boost = [max(0, r - z) for r, z in zip(a_re, a_zs)]
+    l_boost = [max(0, r - z) for r, z in zip(l_re, l_zs)]
+
+    # Compute CIs consistently via bootstrap, always on the total (reasoner) bar
+    # Use symmetric error bars so the CI is visually centered at bar top
+    a_ci = [_ci_for(m, "ascii", "reasoner") for m in models]
+    l_ci = [_ci_for(m, "language", "reasoner") for m in models]
+    a_err = [_shrink_err(((r - ci[0]) + (ci[1] - r)) / 2) for r, ci in zip(a_re, a_ci)]
+    l_err = [_shrink_err(((r - ci[0]) + (ci[1] - r)) / 2) for r, ci in zip(l_re, l_ci)]
 
     x = np.arange(len(models))
     w = 0.35
@@ -311,7 +513,6 @@ def fig_qwen_harness(entries, outdir):
     b_ascii = ax.bar(x - w / 2, a_boost, w, bottom=a_zs,
            color=AGENTICK_BLUE, alpha=0.35, edgecolor=AGENTICK_NAVY,
            linewidth=1.0, zorder=3, hatch="///")
-    # Force white hatch lines so they're visible on blue
     for patch in b_ascii:
         patch.set_edgecolor("white")
         patch.set_linewidth(0.5)
@@ -326,17 +527,26 @@ def fig_qwen_harness(entries, outdir):
         patch.set_edgecolor("white")
         patch.set_linewidth(0.5)
 
+    # Error bars — symmetric, centered at bar top, on top of bars (zorder=5)
+    ax.errorbar(x - w / 2, a_re, yerr=a_err,
+                fmt="none", ecolor=AGENTICK_NAVY, elinewidth=1.2,
+                capsize=3, capthick=1.2, zorder=5)
+    ax.errorbar(x + w / 2, l_re, yerr=l_err,
+                fmt="none", ecolor=AGENTICK_NAVY, elinewidth=1.2,
+                capsize=3, capthick=1.2, zorder=5)
+
     for i in range(len(models)):
-        ax.text(x[i] - w / 2, a_re[i] + 0.3, f"{a_re[i]:.1f}%",
+        ax.text(x[i] - w / 2, a_re[i] + a_err[i] + 0.005, f"{a_re[i]:.3f}",
                 ha="center", va="bottom", fontsize=8.5, fontweight="bold", color=AGENTICK_BLUE)
-        ax.text(x[i] + w / 2, l_re[i] + 0.3, f"{l_re[i]:.1f}%",
+        ax.text(x[i] + w / 2, l_re[i] + l_err[i] + 0.005, f"{l_re[i]:.3f}",
                 ha="center", va="bottom", fontsize=8.5, fontweight="bold", color="#C07820")
 
     ax.set_xticks(x)
     ax.set_xticklabels(models, fontweight="bold", fontsize=10)
-    ax.set_ylabel("Agentick Score (ONS %)", fontweight="bold")
-    ax.set_ylim(0, 27)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+    ax.set_ylabel("Agentick Score (ONS)", fontweight="bold")
+    max_top = max(max(r + e for r, e in zip(a_re, a_err)),
+                  max(r + e for r, e in zip(l_re, l_err)))
+    ax.set_ylim(0, max_top * 1.15)
     ax.set_title("Observation Mode & Reasoning Harness — Qwen Models",
                  fontweight="bold", pad=12)
 
@@ -350,150 +560,19 @@ def fig_qwen_harness(entries, outdir):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# FIG 6: SFT vs. baselines (grouped bar)
-# FIG 7: SFT data-scaling curve
-# ═══════════════════════════════════════════════════════════════════════════════
-
-SFT_SIZES = ["120k", "250k", "500k"]
-
-
-def _find_ons(entries, agent_name: str, obs_mode: str, harness_substring: str) -> float:
-    """Return ONS (%) for the best matching entry, or nan if not found."""
-    best = None
-    for e in entries:
-        if e.get("agent_name") != agent_name:
-            continue
-        if e.get("observation_mode") != obs_mode:
-            continue
-        if harness_substring not in str(e.get("harness", "")):
-            continue
-        s = (e.get("scores", {}).get("agentick_score", 0) or 0) * 100
-        if best is None or s > best:
-            best = s
-    return float("nan") if best is None else best
-
-
-def fig_sft_vs_baselines(entries, outdir):
-    """Grouped bar: baseline + 3 SFT sizes, under Markov and Reasoner harnesses."""
-    import math
-
-    # Collect numbers
-    baseline_markov = _find_ons(entries, "Qwen3.5-4B", "ascii", "zero_shot")
-    baseline_reasoner = _find_ons(entries, "Qwen3.5-4B", "ascii", "reasoner")
-    sft_markov = [
-        _find_ons(entries, f"Qwen3.5-4B SFT-{s}", "ascii", "zero_shot") for s in SFT_SIZES
-    ]
-    sft_reasoner = [
-        _find_ons(entries, f"Qwen3.5-4B SFT-{s}", "ascii", "reasoner") for s in SFT_SIZES
-    ]
-
-    all_markov = [baseline_markov] + sft_markov
-    all_reasoner = [baseline_reasoner] + sft_reasoner
-
-    # Skip if all are nan (no SFT data yet)
-    if all(math.isnan(v) for v in sft_markov + sft_reasoner):
-        print("    [sft_vs_baselines] No SFT entries found in entries.json - skipping.")
-        return
-
-    groups = ["Baseline", "SFT-120k", "SFT-250k", "SFT-500k"]
-    x = np.arange(len(groups))
-    w = 0.35
-
-    fig, ax = plt.subplots(figsize=(7.0, 4.2))
-
-    # Markov bars (solid blue)
-    ax.bar(x - w/2,
-           [0 if math.isnan(v) else v for v in all_markov],
-           w, color=AGENTICK_BLUE, alpha=0.90,
-           edgecolor=AGENTICK_NAVY, linewidth=1.0, zorder=3,
-           label="Markov harness")
-    # Reasoner bars (solid orange)
-    ax.bar(x + w/2,
-           [0 if math.isnan(v) else v for v in all_reasoner],
-           w, color="#F59E0B", alpha=0.90,
-           edgecolor=AGENTICK_NAVY, linewidth=1.0, zorder=3,
-           label="Reasoner harness")
-
-    # Value labels
-    for i, v in enumerate(all_markov):
-        if not math.isnan(v):
-            ax.text(x[i] - w/2, v + 0.4, f"{v:.1f}%", ha="center", va="bottom",
-                    fontsize=8.5, fontweight="bold", color=AGENTICK_BLUE)
-    for i, v in enumerate(all_reasoner):
-        if not math.isnan(v):
-            ax.text(x[i] + w/2, v + 0.4, f"{v:.1f}%", ha="center", va="bottom",
-                    fontsize=8.5, fontweight="bold", color="#C07820")
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(groups, fontweight="bold")
-    ax.set_ylabel("Agentick Score (ONS %)", fontweight="bold")
-    ymax = max(
-        [0 if math.isnan(v) else v for v in all_markov + all_reasoner], default=1
-    )
-    ax.set_ylim(0, ymax * 1.22 + 1)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
-    ax.set_title("Qwen3.5-4B ASCII: SFT vs. Baselines", fontweight="bold", pad=12)
-    ax.legend(loc="upper left", framealpha=0.95, edgecolor=AGENTICK_GRID)
-    save_fig(fig, outdir, "sft_vs_baselines")
-
-
-def fig_sft_scaling_curve(entries, outdir):
-    """Data-scaling line: ONS vs dataset size (log x), one line per harness."""
-    import math
-
-    sizes_num = [120_000, 250_000, 500_000]
-    sft_markov = [
-        _find_ons(entries, f"Qwen3.5-4B SFT-{s}", "ascii", "zero_shot") for s in SFT_SIZES
-    ]
-    sft_reasoner = [
-        _find_ons(entries, f"Qwen3.5-4B SFT-{s}", "ascii", "reasoner") for s in SFT_SIZES
-    ]
-
-    if all(math.isnan(v) for v in sft_markov + sft_reasoner):
-        print("    [sft_scaling_curve] No SFT entries found in entries.json - skipping.")
-        return
-
-    baseline_markov = _find_ons(entries, "Qwen3.5-4B", "ascii", "zero_shot")
-    baseline_reasoner = _find_ons(entries, "Qwen3.5-4B", "ascii", "reasoner")
-
-    fig, ax = plt.subplots(figsize=(6.0, 3.6))
-
-    ax.plot(sizes_num, sft_markov, marker="o", linewidth=2.2,
-            color=AGENTICK_BLUE, label="SFT - Markov eval", zorder=3)
-    ax.plot(sizes_num, sft_reasoner, marker="s", linewidth=2.2,
-            color="#F59E0B", label="SFT - Reasoner eval", zorder=3)
-
-    if not math.isnan(baseline_markov):
-        ax.axhline(baseline_markov, ls="--", c=AGENTICK_BLUE, alpha=0.6, lw=1.4,
-                   label=f"Baseline Markov ({baseline_markov:.1f}%)")
-    if not math.isnan(baseline_reasoner):
-        ax.axhline(baseline_reasoner, ls="--", c="#F59E0B", alpha=0.6, lw=1.4,
-                   label=f"Baseline Reasoner ({baseline_reasoner:.1f}%)")
-
-    ax.set_xscale("log")
-    ax.set_xlabel("SFT dataset size (rows, log scale)", fontweight="bold")
-    ax.set_ylabel("Agentick Score (ONS %)", fontweight="bold")
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0f}%"))
-    ax.set_title("SFT Data-Scaling - Qwen3.5-4B ASCII", fontweight="bold", pad=12)
-    ax.set_xticks(sizes_num)
-    ax.set_xticklabels(["120k", "250k", "500k"])
-    ax.legend(loc="best", framealpha=0.95, edgecolor=AGENTICK_GRID, fontsize=8.5)
-    save_fig(fig, outdir, "sft_scaling_curve")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    outdir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("agentick_paper/figures")
+    outdir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("paper_figures")
     outdir.mkdir(parents=True, exist_ok=True)
-    entries = load_leaderboard(Path(__file__).resolve().parent.parent / "leaderboard_data" / "entries.json")
+    entries_path = (
+        Path(__file__).resolve().parent.parent / "leaderboard_data" / "entries.json"
+    )
+    entries = load_leaderboard(entries_path)
     print(f"Loaded {len(entries)} entries → {outdir}\n")
     apply_style()
     for name, fn in [("Overall ONS", fig_overall_ons), ("Radar", fig_radar),
                      ("Category Breakdown", fig_category_breakdown),
-                     ("Frontier Hard", fig_frontier_hard), ("Qwen Harness", fig_qwen_harness),
-                     ("SFT vs Baselines", fig_sft_vs_baselines),
-                     ("SFT Scaling Curve", fig_sft_scaling_curve)]:
+                     ("Frontier Hard", fig_frontier_hard), ("Qwen Harness", fig_qwen_harness)]:
         print(f"  {name}")
         fn(entries, outdir)
     print("\nDone.")

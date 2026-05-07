@@ -33,6 +33,13 @@ class TaskInterferenceTask(TaskSpec):
     name = "TaskInterference-v0"
     description = "Balance competing gem and orb meters in a tug-of-war"
     capability_tags = ["multi_objective", "planning", "meta_learning"]
+    public_config_include_private = {
+        "_red_meter",
+        "_blue_meter",
+        "_collected_count",
+        "_hold_counter",
+        "_last_collected_color",
+    }
 
     difficulty_configs = {
         "easy": DifficultyConfig(

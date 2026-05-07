@@ -20,7 +20,7 @@ The available actions are:
 2: MOVE_DOWN
 3: MOVE_LEFT
 4: MOVE_RIGHT
-5: INTERACT (interact with objects like switches, levers — walk onto them first, then INTERACT)
+5: INTERACT (use the object in the cell you are facing; for solid switches, levers, or doors, stand adjacent and face the object first)
 
 ## Task Objective
 {task_description}

@@ -12,6 +12,7 @@ from pathlib import Path
 # Make the example script importable as a module
 SFT_DIR = Path(__file__).resolve().parents[2] / "examples" / "data_and_finetuning"
 sys.path.insert(0, str(SFT_DIR))
+CONFIGS_DIR = Path(__file__).resolve().parents[2] / "examples" / "experiments" / "configs"
 
 
 def test_sft_module_imports():
@@ -122,3 +123,26 @@ def test_patch_chat_template_on_qwen35():
     )
     assert "<|im_start|>assistant" in rendered
     assert "4<|im_end|>" in rendered
+
+
+def test_full_sft_configs_use_fixed_epochs_and_anon_datasets():
+    import yaml
+
+    for size in ("120k", "250k", "500k"):
+        path = CONFIGS_DIR / f"qwen35_4b_sft_train_ascii_{size}.yaml"
+        cfg = yaml.safe_load(path.read_text())
+        training = cfg["training"]
+
+        assert training["dataset"] == (
+            f"rogercc/agentick-oracle-trajectories-{size}"
+        )
+        assert training["epochs"] == 3
+        assert "max_steps" not in training
+        assert training["save_strategy"] == "steps"
+        assert training["save_steps"] > 0
+        assert training["save_total_limit"] >= training["epochs"]
+        assert training["resume_from_checkpoint"] == "auto"
+        assert training["report_to"] != "none"
+        assert training["max_seq_length"] >= 1491
+        assert training["batch_size"] * training["grad_accum"] == 4
+        assert training["packing"] is False

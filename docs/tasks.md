@@ -5,7 +5,7 @@ Procedurally generated tasks across 6 categories. All tasks support 4 difficulty
 **Browse tasks interactively** — the best way to understand each task is to play it yourself in the webapp:
 
 ```bash
-uv run python -m agentick.human.webapp   # Opens http://localhost:5000
+uv run python -m agentick.human.webapp   # Opens http://127.0.0.1:8080
 ```
 
 Or create one programmatically:
@@ -49,7 +49,7 @@ env = agentick.make("GoToGoal-v0", difficulty="medium", render_mode="language", 
 | Task | Description |
 |---|---|
 | **SwitchCircuit-v0** | Activate color-coded switches to open barriers; cross-zone backtracking at hard+ |
-| **RuleInduction-v0** | Discover hidden rules from ICE-marked cues, then INTERACT |
+| **RuleInduction-v0** | Discover hidden object-combination rules by experimentation |
 | **LightsOut-v0** | Turn all lights off (classic puzzle) |
 | **GraphColoring-v0** | INTERACT to cycle node colors; no adjacent nodes share colors |
 | **SymbolMatching-v0** | Match symbol pairs; matched pairs disappear |

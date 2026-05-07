@@ -6,15 +6,20 @@ training configs to TrainingBenchmarkRunner and evaluation configs to
 ExperimentRunner.
 
 Usage:
-    uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/random_agent.yaml
-    uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/oracle_agent.yaml
+    uv run python examples/experiments/run_single_benchmark.py \
+        examples/experiments/configs/random_agent.yaml
+    uv run python examples/experiments/run_single_benchmark.py \
+        examples/experiments/configs/oracle_agent.yaml
 
 For LLM agents (requires API keys):
-    uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/openai_text.yaml
-    uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/anthropic_text.yaml
+    uv run python examples/experiments/run_single_benchmark.py \
+        examples/experiments/configs/openai_text.yaml
+    uv run python examples/experiments/run_single_benchmark.py \
+        examples/experiments/configs/anthropic_text.yaml
 
 For PPO training:
-    uv run python examples/experiments/run_single_benchmark.py examples/experiments/configs/ppo_pixels_dense.yaml
+    uv run python examples/experiments/run_single_benchmark.py \
+        examples/experiments/configs/ppo_pixels_dense.yaml
 """
 
 import argparse

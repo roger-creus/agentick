@@ -36,4 +36,6 @@ def test_basic_example_runs(example_file):
     # Basic smoke test - check for common error patterns
     stderr_lower = result.stderr.lower()
     assert "traceback" not in stderr_lower, f"Traceback found in {example_file}"
-    assert "error:" not in stderr_lower or "warning" in stderr_lower, f"Error found in {example_file}"
+    assert "error:" not in stderr_lower or "warning" in stderr_lower, (
+        f"Error found in {example_file}"
+    )

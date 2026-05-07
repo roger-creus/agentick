@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from itertools import permutations
 
 from agentick.core.types import CellType, ObjectType
 from agentick.oracles.base import OracleAgent
@@ -302,14 +303,39 @@ class MazeNavigationOracle(OracleAgent):
 
 @register_oracle("ShortestPath-v0")
 class ShortestPathOracle(OracleAgent):
-    """Greedily visit the nearest unvisited goal."""
+    """Visit remaining goals in the shortest reachable order."""
 
     def plan(self):
         goals = self.api.get_entities_of_type("goal")
         if not goals:
             return
-        nearest = min(goals, key=lambda g: g.distance)
-        self.action_queue = self.api.move_to(*nearest.position)
+
+        start = tuple(self.api.agent_position)
+        goal_positions = [tuple(g.position) for g in goals]
+
+        best_actions: list[int] | None = None
+        best_len = float("inf")
+        for order in permutations(goal_positions):
+            current = start
+            actions: list[int] = []
+            feasible = True
+            for goal in order:
+                path = self.api.bfs_path_positions(current, goal)
+                if path is None:
+                    feasible = False
+                    break
+                segment = self.api.positions_to_actions(path)
+                actions.extend(segment)
+                current = goal
+            if feasible and len(actions) < best_len:
+                best_len = len(actions)
+                best_actions = actions
+
+        if best_actions:
+            self.action_queue = best_actions
+        else:
+            nearest = min(goals, key=lambda g: g.distance)
+            self.action_queue = self.api.move_to(*nearest.position)
 
 
 _MOVE_DIRS = [(0, -1), (0, 1), (-1, 0), (1, 0)]

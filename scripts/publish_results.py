@@ -186,15 +186,22 @@ def build_entry(data: dict, merge_target: dict | None = None) -> dict:
     if coverage["overall_complete"]:
         agentick_score = round(compute_overall_score(results), 4)
 
+    def metadata(key: str, default: object = "") -> object:
+        if key in data:
+            return data.get(key, default)
+        if merge_target:
+            return merge_target.get(key, default)
+        return default
+
     entry = {
-        "agent_name": data.get("agent_name", merge_target.get("agent_name", "") if merge_target else ""),
-        "author": data.get("author", merge_target.get("author", "") if merge_target else ""),
-        "description": data.get("description", data.get("agent_name", "")),
-        "agent_type": data.get("agent_type", merge_target.get("agent_type", "") if merge_target else ""),
-        "observation_mode": data.get("observation_mode", merge_target.get("observation_mode", "") if merge_target else ""),
-        "harness": data.get("harness", merge_target.get("harness", "") if merge_target else ""),
-        "model": data.get("model", merge_target.get("model", "") if merge_target else ""),
-        "open_weights": data.get("open_weights", merge_target.get("open_weights", False) if merge_target else False),
+        "agent_name": metadata("agent_name"),
+        "author": metadata("author"),
+        "description": metadata("description", data.get("agent_name", "")),
+        "agent_type": metadata("agent_type"),
+        "observation_mode": metadata("observation_mode"),
+        "harness": metadata("harness"),
+        "model": metadata("model"),
+        "open_weights": metadata("open_weights", False),
         "date": str(date.today()),
         "scores": {
             "agentick_score": agentick_score,

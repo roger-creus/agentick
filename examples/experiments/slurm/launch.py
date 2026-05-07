@@ -32,16 +32,16 @@ CONFIGS_DIR = EXPERIMENTS_DIR / "configs"
 PROJECT_ROOT = SCRIPT_DIR.parents[2]  # agentick repo root
 
 API_KEY_VARS = [
-    "OPENAI_API_KEY", "GEMINI_API_KEY", "HUGGING_FACE_HUB_TOKEN",
-    "CLAUDE_API_KEY", "CLAUDE_ENDPOINT",
+    "OPENAI_API_KEY", "GEMINI_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN",
+    "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_API_KEY", "CLAUDE_ENDPOINT",
 ]
 
 REQUIRED_KEYS: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
-    "huggingface_llm": "HUGGING_FACE_HUB_TOKEN",
-    "huggingface_vlm": "HUGGING_FACE_HUB_TOKEN",
-    "anthropic": "CLAUDE_API_KEY",
+    "huggingface_llm": "HF_TOKEN",
+    "huggingface_vlm": "HF_TOKEN",
+    "anthropic": "ANTHROPIC_API_KEY",
 }
 
 # Known API rate limits per model (free/default tier).
@@ -512,7 +512,11 @@ def do_relaunch(manifest_path: Path, max_concurrent: int) -> None:
             print(f"  SKIP {rec['config']}: script {script_path} not found")
             continue
 
-        old_state = states.get(rec["job_id"], "NEVER_SUBMITTED") if rec["job_id"] else "NEVER_SUBMITTED"
+        old_state = (
+            states.get(rec["job_id"], "NEVER_SUBMITTED")
+            if rec["job_id"]
+            else "NEVER_SUBMITTED"
+        )
 
         dependency = None
         if max_concurrent > 0 and i >= max_concurrent:
@@ -543,7 +547,7 @@ def do_relaunch(manifest_path: Path, max_concurrent: int) -> None:
     print(f"\nResubmitted {ok}/{len(to_relaunch)} jobs. Manifest: {new_path.name}")
     if submitted_ids:
         ids_str = " ".join(str(j) for j in submitted_ids if j is not None)
-        print(f"Monitor: squeue -u $USER")
+        print("Monitor: squeue -u $USER")
         print(f"Cancel:  scancel {ids_str}")
 
 
@@ -763,12 +767,12 @@ Relaunch failed jobs:
 
         # Determine difficulty list for per-difficulty splitting.
         # Each (task, difficulty) pair becomes a separate SLURM job.
-        DEFAULT_DIFFICULTIES = ["easy", "medium", "hard", "expert"]
+        default_difficulties = ["easy", "medium", "hard", "expert"]
         if not args.no_split:
             if args.difficulties:
                 difficulty_list = list(args.difficulties)
             else:
-                difficulty_list = config.get("difficulties", DEFAULT_DIFFICULTIES)
+                difficulty_list = config.get("difficulties", default_difficulties)
         else:
             difficulty_list = [None]  # None = don't split by difficulty
 
@@ -952,9 +956,9 @@ Relaunch failed jobs:
 
     if submitted_ids:
         ids_str = " ".join(str(j) for j in submitted_ids)
-        print(f"\nMonitor:  squeue -u $USER")
+        print("\nMonitor:  squeue -u $USER")
         print(f"Cancel:   scancel {ids_str}")
-        print(f"Relaunch: python examples/experiments/slurm/launch.py --relaunch")
+        print("Relaunch: python examples/experiments/slurm/launch.py --relaunch")
         print(f"Manifest: {manifest_path}")
         print(f"Scripts:  {scripts_dir}/")
         print(f"Logs:     {log_dir}/")

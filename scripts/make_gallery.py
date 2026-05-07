@@ -1,9 +1,10 @@
 """Create a gallery video grid of all tasks."""
 
+import glob
+import os
+
 import cv2
 import numpy as np
-import os
-import glob
 
 VIDEOS_DIR = "videos"
 OUTPUT_PATH = "videos/gallery_all_tasks.mp4"
@@ -58,7 +59,7 @@ for i, vf in enumerate(video_files):
         # Blank fallback
         frames = [np.full((CELL_H, CELL_W, 3), 50, dtype=np.uint8)]
     all_frames.append(frames)
-    print(f"  [{i+1:2d}/38] {task_names[i]}: {len(frames)} frames")
+    print(f"  [{i+1:2d}/{len(task_names)}] {task_names[i]}: {len(frames)} frames")
 
 # Create label images for each task
 labels = []

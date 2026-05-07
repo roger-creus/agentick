@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image, ImageDraw
 
 # Base tile dimensions (new dedicated sprites are 118x128; old 111px Kenney tiles
 # get scaled to the same target width, so the ~6% stretch is negligible)
@@ -271,7 +270,7 @@ class TileAtlas:
         """
         from agentick.core.types import CellType
 
-        _CELL_NAMES = {
+        cell_names = {
             CellType.EMPTY: "floor",
             CellType.WALL: "wall",
             CellType.HAZARD: "hazard",
@@ -279,7 +278,9 @@ class TileAtlas:
             CellType.ICE: "ice",
             CellType.HOLE: "hole",
         }
-        return _CELL_NAMES.get(CellType(val), "floor") if val in CellType._value2member_map_ else "floor"
+        if val in CellType._value2member_map_:
+            return cell_names.get(CellType(val), "floor")
+        return "floor"
 
     @staticmethod
     def _obj_int_to_name(val: int) -> str:
@@ -290,7 +291,7 @@ class TileAtlas:
         """
         from agentick.core.types import ObjectType
 
-        _OBJ_NAMES = {
+        obj_names = {
             ObjectType.NONE: "empty",
             ObjectType.GOAL: "goal",
             ObjectType.KEY: "key",
@@ -312,7 +313,9 @@ class TileAtlas:
             ObjectType.COIN: "coin",
             ObjectType.ORB: "orb",
         }
-        return _OBJ_NAMES.get(ObjectType(val), "empty") if val in ObjectType._value2member_map_ else "empty"
+        if val in ObjectType._value2member_map_:
+            return obj_names.get(ObjectType(val), "empty")
+        return "empty"
 
     def clear_cache(self) -> None:
         """Clear all cached tile images."""

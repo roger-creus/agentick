@@ -146,11 +146,11 @@ dataset.export_to_huggingface("data/sokoban_expert/", format="conversation")
 
 Oracle policies are provided for all 37 tasks. Generate your own trajectories, or grab one of our pre-built datasets on HuggingFace:
 
-| Dataset | Episodes | |
+| Dataset | Rows | |
 |---|---|---|
-| [agentick-oracle-trajectories-120k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) | 120K | Good starting point |
-| [agentick-oracle-trajectories-250k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K | Broader coverage |
-| [agentick-oracle-trajectories-500k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K | Full scale |
+| [agentick-oracle-trajectories-120k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-120k) | 120K per-step rows | Good starting point |
+| [agentick-oracle-trajectories-250k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K per-step rows | Broader coverage |
+| [agentick-oracle-trajectories-500k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K per-step rows | Full scale |
 
 Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across all 37 tasks and difficulty levels. Load them directly with `datasets` and SFT your favorite open-source model.
 
@@ -441,7 +441,9 @@ hardBar('chart-hard-reason', 'Reasoning — Hard Difficulty',
 })();
 </script>
 
-<!-- PLACEHOLDER: Analysis text will be added here -->
+Hard-difficulty results expose why a single aggregate score is not enough:
+stronger prompting helps on reasoning-heavy tasks, while RL baselines remain
+competitive on control-heavy planning tasks where dense pixel feedback is useful.
 
 ### Full Benchmark Overview
 
@@ -629,14 +631,14 @@ catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 60.7, 15.7, 10.3, 0.3], c);
 })();
 </script>
 
-<!-- PLACEHOLDER: Category analysis text will be added here -->
+The per-category view is designed for diagnosis: an agent can be strong on
+navigation while still failing on memory or compositional planning, and those
+differences are visible without digging into every task trace.
 
 ## What's Next
 
-<!-- PLACEHOLDER: Detailed what's next content will be added -->
-
 - **More evaluations** — open-source models are being evaluated across the full benchmark
-- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-120k" target="_blank">120k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-250k" target="_blank">250k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-500k" target="_blank">500k</a> episodes). RL post-training support coming soon.
+- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-120k" target="_blank">120k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-250k" target="_blank">250k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-500k" target="_blank">500k</a> per-step rows). RL post-training support coming soon.
 - **VLM evaluation** — pixel observation benchmarks for vision-language models
 - **Better RL baselines** — longer training, curriculum learning, multi-task agents
 - **New tasks** — community contributions welcome
@@ -647,7 +649,7 @@ catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 60.7, 15.7, 10.3, 0.3], c);
 
 ```bash
 git clone https://github.com/roger-creus/agentick.git && cd agentick
-uv sync --extra all
+uv sync
 ```
 
 ```python

@@ -19,7 +19,9 @@ _COLOR_NAMES = {0: "gold", 1: "red", 2: "blue", 3: "green"}
 _DIRECTION_NAMES = {0: "north", 1: "east", 2: "south", 3: "west"}
 _DIRECTION_SHORT = {0: "N", 1: "E", 2: "S", 3: "W"}
 _OBJ_NAMES = {
+    int(ObjectType.BOX): "box",
     int(ObjectType.GEM): "gem",
+    int(ObjectType.LEVER): "lever",
     int(ObjectType.POTION): "potion",
     int(ObjectType.SCROLL): "scroll",
     int(ObjectType.COIN): "coin",
@@ -45,6 +47,7 @@ class TaskAnnotations:
     resource_energy: dict[Position, int] = field(default_factory=dict)
     tile_numbers: dict[Position, int] = field(default_factory=dict)
     target_slots: dict[Position, int] = field(default_factory=dict)
+    typed_target_objects: dict[Position, str] = field(default_factory=dict)
     scroll_directions: dict[Position, dict] = field(default_factory=dict)
     fog_cells: set[Position] = field(default_factory=set)
 
@@ -137,6 +140,8 @@ def extract_annotations(
             elif obj == ObjectType.TARGET:
                 if meta >= 200:
                     ann.target_slots[pos] = meta - 200
+                elif meta in _OBJ_NAMES:
+                    ann.typed_target_objects[pos] = _OBJ_NAMES[meta]
 
             # Scrolls (TreasureHunt direction+distance)
             elif obj == ObjectType.SCROLL:
@@ -164,6 +169,22 @@ def extract_annotations(
 
     # TreasureHunt: collected clues
     if "TreasureHunt" in task_name:
+        public_clues = task_config.get("read_clues")
+        if public_clues is not None:
+            clue_list = []
+            for ci in public_clues:
+                direction = ci.get("direction", 0)
+                clue_list.append(
+                    {
+                        "position": ci.get("position"),
+                        "direction": _DIRECTION_NAMES.get(direction, "unknown"),
+                        "direction_short": _DIRECTION_SHORT.get(direction, "?"),
+                        "distance": ci.get("distance", 0),
+                    }
+                )
+            ann.clues = clue_list if clue_list else None
+            return ann
+
         clue_info = task_config.get("_clue_info", {})
         clues_read = task_config.get("_clues_read", [])
         clue_list = []
@@ -191,7 +212,7 @@ def extract_annotations(
         phase = task_config.get("_phases_completed", 0) + 1
         n_phases = task_config.get("_n_phases", 3)
         phase_type = task_config.get("_current_phase_type", "goal_reach")
-        remap = task_config.get("_action_remap")
+        remap = task_config.get("_action_remap") or task_config.get("action_remapped")
         label = f"Phase {phase}/{n_phases}: {phase_type}"
         if remap:
             label += " [remapped]"

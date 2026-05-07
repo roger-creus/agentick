@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+import numpy as np
+
 from agentick.core.actions import ActionType
 from agentick.core.grid import Grid
 from agentick.tasks.configs import DifficultyConfig
@@ -32,6 +34,12 @@ class TaskSpec(ABC):
 
     # Difficulty configurations
     difficulty_configs: dict[str, DifficultyConfig] = {}
+
+    # Public observation config controls. ``task_config`` is also returned in
+    # Gymnasium ``info`` and embedded in state_dict observations, so subclasses
+    # must keep hidden solution state out of this public view.
+    public_config_exclude: set[str] = set()
+    public_config_include_private: set[str] = set()
 
     def __init__(self, difficulty: str = "medium", **kwargs: Any):
         """
@@ -197,3 +205,49 @@ class TaskSpec(ABC):
                 return True
 
         return False
+
+    def get_public_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Return the task config safe to expose through observations/info.
+
+        Full internal config remains available on ``env.task_config`` for task
+        mechanics and oracle baselines. Public observations omit underscored
+        runtime internals by default, plus any task-specific hidden fields.
+        """
+        public: dict[str, Any] = {}
+        for key, value in config.items():
+            if key in self.public_config_exclude:
+                continue
+            if key.startswith("_") and key not in self.public_config_include_private:
+                continue
+            if isinstance(value, np.random.Generator):
+                continue
+            public[key] = self._to_public_value(value)
+        return public
+
+    @classmethod
+    def _to_public_value(cls, value: Any) -> Any:
+        """Convert common task config values into public, comparable values."""
+        if isinstance(value, np.random.Generator):
+            return None
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, dict):
+            return {
+                cls._public_key(k): cls._to_public_value(v)
+                for k, v in value.items()
+                if not isinstance(v, np.random.Generator)
+            }
+        if isinstance(value, set):
+            return [cls._to_public_value(v) for v in sorted(value, key=str)]
+        if isinstance(value, tuple):
+            return tuple(cls._to_public_value(v) for v in value)
+        if isinstance(value, list):
+            return [cls._to_public_value(v) for v in value]
+        return value
+
+    @staticmethod
+    def _public_key(key: Any) -> str:
+        """Make dict keys stable for public config serialization."""
+        if isinstance(key, tuple):
+            return ",".join(str(part) for part in key)
+        return str(key)

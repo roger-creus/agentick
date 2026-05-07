@@ -1,6 +1,5 @@
 """Tests for rendering system."""
 
-import numpy as np
 import pytest
 
 from agentick.core.entity import Agent, Entity

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TrainingConfig(BaseModel):
@@ -24,17 +24,18 @@ class TrainingConfig(BaseModel):
 class AgentConfig(BaseModel):
     """Configuration for agent."""
 
+    model_config = ConfigDict(extra="allow")
+
     type: str = Field(..., description="Agent type (random, oracle, ppo, etc.)")
     hyperparameters: dict[str, Any] = Field(
         default_factory=dict, description="Agent-specific hyperparameters"
     )
 
-    class Config:
-        extra = "allow"  # Allow additional fields
-
 
 class ExperimentConfig(BaseModel):
     """Complete experiment specification."""
+
+    model_config = ConfigDict(extra="allow")
 
     name: str = Field(..., description="Experiment name")
     description: str = Field(default="", description="Experiment description")
@@ -62,9 +63,6 @@ class ExperimentConfig(BaseModel):
         default=None, description="Training config (None = eval-only mode)"
     )
     base_config: str | None = Field(default=None, description="Base config to inherit from")
-
-    class Config:
-        extra = "allow"
 
     @field_validator("tasks")
     @classmethod
