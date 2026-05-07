@@ -1,6 +1,6 @@
 site_name: Agentick
 site_description: Universal benchmark for evaluating AI agents
-site_url: https://agentick.ai
+site_url: https://roger-creus.github.io/agentick/
 
 theme:
   name: material
