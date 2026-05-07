@@ -127,87 +127,53 @@ def _walk_adjacent_and_interact(env, tx, ty):
 
 @pytest.mark.parametrize("task_name", ALL_TASKS)
 @pytest.mark.timeout(30)
-def test_task_initializes(task_name):
-    """Task creates, resets and closes without error."""
+def test_task_basic_runtime_contract(task_name):
+    """Task resets, exposes required config, steps, and reports bounded sparse rewards."""
     env = agentick.make(task_name, difficulty="easy", seed=42)
-    obs, info = env.reset(seed=42)
-    assert obs is not None
-    assert "valid_actions" in info
-    env.close()
+    try:
+        obs, info = env.reset(seed=42)
+        assert obs is not None
+        assert "valid_actions" in info
 
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-@pytest.mark.timeout(30)
-def test_task_has_valid_config(task_name):
-    """Task config contains required fields."""
-    env = agentick.make(task_name, difficulty="easy", seed=42)
-    env.reset(seed=42)
-    cfg = env.task_config
-    assert "agent_start" in cfg, f"{task_name} missing agent_start"
-    assert "max_steps" in cfg, f"{task_name} missing max_steps"
-    assert cfg["max_steps"] > 0
-    # Agent placed at declared start
-    assert env.agent.position == cfg["agent_start"], (
-        f"{task_name}: agent at {env.agent.position}, expected {cfg['agent_start']}"
-    )
-    env.close()
-
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-@pytest.mark.timeout(30)
-def test_task_random_steps(task_name):
-    """Task survives 10 random valid steps without exception."""
-    env = agentick.make(task_name, difficulty="easy", seed=42)
-    env.reset(seed=42)
-    rng = np.random.default_rng(0)
-    for _ in range(10):
-        valid = [i for i, v in enumerate(env.get_valid_actions()) if v]
-        action = int(rng.choice(valid)) if valid else 0
-        obs, rew, term, trunc, info = env.step(action)
-        assert np.isfinite(rew), f"{task_name}: non-finite reward {rew}"
-        assert isinstance(info["success"], bool)
-        if term or trunc:
-            break
-    env.close()
-
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-@pytest.mark.timeout(30)
-def test_task_sparse_reward_bounds(task_name):
-    """Sparse reward is always 0 or 1 (plus small step penalties allowed)."""
-    env = agentick.make(task_name, difficulty="easy", seed=42, reward_mode="sparse")
-    env.reset(seed=42)
-    rng = np.random.default_rng(1)
-    for _ in range(20):
-        valid = [i for i, v in enumerate(env.get_valid_actions()) if v]
-        action = int(rng.choice(valid)) if valid else 0
-        _, rew, term, trunc, _ = env.step(action)
-        assert -1.0 <= rew <= 1.01, f"{task_name}: sparse reward {rew} out of bounds"
-        if term or trunc:
-            break
-    env.close()
-
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-@pytest.mark.timeout(30)
-def test_task_no_success_on_start(task_name):
-    """Task should not start in a success state (before any action)."""
-    env = agentick.make(task_name, difficulty="easy", seed=42)
-    env.reset(seed=42)
-    # Check success via a NOOP (the episode should not be immediately done)
-    # Exception: tasks that terminate in 0 steps are broken
-    obs, rew, term, trunc, info = env.step(0)
-    # It's OK if the episode ends via truncation, but not via instant success
-    # (unless the task is designed to end immediately, which none should be)
-    if info["success"]:
-        # If success fires on NOOP from start, agent must have been placed at goal
         cfg = env.task_config
-        goals = cfg.get("goal_positions", [])
-        agent_at_goal = env.agent.position in goals
-        assert not agent_at_goal or len(goals) == 0, (
-            f"{task_name}: agent starts at goal — trivially solved!"
+        assert "agent_start" in cfg, f"{task_name} missing agent_start"
+        assert "max_steps" in cfg, f"{task_name} missing max_steps"
+        assert cfg["max_steps"] > 0
+        assert env.agent.position == cfg["agent_start"], (
+            f"{task_name}: agent at {env.agent.position}, expected {cfg['agent_start']}"
         )
-    env.close()
+
+        rng = np.random.default_rng(0)
+        for step_idx in range(10):
+            valid = [i for i, v in enumerate(env.get_valid_actions()) if v]
+            action = 0 if step_idx == 0 else int(rng.choice(valid)) if valid else 0
+            _obs, rew, term, trunc, info = env.step(action)
+            assert np.isfinite(rew), f"{task_name}: non-finite reward {rew}"
+            assert isinstance(info["success"], bool)
+
+            if step_idx == 0 and info["success"]:
+                goals = cfg.get("goal_positions", [])
+                assert env.agent.position not in goals or len(goals) == 0, (
+                    f"{task_name}: agent starts at goal — trivially solved!"
+                )
+            if term or trunc:
+                break
+    finally:
+        env.close()
+
+    env = agentick.make(task_name, difficulty="easy", seed=42, reward_mode="sparse")
+    try:
+        env.reset(seed=42)
+        rng = np.random.default_rng(1)
+        for _ in range(20):
+            valid = [i for i, v in enumerate(env.get_valid_actions()) if v]
+            action = int(rng.choice(valid)) if valid else 0
+            _obs, rew, term, trunc, _info = env.step(action)
+            assert -1.0 <= rew <= 1.01, f"{task_name}: sparse reward {rew} out of bounds"
+            if term or trunc:
+                break
+    finally:
+        env.close()
 
 
 # ---------------------------------------------------------------------------
@@ -216,9 +182,10 @@ def test_task_no_success_on_start(task_name):
 
 # Survival tasks where truncation IS the success condition
 _SURVIVAL_TASKS = {"ResourceManagement-v0"}
+NON_SURVIVAL_TASKS = [task_name for task_name in ALL_TASKS if task_name not in _SURVIVAL_TASKS]
 
 
-@pytest.mark.parametrize("task_name", ALL_TASKS)
+@pytest.mark.parametrize("task_name", NON_SURVIVAL_TASKS)
 @pytest.mark.timeout(60)
 def test_task_truncation_is_not_success(task_name):
     """Letting the episode timeout should NOT mark info['success'] = True.
@@ -226,8 +193,6 @@ def test_task_truncation_is_not_success(task_name):
     Exception: survival tasks (ResourceManagement) where surviving to
     truncation IS the success condition.
     """
-    if task_name in _SURVIVAL_TASKS:
-        pytest.skip(f"{task_name} is a survival task (truncation = success)")
     # Use a very short custom max_steps via NOOP spam
     env = agentick.make(task_name, difficulty="easy", seed=99)
     env.reset(seed=42)

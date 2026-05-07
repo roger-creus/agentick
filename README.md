@@ -7,11 +7,12 @@
 </p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
   <a href="#citation"><img src="https://img.shields.io/badge/paper-coming_soon-lightgrey" alt="Paper coming soon"></a>
+  <a href="https://roger-creus.github.io/agentick/blog/introducing-agentick/"><img src="https://img.shields.io/badge/blog-introducing_agentick-8a63d2" alt="Blog"></a>
   <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-GitHub_Pages-4051b5" alt="Docs"></a>
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
 </p>
 
 Universal benchmark for evaluating AI agents. Train and evaluate any agent type — RL, LLM, VLM, hybrid, or human — across procedurally generated gridworld tasks.

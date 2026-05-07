@@ -47,13 +47,15 @@ def get_all_doc_files() -> list[Path]:
     return list(docs_dir.rglob("*.md"))
 
 
-@pytest.mark.parametrize("doc_file", get_all_doc_files())
+def get_doc_files_with_python_blocks() -> list[Path]:
+    """Get docs that contain Python code blocks worth parsing."""
+    return [doc_file for doc_file in get_all_doc_files() if extract_python_code_blocks(doc_file)]
+
+
+@pytest.mark.parametrize("doc_file", get_doc_files_with_python_blocks())
 def test_python_code_blocks_syntax(doc_file: Path):
     """Test that all Python code blocks in docs have valid syntax."""
     blocks = extract_python_code_blocks(doc_file)
-
-    if not blocks:
-        pytest.skip(f"No Python code blocks in {doc_file.name}")
 
     errors = []
     for line_num, code in blocks:

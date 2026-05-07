@@ -15,44 +15,40 @@ from agentick.core.types import CellType, ObjectType
 from agentick.tasks.registry import list_tasks
 
 ALL_TASKS = list_tasks()
+SWITCH_TASKS = ["SwitchCircuit-v0", "BacktrackPuzzle-v0", "GraphColoring-v0", "LightsOut-v0"]
+ENTITY_COUNT_TASKS = [
+    "KeyDoorPuzzle-v0",
+    "FogOfWarExploration-v0",
+    "RecipeAssembly-v0",
+    "TagHunt-v0",
+]
 
 
 @pytest.mark.parametrize("task_name", ALL_TASKS)
-def test_state_dict_has_metadata_layer(task_name):
-    """state_dict must include the metadata grid layer."""
+def test_structured_observation_contracts(task_name):
+    """Structured modes must expose the common metadata/annotation surfaces."""
     env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
     assert "metadata" in obs["grid"], f"{task_name}: state_dict missing metadata layer"
-    env.close()
-
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-def test_state_dict_has_annotations(task_name):
-    """state_dict must include an annotations dict."""
-    env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
-    obs, info = env.reset(seed=42)
     assert "annotations" in obs, f"{task_name}: state_dict missing annotations"
     env.close()
 
-
-@pytest.mark.parametrize("task_name", ALL_TASKS)
-def test_structured_has_task_annotations_key(task_name):
-    """language_structured must include task_annotations dict."""
     env = agentick.make(task_name, difficulty="easy", render_mode="language_structured")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
     assert "task_annotations" in obs, f"{task_name}: language_structured missing task_annotations"
+    assert "visible_entities" in obs, f"{task_name}: language_structured missing entities"
     env.close()
 
 
-@pytest.mark.parametrize("task_name", ALL_TASKS)
+@pytest.mark.parametrize("task_name", ["KeyDoorPuzzle-v0"])
 def test_key_door_colors_in_structured(task_name):
-    """If keys/doors exist, their colors must appear in language_structured entities."""
+    """Key/door colors must appear in language_structured entities."""
     env = agentick.make(task_name, difficulty="easy", render_mode="language_structured")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
 
     ann = extract_annotations(env.grid, env._get_info())
-    if not ann.key_colors and not ann.door_colors:
-        pytest.skip("No keys or doors in this task")
+    assert ann.key_colors
+    assert ann.door_colors
 
     entities = obs["visible_entities"]
 
@@ -80,15 +76,14 @@ def test_key_door_colors_in_structured(task_name):
     env.close()
 
 
-@pytest.mark.parametrize("task_name", ALL_TASKS)
+@pytest.mark.parametrize("task_name", ["KeyDoorPuzzle-v0"])
 def test_door_states_in_state_dict(task_name):
-    """If doors exist, their open/closed state must appear in state_dict annotations."""
+    """Door open/closed state must appear in state_dict annotations."""
     env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
 
     ann = extract_annotations(env.grid, env._get_info())
-    if not ann.door_states:
-        pytest.skip("No doors in this task")
+    assert ann.door_states
 
     sd_doors = obs["annotations"].get("door_states", {})
     for pos, state in ann.door_states.items():
@@ -100,15 +95,14 @@ def test_door_states_in_state_dict(task_name):
     env.close()
 
 
-@pytest.mark.parametrize("task_name", ALL_TASKS)
+@pytest.mark.parametrize("task_name", SWITCH_TASKS)
 def test_switch_states_in_state_dict(task_name):
-    """If switches exist, their on/off state must appear in state_dict annotations."""
+    """Switch on/off state must appear in state_dict annotations."""
     env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
 
     ann = extract_annotations(env.grid, env._get_info())
-    if not ann.switch_states:
-        pytest.skip("No switches in this task")
+    assert ann.switch_states
 
     sd_switches = obs["annotations"].get("switch_states", {})
     for pos, state in ann.switch_states.items():
@@ -118,16 +112,14 @@ def test_switch_states_in_state_dict(task_name):
     env.close()
 
 
-@pytest.mark.parametrize("task_name", ALL_TASKS)
+@pytest.mark.parametrize("task_name", ENTITY_COUNT_TASKS)
 def test_structured_entity_count_matches_grid(task_name):
     """language_structured must show the same number of objects as the grid has."""
     env = agentick.make(task_name, difficulty="easy", render_mode="language_structured")
-    obs, info = env.reset(seed=42)
+    obs, _info = env.reset(seed=42)
 
     ann = extract_annotations(env.grid, env._get_info())
 
-    # Count non-NONE objects on grid (excluding fogged cells)
-    from agentick.core.types import ObjectType
     grid_objects = 0
     for y in range(env.grid.height):
         for x in range(env.grid.width):

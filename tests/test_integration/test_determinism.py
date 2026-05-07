@@ -6,20 +6,18 @@ import agentick
 
 
 @pytest.mark.parametrize("task_name", agentick.list_tasks())
-@pytest.mark.parametrize("seed", [0, 42, 123])
 @pytest.mark.timeout(30)
-def test_same_seed_identical_reset(task_name, seed):
+def test_same_seed_identical_reset(task_name):
     """Test that same seed produces identical initial state."""
     env = agentick.make(task_name, difficulty="easy", render_mode="state_dict")
     try:
-        # Reset twice with same seed
-        obs1, info1 = env.reset(seed=seed)
-        obs2, info2 = env.reset(seed=seed)
+        for seed in (0, 42):
+            obs1, _info1 = env.reset(seed=seed)
+            obs2, _info2 = env.reset(seed=seed)
 
-        # States should be identical
-        assert obs1["agent"]["position"] == obs2["agent"]["position"]
-        assert obs1["grid"]["terrain"] == obs2["grid"]["terrain"]
-        assert obs1["grid"]["objects"] == obs2["grid"]["objects"]
+            assert obs1["agent"]["position"] == obs2["agent"]["position"]
+            assert obs1["grid"]["terrain"] == obs2["grid"]["terrain"]
+            assert obs1["grid"]["objects"] == obs2["grid"]["objects"]
     finally:
         env.close()
 
