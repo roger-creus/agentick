@@ -18,15 +18,16 @@ class TestWandbLogger:
             logger = MultiBackendLogger(log_dir=tmpdir, use_stdout=False, use_json=False)
             assert not logger.use_wandb
 
-    def test_wandb_graceful_when_not_installed(self):
-        """Test logger works gracefully when wandb is not installed."""
+    @patch("agentick.training.logger.MultiBackendLogger._try_import_wandb")
+    def test_wandb_graceful_when_not_installed(self, mock_try_import):
+        """Test logger works gracefully when wandb is unavailable."""
+        mock_try_import.return_value = False
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Even if we request wandb, it should work if not installed
             logger = MultiBackendLogger(
                 log_dir=tmpdir, use_stdout=False, use_json=False, use_wandb=True
             )
 
-            # Log should work even if wandb is unavailable
+            assert not logger.use_wandb
             logger.log("test_metric", 1.0, step=0)
             logger.close()
 

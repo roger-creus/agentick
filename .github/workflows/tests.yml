@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
@@ -26,10 +26,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked --extra rl --extra llm --extra finetune --extra tracking --extra viz --extra webapp --extra docs
+        run: uv sync --locked --python ${{ matrix.python-version }} --extra rl --extra llm --extra finetune --extra tracking --extra viz --extra webapp --extra docs
 
       - name: Run tests
-        run: uv run pytest tests/ -v --cov=agentick --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} pytest tests/ -v --cov=agentick --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
