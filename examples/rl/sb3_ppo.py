@@ -22,12 +22,20 @@ try:
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
     from stable_baselines3.common.monitor import Monitor
-    from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
+    from stable_baselines3.common.vec_env import DummyVecEnv
 
     SB3_AVAILABLE = True
 except ImportError:
     SB3_AVAILABLE = False
     print("⚠️  stable-baselines3 not installed. Install with: uv sync --extra rl")
+
+try:
+    from stable_baselines3.common.vec_env import VecVideoRecorder
+
+    VIDEO_RECORDER_AVAILABLE = True
+except Exception:
+    VecVideoRecorder = None
+    VIDEO_RECORDER_AVAILABLE = False
 
 try:
     from wandb.integration.sb3 import WandbCallback
@@ -91,15 +99,27 @@ def main():
 
     eval_env = DummyVecEnv([make_eval_env])
 
-    # Wrap with video recorder
+    # Wrap with video recorder (optional dependency: moviepy)
     Path(video_folder).mkdir(parents=True, exist_ok=True)
-    eval_env = VecVideoRecorder(
-        eval_env,
-        video_folder,
-        record_video_trigger=lambda x: x % eval_freq == 0,
-        video_length=200,
-        name_prefix="eval",
-    )
+    if VIDEO_RECORDER_AVAILABLE:
+        try:
+            eval_env = VecVideoRecorder(
+                eval_env,
+                video_folder,
+                record_video_trigger=lambda x: x % eval_freq == 0,
+                video_length=200,
+                name_prefix="eval",
+            )
+        except Exception:
+            print(
+                "⚠️  moviepy unavailable at runtime. "
+                "Evaluation video capture disabled. Install with: uv pip install moviepy"
+            )
+    else:
+        print(
+            "⚠️  moviepy not installed. Evaluation videos will be skipped. "
+            "Install with: uv pip install moviepy"
+        )
 
     print(f"\nEnvironment: {env_id}")
     print(f"Observation space: {train_env.observation_space}")

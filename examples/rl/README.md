@@ -10,6 +10,7 @@ policies on pixel observations via the Agentick Atari-style preprocessing wrappe
 ```bash
 uv sync --extra rl          # stable-baselines3, torch, gymnasium
 uv sync --extra rl --extra all  # adds wandb for experiment tracking
+uv pip install moviepy      # optional: enables evaluation video capture for SB3 examples
 ```
 
 GPU is strongly recommended. Training runs range from 50k to 500k timesteps.

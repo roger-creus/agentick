@@ -157,8 +157,14 @@ class QNetwork(nn.Module):
             nn.Linear(512, envs.single_action_space.n),
         )
 
+    @staticmethod
+    def chw_from_hwc(obs: torch.Tensor) -> torch.Tensor:
+        if obs.ndim == 4 and obs.shape[1] != 4 and obs.shape[-1] == 4:
+            return obs.permute(0, 3, 1, 2)
+        return obs
+
     def forward(self, x):
-        return self.network(x / 255.0)
+        return self.network(self.chw_from_hwc(x) / 255.0)
 
 
 def linear_schedule(start_e, end_e, duration, t):

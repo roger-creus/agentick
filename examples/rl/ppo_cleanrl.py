@@ -111,6 +111,13 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
+def chw_from_hwc(obs: torch.Tensor) -> torch.Tensor:
+    """Convert NHWC observations to NCHW when needed."""
+    if obs.ndim == 4 and obs.shape[1] != 4 and obs.shape[-1] == 4:
+        return obs.permute(0, 3, 1, 2)
+    return obs
+
+
 class Agent(nn.Module):
     """Nature CNN agent (Mnih et al., 2015) for 84x84x4 grayscale frame-stacked observations."""
 
@@ -133,10 +140,10 @@ class Agent(nn.Module):
         self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_value(self, x):
-        return self.critic(self.network(x / 255.0))
+        return self.critic(self.network(chw_from_hwc(x) / 255.0))
 
     def get_action_and_value(self, x, action=None):
-        hidden = self.network(x / 255.0)
+        hidden = self.network(chw_from_hwc(x) / 255.0)
         logits = self.actor(hidden)
         probs = Categorical(logits=logits)
         if action is None:
