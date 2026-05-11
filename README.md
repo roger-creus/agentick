@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="#citation"><img src="https://img.shields.io/badge/paper-coming_soon-lightgrey" alt="Paper coming soon"></a>
+  <a href="https://arxiv.org/abs/2605.06869v1"><img src="https://img.shields.io/badge/arXiv-2605.06869-b31b1b" alt="arXiv:2605.06869"></a>
   <a href="https://roger-creus.github.io/agentick/blog/introducing-agentick/"><img src="https://img.shields.io/badge/blog-introducing_agentick-8a63d2" alt="Blog"></a>
   <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-GitHub_Pages-4051b5" alt="Docs"></a>
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
@@ -18,7 +18,7 @@
 Universal benchmark for evaluating AI agents. Train and evaluate any agent type — RL, LLM, VLM, hybrid, or human — across procedurally generated gridworld tasks.
 
 <p align="center">
-  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="#citation">Paper (coming soon)</a> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
+  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://arxiv.org/abs/2605.06869v1">Paper (arXiv)</a> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
 </p>
 
 <p align="center">
@@ -233,11 +233,12 @@ Features on the `dev` branch for future releases:
 ## Citation
 
 ```bibtex
-@software{agentick2025,
+@article{agentick2026,
   title={Agentick: Universal Benchmark for AI Agents},
   author={Creus Castanyer, Roger},
-  year={2025},
-  url={https://github.com/roger-creus/agentick}
+  journal={arXiv preprint arXiv:2605.06869},
+  year={2026},
+  url={https://arxiv.org/abs/2605.06869v1}
 }
 ```
 
