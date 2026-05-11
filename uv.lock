@@ -58,6 +58,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "scipy" },
+    { name = "tensorboard" },
     { name = "tqdm" },
 ]
 
@@ -169,6 +170,7 @@ requires-dist = [
     { name = "scipy" },
     { name = "seaborn", marker = "extra == 'viz'", specifier = ">=0.13" },
     { name = "stable-baselines3", marker = "extra == 'rl'", specifier = ">=2.0" },
+    { name = "tensorboard", specifier = ">=2.20.0" },
     { name = "tensorboard", marker = "extra == 'rl'" },
     { name = "torch", marker = "extra == 'finetune'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'llm'", specifier = ">=2.0" },

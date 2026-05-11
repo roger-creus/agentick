@@ -15,7 +15,7 @@ set -euo pipefail
 
 CFG="$1"
 OUT="$2"
-PYTHON="${PYTHON:-python}"
+PYTHON="${PYTHON:-python3}"
 TMP_ARGS="$(mktemp)"
 trap 'rm -f "$TMP_ARGS"' EXIT
 

@@ -80,6 +80,13 @@ sft_model/
 
 # Internal maintainer scripts (keep public scripts, ignore private ones)
 scripts/__pycache__/
+scripts/compare_sft_vs_baseline.py
+scripts/copy_sft_to_anon.py
+scripts/export_sft_eval_improvement.py
+scripts/export_sft_training_curves.py
+scripts/measure_max_sft_seq_len.py
+scripts/publish_results.py
+scripts/score_partial_sft.py
 
 # Debug/results notebooks (local only)
 examples/debug_results.ipynb
@@ -106,6 +113,11 @@ check_results.sh
 generate_relaunches.py
 relaunch_scripts/
 launch_batch.sh
+relaunch_now.sh
+
+# Local SFT handoff / results notes (private)
+SFT_HANDOFF.md
+SFT_RESULTS_FINAL.md
 
 # Gemini 3.1 Flash Lite per-category configs (local only, RPD-split runs)
 examples/experiments/configs/gemini_31_flash_lite_*

@@ -144,7 +144,7 @@ dataset.export_to_huggingface("data/sokoban_expert/", format="conversation")
 
 **Fine-tune LLMs on expert demonstrations:**
 
-Oracle policies are provided for all 37 tasks. Generate your own trajectories, or grab one of our pre-built datasets on HuggingFace:
+Oracle policies are provided for every task in the suite. Generate your own trajectories, or grab one of our pre-built datasets on HuggingFace:
 
 | Dataset | Rows | |
 |---|---|---|
@@ -152,7 +152,7 @@ Oracle policies are provided for all 37 tasks. Generate your own trajectories, o
 | [agentick-oracle-trajectories-250k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-250k) | 250K per-step rows | Broader coverage |
 | [agentick-oracle-trajectories-500k](https://huggingface.co/datasets/rogercc/agentick-oracle-trajectories-500k) | 500K per-step rows | Full scale |
 
-Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across all 37 tasks and difficulty levels. Load them directly with `datasets` and SFT your favorite open-source model.
+Each dataset includes per-step oracle actions, ASCII and language observations, rewards, done flags, and step info across every task and difficulty level in the suite. Load them directly with `datasets` and SFT your favorite open-source model.
 
 This training-first design means Agentick isn't just measuring where agents are today - it's infrastructure for making them better.
 
@@ -190,7 +190,7 @@ for action in actions:
 
 The API also exposes grid inspection (`get_cell`, `get_object`, `get_walls`, `get_walkable_cells`), inventory management (`has_in_inventory`), and interaction primitives (`interact_with`).
 
-This is how the **oracle policies** for all 37 tasks were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
+This is how the **oracle policies** for every task in the suite were built - coded up through this API by a frontier coding LLM with iteration and refinement. Those oracles then generate the expert trajectory datasets linked above, closing the loop from code → trajectories → SFT.
 
 ## LLM Agent Harnesses
 
@@ -277,7 +277,7 @@ For <a href="https://roger-creus.github.io/agentick/agents/rl_agents/" target="_
 
 ## The Tasks
 
-37 tasks, each procedurally generated with 4 difficulty levels (easy → expert). Every run produces a unique layout, so agents can't memorize solutions. Click a category and difficulty to explore.
+Every task is procedurally generated with 4 difficulty levels (easy → expert). Every run produces a unique layout, so agents can't memorize solutions. Click a category and difficulty to explore.
 
 <style>
 .ag-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0.8em 0}
@@ -461,9 +461,9 @@ For agents with complete evaluations across all tasks and difficulties, we can c
 <script>
 (() => {
 // ONS bar chart — best config per model only
-const agents = ['GPT-5 mini', 'PPO Dense (2M)', 'Qwen3.5-4B', 'Gemini 2.5 FL', 'Qwen3.5-2B', 'Qwen3.5-0.8B', 'Qwen3-4B'];
-const ons = [28.0, 25.2, 18.0, 13.0, 6.3, 1.5, 0.3];
-const barColors = ['#4a90d9', '#50b860', '#d94a8a', '#e8a838', '#d96aa5', '#e48cb8', '#bc8cff'];
+const agents = ['Qwen3.5-4B (SFT-250k)', 'Qwen3.5-4B (SFT-120k)', 'GPT-5 mini', 'PPO Dense (2M)', 'Qwen3.5-4B', 'PPO Dense (500k)', 'Gemini 2.5 FL', 'Qwen3.5-2B', 'Qwen3.5-0.8B', 'Qwen3-4B'];
+const ons = [44.7, 35.4, 30.9, 28.7, 22.8, 22.6, 18.7, 13.3, 9.4, 8.5];
+const barColors = ['#50b860', '#a3d990', '#4a90d9', '#7eb4e3', '#d94a8a', '#e48cb8', '#e8a838', '#d96aa5', '#bc8cff', '#94a3b8'];
 new Chart(document.getElementById('chart-ons-bar'), {
   type: 'bar',
   data: {
@@ -474,7 +474,7 @@ new Chart(document.getElementById('chart-ons-bar'), {
     indexAxis: 'y', responsive: true,
     plugins: { legend: { display: false }, tooltip: { padding: 10, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: 'Overall ONS (%)', font: { size: 14, weight: '600' }, padding: { bottom: 12 } } },
     scales: {
-      x: { min: -10, max: 35, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 10 } } },
+      x: { min: -5, max: 50, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 10 } } },
       y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 11, weight: '600' } } },
     },
   },
@@ -482,11 +482,11 @@ new Chart(document.getElementById('chart-ons-bar'), {
 // Radar chart — max 100 to show correct proportions
 const catLabels = ['Navigation', 'Planning', 'Reasoning', 'Memory', 'Generalization', 'Multi-Agent'];
 const radarData = [
-  { name: 'GPT-5 mini', data: [44.5, 23.7, 13.4, 26.7, 41.8, 18.1], color: '#4a90d9' },
-  { name: 'PPO Dense (2M)', data: [22.5, 32.4, 19.6, 19.1, 1.9, 60.7], color: '#50b860' },
-  { name: 'Qwen3.5-4B', data: [19.5, 21.0, 12.6, 15.1, 25.7, 15.7], color: '#d94a8a' },
-  { name: 'Gemini 2.5 FL', data: [21.1, 12.7, 9.1, 5.2, 19.9, 10.3], color: '#e8a838' },
-  { name: 'Qwen3.5-2B', data: [10.3, 11.1, 4.6, 11.0, -2.4, 0.3], color: '#d96aa5' },
+  { name: 'Qwen3.5-4B (SFT-250k)', data: [56.8, 55.7, 44.5, 41.2, 35.0, 34.8], color: '#50b860' },
+  { name: 'GPT-5 mini', data: [45.6, 33.4, 13.1, 34.8, 43.7, 15.0], color: '#4a90d9' },
+  { name: 'PPO Dense (2M)', data: [25.0, 40.2, 19.1, 28.2, 16.3, 43.2], color: '#7eb4e3' },
+  { name: 'Qwen3.5-4B', data: [22.2, 31.3, 12.4, 24.8, 32.7, 13.4], color: '#d94a8a' },
+  { name: 'Gemini 2.5 FL', data: [23.8, 24.9, 9.0, 16.2, 28.7, 9.8], color: '#e8a838' },
 ];
 new Chart(document.getElementById('chart-ons-radar'), {
   type: 'radar',
@@ -616,18 +616,18 @@ function catBar(id, title, labels, values, colors) {
     type: 'bar', data: { labels, datasets: [{ data: values, backgroundColor: colors.map(c=>c+'cc'), borderColor: colors, borderWidth: 1.5, borderRadius: 4 }] },
     options: { indexAxis: 'y', responsive: true,
       plugins: { legend: { display: false }, tooltip: { padding: 8, cornerRadius: 6, callbacks: { label: ctx => ctx.raw.toFixed(1) + '% ONS' } }, title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 8 } } },
-      scales: { x: { min: -5, max: 55, grid: { color: '#e1e4e822' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 10, weight: '600' } } } },
+      scales: { x: { min: 0, max: 65, grid: { color: '#e1e4e822' }, border: { color: '#d0d0d0' }, ticks: { callback: v => v + '%', font: { size: 9 } } }, y: { grid: { display: false }, border: { color: '#d0d0d0' }, ticks: { font: { size: 10, weight: '600' } } } },
     },
   });
 }
-const a = ['GPT-5 mini','PPO Dense (2M)','Qwen3.5-4B','Gemini 2.5 FL','Qwen3.5-2B'];
-const c = ['#4a90d9','#50b860','#d94a8a','#e8a838','#d96aa5'];
-catBar('chart-cat-nav', 'Navigation', a, [44.5, 22.5, 19.5, 21.1, 10.3], c);
-catBar('chart-cat-plan', 'Planning', a, [23.7, 32.4, 21.0, 12.7, 11.1], c);
-catBar('chart-cat-reason', 'Reasoning', a, [13.4, 19.6, 12.6, 9.1, 4.6], c);
-catBar('chart-cat-mem', 'Memory', a, [26.7, 19.1, 15.1, 5.2, 11.0], c);
-catBar('chart-cat-gen', 'Generalization', a, [41.8, 1.9, 25.7, 19.9, -2.4], c);
-catBar('chart-cat-multi', 'Multi-Agent', a, [18.1, 60.7, 15.7, 10.3, 0.3], c);
+const a = ['Qwen3.5-4B (SFT-250k)','GPT-5 mini','PPO Dense (2M)','Qwen3.5-4B','Gemini 2.5 FL','Qwen3.5-2B'];
+const c = ['#50b860','#4a90d9','#7eb4e3','#d94a8a','#e8a838','#d96aa5'];
+catBar('chart-cat-nav', 'Navigation', a, [56.8, 45.6, 25.0, 22.2, 23.8, 13.6], c);
+catBar('chart-cat-plan', 'Planning', a, [55.7, 33.4, 40.2, 31.3, 24.9, 23.7], c);
+catBar('chart-cat-reason', 'Reasoning', a, [44.5, 13.1, 19.1, 12.4, 9.0, 4.8], c);
+catBar('chart-cat-mem', 'Memory', a, [41.2, 34.8, 28.2, 24.8, 16.2, 21.2], c);
+catBar('chart-cat-gen', 'Generalization', a, [35.0, 43.7, 16.3, 32.7, 28.7, 13.3], c);
+catBar('chart-cat-multi', 'Multi-Agent', a, [34.8, 15.0, 43.2, 13.4, 9.8, 3.2], c);
 })();
 </script>
 
@@ -635,10 +635,80 @@ The per-category view is designed for diagnosis: an agent can be strong on
 navigation while still failing on memory or compositional planning, and those
 differences are visible without digging into every task trace.
 
+### SFT on Oracle Trajectories: Closing the Gap
+
+Beyond evaluation, Agentick is designed as a training environment. Every task ships with an **oracle policy** — a deterministic, code-defined solver that produces optimal actions for any state — so generating a high-quality behaviour-cloning corpus is a single command. We fine-tuned **Qwen3.5-4B** with LoRA on two sizes of oracle-trajectory corpora — **120k** and **250k** per-step rows — over the ASCII grid representation. Each run trained for two epochs with the same Qwen sampling settings used at eval time.
+
+![Qwen3.5-4B SFT training loss curves (120k and 250k)](../../assets/blog/sft_training_loss.svg){ style="width:100%; max-width:780px; display:block; margin:1.5em auto; background:#f8f9fa; border:1px solid #e1e4e8; border-radius:8px; padding:20px;" }
+
+Both runs converge cleanly past the 2-epoch mark we use as the evaluation checkpoint. The 250k corpus reaches a slightly lower final loss but, more importantly, **exposes the model to a wider distribution of (state, oracle-action) pairs across the full task suite**.
+
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
+<canvas id="chart-sft-markov" height="150"></canvas>
+</div>
+
+<div style="background: #f8f9fa; border: 1px solid #e1e4e8; border-radius: 8px; padding: 20px; margin: 1.5em 0;">
+<canvas id="chart-sft-reasoner" height="150"></canvas>
+</div>
+
+<script>
+(() => {
+const cats = ['Navigation','Planning','Reasoning','Memory','Generalization','Multi-Agent'];
+const base_m   = [ 1.3,  6.1,  0.0,  3.8,  2.0,  0.8];
+const sft120_m = [42.8, 45.9, 35.0, 28.8, 35.7, 24.6];
+const sft250_m = [56.8, 55.7, 44.5, 41.3, 35.0, 34.8];
+const base_r   = [22.3, 31.3, 12.4, 24.8, 32.7, 13.4];
+const sft120_r = [42.5, 45.0, 34.1, 29.3, 34.7, 23.8];
+const sft250_r = [54.5, 57.3, 44.6, 42.3, 33.7, 33.8];
+
+function group(id, title, base, sft120, sft250) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: {
+      labels: cats,
+      datasets: [
+        { label: 'Qwen3.5-4B (base)', data: base, backgroundColor: '#94a3b8cc', borderColor: '#64748b', borderWidth: 1.5, borderRadius: 4, barPercentage: 0.78, categoryPercentage: 0.78 },
+        { label: 'Qwen3.5-4B (SFT-120k)', data: sft120, backgroundColor: '#4a90d9cc', borderColor: '#4a90d9', borderWidth: 1.5, borderRadius: 4, barPercentage: 0.78, categoryPercentage: 0.78 },
+        { label: 'Qwen3.5-4B (SFT-250k)', data: sft250, backgroundColor: '#50b860cc', borderColor: '#50b860', borderWidth: 1.5, borderRadius: 4, barPercentage: 0.78, categoryPercentage: 0.78 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 14, padding: 14, font: { size: 12 } } },
+        title: { display: true, text: title, font: { size: 13, weight: '600' }, padding: { bottom: 8 } },
+        tooltip: { padding: 10, cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw.toFixed(1) + '%' } },
+      },
+      scales: {
+        y: { min: 0, max: 70, grid: { color: '#e1e4e833' }, border: { color: '#d0d0d0' },
+             ticks: { callback: v => v + '%', font: { size: 10 } },
+             title: { display: true, text: 'Agentick Score', font: { size: 12, weight: '600' } } },
+        x: { grid: { display: false }, border: { color: '#d0d0d0' },
+             ticks: { font: { size: 11, weight: '600' } } },
+      },
+    },
+  });
+}
+group('chart-sft-markov',  'Markovian Harness — ASCII',          base_m, sft120_m, sft250_m);
+group('chart-sft-reasoner','Markovian Reasoner Harness — ASCII', base_r, sft120_r, sft250_r);
+})();
+</script>
+
+With the markovian harness, the base model is essentially at floor (2.3% overall ONS); SFT-120k lifts it to **35.4%** and SFT-250k to **44.7%** — a ~19× improvement, driven mostly by navigation (1.3% → 56.8%), planning (6.1% → 55.7%) and reasoning (0.0% → 44.5%). The markovian reasoner harness shows the same trend on top of its own boost: base 22.8%, SFT-120k 34.9%, SFT-250k **44.4%**. The category breakdown reveals where SFT helps most — symbolic, search-shaped problems (navigation, planning, reasoning) — and where it barely moves the needle: **generalization**, where SFT-120k and SFT-250k both stall around 35% because the held-out distribution shift is exactly what behaviour cloning struggles with.
+
+After SFT, the markovian and markovian reasoner harnesses converge to almost identical scores (44.7% vs 44.4% at 250k). The oracle trajectories contain only **state → optimal action** pairs — no chain-of-thought, no rationales — so the fine-tuned policy learns to emit the optimal action directly. The reasoner scaffold no longer has anything new to contribute on top, because the model has internalised the reasoning into its action distribution. This is the expected behaviour of behaviour cloning on terminal-action data, and it's a clean empirical demonstration of what gets transferred (the policy) versus what doesn't (an explicit reasoning trace).
+
+The result with the largest implication, though, is the comparison against frontier proprietary models. Zero-shot, the picture is what you'd expect from any agentic benchmark: GPT-5 mini (30.9%) and other proprietary frontier LLMs sit clearly above open-weights Qwen3.5-4B (22.8%). But the same open-weights 4B model, fine-tuned on Agentick's own oracle trajectories, reaches **44.7%** — comfortably ahead of GPT-5 mini and the rest of the frontier zero-shot pack. In other words, **the capabilities Agentick exposes as weaknesses in current frontier models are not fundamental limitations — they are missing training data**. Agentick is a benchmark *and* a turnkey way to manufacture exactly the training signal needed to close those gaps. We see this as the most valuable contribution of the project: it points to a path where open-source models, trained with the right curriculum, can match or exceed proprietary frontier systems on a specific class of cognitive skills.
+
+This run is also only the first half of the post-training story — everything above is pure supervised fine-tuning. The next iteration of Agentick adds RL post-training (PPO and GRPO on the same task suite, using the Agentick reward signal) on top of the SFT checkpoint; we expect another step up, particularly on generalization, where behaviour cloning has the most room to improve.
+
+The whole pipeline ran end-to-end: oracles → trajectories → SFT → eval → leaderboard. Re-running it for a different model or a different dataset slice is a config change.
+
 ## What's Next
 
 - **More evaluations** — open-source models are being evaluated across the full benchmark
-- **Fine-tuning** — SFT datasets available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-120k" target="_blank">120k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-250k" target="_blank">250k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-500k" target="_blank">500k</a> per-step rows). RL post-training support coming soon.
+- **RL post-training** — PPO / GRPO on the same task suite, on top of the SFT checkpoints, to push past the limits of behaviour cloning (especially on generalization)
+- **Fine-tuning datasets** — SFT corpora available on HuggingFace (<a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-120k" target="_blank">120k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-250k" target="_blank">250k</a>, <a href="https://huggingface.co/rogercc/agentick-oracle-trajectories-500k" target="_blank">500k</a> per-step rows)
 - **VLM evaluation** — pixel observation benchmarks for vision-language models
 - **Better RL baselines** — longer training, curriculum learning, multi-task agents
 - **New tasks** — community contributions welcome
@@ -668,7 +738,7 @@ env.close()
 
 ```bash
 uv run agentick webapp          # Play tasks yourself in the browser
-uv run agentick list-tasks      # See all 37 tasks
+uv run agentick list-tasks      # See every task in the suite
 ```
 
 Browse the [documentation](../../index.md), explore the [task catalog](../../tasks.md), or check out the [example configs](https://github.com/roger-creus/agentick/tree/main/examples) to get running.
