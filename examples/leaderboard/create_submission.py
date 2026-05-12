@@ -13,32 +13,24 @@ def main():
     print("=" * 80)
 
     # Example submission for random agent
-    submission_yaml = """# Agent Submission
-agent_name: "RandomAgent-Baseline-v1"
-author: "Your Name"
-description: "Random agent baseline for comparison"
-url: null
-tags:
-  - baseline
-  - random
+    submission_yaml = '''# Agent Submission
+name: "RandomAgent-Baseline-v1"
+description: "Random action baseline for local smoke testing"
+contact:
+  github: "your-github-handle"
+agent:
+  model: "random-baseline"
+  adapter: |
+    def get_action(obs, env):
+        return env.action_space.sample()
+
+code: "https://github.com/roger-creus/agentick"
 license: "MIT"
-open_weights: true
-
-agent_type: "code"
-observation_mode: "language"
-
-config:
-  agent_class: "agentick.agents.random.RandomAgent"
-
-suites:
-  - "agentick-full-v2"
-  # - "agentick-full-v2"  # Uncomment for full evaluation
-
 hardware: "CPU"
-estimated_cost: "$0 (deterministic)"
+estimated_cost: "$0"
 training_data: "None"
 training_compute: "N/A"
-"""
+'''
 
     # Save to file
     output_path = Path("submission.yaml")
@@ -50,9 +42,12 @@ training_compute: "N/A"
     print("\nNext steps:")
     print("  1. Edit submission.yaml with your agent details")
     print(
-        "  2. Run: uv run agentick evaluate --submission submission.yaml --suite agentick-full-v2"
+        "  2. Run: uv run python examples/leaderboard/validate_submission.py submission.yaml"
     )
-    print("  3. Or run: python examples/leaderboard/run_evaluation.py")
+    print(
+        "  3. Run: uv run python examples/leaderboard/run_evaluation.py "
+        "submission.yaml --suite agentick-navigation-v2 --num-episodes 1"
+    )
 
 
 if __name__ == "__main__":

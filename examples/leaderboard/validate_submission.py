@@ -204,7 +204,10 @@ def main():
         print(f"Contact: {contact_value}")
         print("\n💡 Next steps:")
         print("  1. Test your submission locally with run_evaluation.py")
-        print("  2. Submit to the leaderboard (instructions at https://agentick.dev)")
+        print(
+            "  2. Submit to the leaderboard: "
+            "https://roger-creus.github.io/agentick/leaderboard/"
+        )
 
 
 if __name__ == "__main__":

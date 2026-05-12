@@ -119,8 +119,8 @@ def main():
     parser.add_argument(
         "--suite",
         type=str,
-        default="core",
-        help="Task suite to evaluate on",
+        default="agentick-navigation-v2",
+        help="Official suite name, e.g. agentick-navigation-v2",
     )
     parser.add_argument(
         "--num-episodes",
@@ -167,15 +167,18 @@ def main():
     # Get tasks from suite
     print(f"\nLoading task suite: {args.suite}")
 
-    from agentick.leaderboard.suites import get_suite_tasks
+    from agentick.leaderboard.suites import get_suite
 
     try:
-        tasks = get_suite_tasks(args.suite)
-        print(f"  ✓ {len(tasks)} tasks loaded")
+        suite = get_suite(args.suite)
+        tasks = list(suite.tasks)
+        difficulty = suite.difficulty
+        print(f"  ✓ {len(tasks)} tasks loaded at {difficulty} difficulty")
     except Exception as e:
         print(f"  ❌ Failed to load suite: {e}")
         # Fallback to core tasks
         tasks = ["GoToGoal-v0", "MazeNavigation-v0", "KeyDoorPuzzle-v0"]
+        difficulty = "easy"
         print(f"  Using fallback tasks: {tasks}")
 
     # Run evaluation
@@ -193,6 +196,7 @@ def main():
                 agent_fn,
                 task_id,
                 num_episodes=args.num_episodes,
+                difficulty=difficulty,
             )
 
             all_results.append(result)
