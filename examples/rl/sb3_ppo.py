@@ -38,9 +38,8 @@ except Exception:
     VIDEO_RECORDER_AVAILABLE = False
 
 try:
-    from wandb.integration.sb3 import WandbCallback
-
     import wandb
+    from wandb.integration.sb3 import WandbCallback
 
     WANDB_AVAILABLE = True
 except ImportError:
