@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2605.06869v1"><img src="https://img.shields.io/badge/arXiv-2605.06869-b31b1b" alt="arXiv:2605.06869"></a>
+  <a href="https://arxiv.org/abs/2605.06869"><img src="https://img.shields.io/badge/arXiv-2605.06869-b31b1b" alt="arXiv:2605.06869"></a>
   <a href="https://roger-creus.github.io/agentick/blog/introducing-agentick/"><img src="https://img.shields.io/badge/blog-introducing_agentick-8a63d2" alt="Blog"></a>
   <a href="https://roger-creus.github.io/agentick/"><img src="https://img.shields.io/badge/docs-GitHub_Pages-4051b5" alt="Docs"></a>
   <a href="https://roger-creus.github.io/agentick/board/"><img src="https://img.shields.io/badge/leaderboard-live-orange" alt="Leaderboard"></a>
@@ -18,7 +18,7 @@
 Universal benchmark for evaluating AI agents. Train and evaluate any agent type — RL, LLM, VLM, hybrid, or human — across procedurally generated gridworld tasks.
 
 <p align="center">
-  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://arxiv.org/abs/2605.06869v1">Paper (arXiv)</a> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
+  <b><a href="https://roger-creus.github.io/agentick/board/">Check out the live leaderboard</a></b> · <a href="https://arxiv.org/abs/2605.06869">Paper (arXiv)</a> · <a href="https://roger-creus.github.io/agentick/leaderboard/">How to submit your agent</a>
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@ Universal benchmark for evaluating AI agents. Train and evaluate any agent type 
 The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
-git clone https://github.com/roger-creus/agentick.git && cd agentick
+git clone --filter=blob:none --depth 1 https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra webapp
 uv run python -m agentick.human.webapp   # Opens http://127.0.0.1:8080
 ```
@@ -67,10 +67,16 @@ env.close()
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv
-git clone https://github.com/roger-creus/agentick.git
+git clone --filter=blob:none --depth 1 https://github.com/roger-creus/agentick.git
 cd agentick
 uv sync
 uv run agentick --version
+```
+
+If you want the full git history later (for `git bisect` or changelog review), switch after the shallow checkout:
+
+```bash
+git fetch --unshallow
 ```
 
 ### Dependency Groups
@@ -238,7 +244,7 @@ Features on the `dev` branch for future releases:
   author={Creus Castanyer, Roger},
   journal={arXiv preprint arXiv:2605.06869},
   year={2026},
-  url={https://arxiv.org/abs/2605.06869v1}
+  url={https://arxiv.org/abs/2605.06869}
 }
 ```
 
