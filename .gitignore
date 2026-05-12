@@ -52,6 +52,8 @@ wandb/
 trajectories/
 /data/
 test_output/
+runs/
+submission.yaml
 *.pkl
 *.h5
 benchmark_results/
@@ -96,6 +98,10 @@ examples/human_results.ipynb
 # Regenerate locally with: scripts/record_oracle_gallery.py
 # Upload with: huggingface-cli upload rogercc/agentick-gallery docs/showcase/videos/iso/ iso/
 docs/showcase/videos/
+/gallery/
+debug_*.html
+/assets/isometric/
+/agentick/rendering/models/
 
 # Logs
 logs/

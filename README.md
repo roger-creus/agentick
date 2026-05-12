@@ -41,7 +41,7 @@ Universal benchmark for evaluating AI agents. Train and evaluate any agent type 
 The fastest way to explore Agentick is the **interactive webapp** — play tasks yourself and browse all observation modalities:
 
 ```bash
-git clone --filter=blob:none --depth 1 https://github.com/roger-creus/agentick.git && cd agentick
+git clone https://github.com/roger-creus/agentick.git && cd agentick
 uv sync --extra webapp
 uv run python -m agentick.human.webapp   # Opens http://127.0.0.1:8080
 ```
@@ -67,16 +67,10 @@ env.close()
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Install uv
-git clone --filter=blob:none --depth 1 https://github.com/roger-creus/agentick.git
+git clone https://github.com/roger-creus/agentick.git
 cd agentick
 uv sync
 uv run agentick --version
-```
-
-If you want the full git history later (for `git bisect` or changelog review), switch after the shallow checkout:
-
-```bash
-git fetch --unshallow
 ```
 
 ### Dependency Groups
