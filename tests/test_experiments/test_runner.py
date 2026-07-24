@@ -1,10 +1,12 @@
 """Tests for experiment runner."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 from agentick.experiments.config import ExperimentConfig
-from agentick.experiments.runner import ExperimentRunner
+from agentick.experiments.runner import ExperimentResults, ExperimentRunner
 
 
 def test_basic_run(tmp_path):
@@ -135,3 +137,72 @@ def test_metadata_tracking(tmp_path):
     assert "agentick_version" in metadata
     assert "python_version" in metadata
     assert "platform" in metadata
+
+
+def test_concurrent_difficulty_saves_preserve_both_payloads(tmp_path):
+    """Concurrent jobs for one task must not lose a difficulty record."""
+    output_dir = tmp_path / "results"
+    config = ExperimentConfig(
+        name="concurrent_save",
+        agent={"type": "random"},
+        tasks=["GoToGoal-v0"],
+        n_episodes=1,
+        n_seeds=1,
+        output_dir=str(output_dir),
+    )
+    output_dir.mkdir(parents=True)
+    config.to_yaml(output_dir / "config.yaml")
+
+    def make_result(difficulty, seed, success):
+        episode = {
+            "seed": seed,
+            "episode_idx": 0,
+            "return": float(success),
+            "length": 1,
+            "success": success,
+        }
+        task_result = {
+            "task_name": "GoToGoal-v0",
+            "per_difficulty": {
+                difficulty: {
+                    "difficulty": difficulty,
+                    "episodes": [episode],
+                    "metrics": {"success_rate": float(success)},
+                }
+            },
+            "aggregate_metrics": {
+                "mean_return": float(success),
+                "success_rate": float(success),
+                "mean_length": 1.0,
+            },
+        }
+        return ExperimentResults(
+            config=config,
+            output_dir=output_dir,
+            metadata={"difficulty": difficulty},
+            summary={"total_time_seconds": 1.0},
+            per_task_results={"GoToGoal-v0": task_result},
+        )
+
+    barrier = Barrier(2)
+
+    def save(result):
+        barrier.wait()
+        result.save()
+
+    results = [
+        make_result("easy", 101, True),
+        make_result("hard", 202, False),
+    ]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(save, result) for result in results]
+        for future in futures:
+            future.result()
+
+    metrics_path = output_dir / "per_task" / "GoToGoal-v0" / "metrics.json"
+    with open(metrics_path) as f:
+        metrics = json.load(f)
+
+    assert set(metrics["per_difficulty"]) == {"easy", "hard"}
+    assert metrics["per_difficulty"]["easy"]["episodes"][0]["seed"] == 101
+    assert metrics["per_difficulty"]["hard"]["episodes"][0]["seed"] == 202

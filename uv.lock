@@ -48,6 +48,7 @@ name = "agentick"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "filelock" },
     { name = "gymnasium" },
     { name = "jinja2" },
     { name = "numpy" },
@@ -147,6 +148,7 @@ requires-dist = [
     { name = "agentick", extras = ["rl", "llm", "vllm", "finetune", "tracking", "viz", "webapp", "docs"], marker = "extra == 'all'" },
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.34" },
     { name = "datasets", marker = "extra == 'finetune'" },
+    { name = "filelock", specifier = ">=3.13" },
     { name = "flask", marker = "extra == 'webapp'", specifier = ">=3.1" },
     { name = "google-genai", marker = "extra == 'llm'", specifier = ">=1.66.0" },
     { name = "gymnasium", specifier = ">=1.0" },

@@ -6,12 +6,14 @@ import json
 import multiprocessing as mp
 import os
 import subprocess
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from filelock import FileLock
 from rich.progress import (
     BarColumn,
     Progress,
@@ -23,6 +25,25 @@ from rich.progress import (
 
 from agentick.agents.backends.base import ModelBackend
 from agentick.experiments.config import ExperimentConfig
+
+
+def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+    """Write JSON through a sibling temporary file and atomically replace it."""
+    fd, temp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, path)
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 def _run_task_worker(args: tuple) -> tuple[str, dict[str, Any]]:
@@ -221,85 +242,87 @@ class ExperimentResults:
             task_dir.mkdir(parents=True, exist_ok=True)
 
             metrics_path = task_dir / "metrics.json"
-            merged = task_results
-            if metrics_path.exists():
-                try:
-                    with open(metrics_path) as f:
-                        existing = json.load(f)
-                    existing_pd = existing.get("per_difficulty", {})
-                    new_pd = task_results.get("per_difficulty", {})
-                    # Keep existing difficulties, overwrite with new ones
-                    existing_pd.update(new_pd)
-                    merged = dict(existing)
-                    merged["per_difficulty"] = existing_pd
-                    # Recompute aggregate metrics from all difficulties
-                    all_episodes = []
-                    for diff_data in existing_pd.values():
-                        all_episodes.extend(diff_data.get("episodes", []))
-                    if all_episodes:
-                        returns = [ep["return"] for ep in all_episodes]
-                        successes = [ep["success"] for ep in all_episodes]
-                        lengths = [ep["length"] for ep in all_episodes]
-                        merged["aggregate_metrics"] = {
-                            "mean_return": float(np.mean(returns)),
-                            "success_rate": float(np.mean(successes)),
-                            "mean_length": float(np.mean(lengths)),
-                        }
-                except (json.JSONDecodeError, OSError, KeyError):
-                    merged = task_results
+            metrics_lock = FileLock(f"{metrics_path}.lock", timeout=1800)
+            with metrics_lock:
+                merged = task_results
+                if metrics_path.exists():
+                    try:
+                        with open(metrics_path) as f:
+                            existing = json.load(f)
+                        existing_pd = existing.get("per_difficulty", {})
+                        new_pd = task_results.get("per_difficulty", {})
+                        # Keep existing difficulties, overwrite with new ones
+                        existing_pd.update(new_pd)
+                        merged = dict(existing)
+                        merged["per_difficulty"] = existing_pd
+                        # Recompute aggregate metrics from all difficulties
+                        all_episodes = []
+                        for diff_data in existing_pd.values():
+                            all_episodes.extend(diff_data.get("episodes", []))
+                        if all_episodes:
+                            returns = [ep["return"] for ep in all_episodes]
+                            successes = [ep["success"] for ep in all_episodes]
+                            lengths = [ep["length"] for ep in all_episodes]
+                            merged["aggregate_metrics"] = {
+                                "mean_return": float(np.mean(returns)),
+                                "success_rate": float(np.mean(successes)),
+                                "mean_length": float(np.mean(lengths)),
+                            }
+                    except (json.JSONDecodeError, OSError, KeyError):
+                        merged = task_results
 
-            with open(metrics_path, "w") as f:
-                json.dump(merged, f, indent=2)
+                _atomic_write_json(metrics_path, merged)
 
         # Merge summary with existing (other SLURM jobs may have written theirs)
         summary_path = self.output_dir / "summary.json"
-        merged_summary = dict(self.summary)
-        if summary_path.exists():
-            try:
-                with open(summary_path) as f:
-                    existing = json.load(f)
-                # Accumulate time
-                existing_time = existing.get("total_time_seconds", 0)
-                our_time = merged_summary.get("total_time_seconds", 0)
-                merged_summary["total_time_seconds"] = existing_time + our_time
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        # Recompute summary from all per_task/ dirs on disk
-        per_task_dir = self.output_dir / "per_task"
-        if per_task_dir.exists():
-            all_returns = []
-            all_successes = []
-            all_lengths = []
-            for task_dir in per_task_dir.iterdir():
-                if not task_dir.is_dir():
-                    continue
-                metrics_path = task_dir / "metrics.json"
-                if not metrics_path.exists():
-                    continue
+        summary_lock = FileLock(f"{summary_path}.lock", timeout=1800)
+        with summary_lock:
+            merged_summary = dict(self.summary)
+            if summary_path.exists():
                 try:
-                    with open(metrics_path) as f:
-                        task_data = json.load(f)
-                    agg = task_data.get("aggregate_metrics", {})
-                    if "mean_return" in agg:
-                        all_returns.append(agg["mean_return"])
-                    if "success_rate" in agg:
-                        all_successes.append(agg["success_rate"])
-                    if "mean_length" in agg:
-                        all_lengths.append(agg["mean_length"])
+                    with open(summary_path) as f:
+                        existing = json.load(f)
+                    # Accumulate time
+                    existing_time = existing.get("total_time_seconds", 0)
+                    our_time = merged_summary.get("total_time_seconds", 0)
+                    merged_summary["total_time_seconds"] = existing_time + our_time
                 except (json.JSONDecodeError, OSError):
-                    continue
+                    pass
 
-            if all_returns:
-                merged_summary["mean_return"] = float(np.mean(all_returns))
-                merged_summary["std_return"] = float(np.std(all_returns))
-            if all_successes:
-                merged_summary["success_rate"] = float(np.mean(all_successes))
-            if all_lengths:
-                merged_summary["mean_length"] = float(np.mean(all_lengths))
+            # Recompute summary from all per_task/ dirs on disk
+            per_task_dir = self.output_dir / "per_task"
+            if per_task_dir.exists():
+                all_returns = []
+                all_successes = []
+                all_lengths = []
+                for task_dir in per_task_dir.iterdir():
+                    if not task_dir.is_dir():
+                        continue
+                    metrics_path = task_dir / "metrics.json"
+                    if not metrics_path.exists():
+                        continue
+                    try:
+                        with open(metrics_path) as f:
+                            task_data = json.load(f)
+                        agg = task_data.get("aggregate_metrics", {})
+                        if "mean_return" in agg:
+                            all_returns.append(agg["mean_return"])
+                        if "success_rate" in agg:
+                            all_successes.append(agg["success_rate"])
+                        if "mean_length" in agg:
+                            all_lengths.append(agg["mean_length"])
+                    except (json.JSONDecodeError, OSError):
+                        continue
 
-        with open(summary_path, "w") as f:
-            json.dump(merged_summary, f, indent=2)
+                if all_returns:
+                    merged_summary["mean_return"] = float(np.mean(all_returns))
+                    merged_summary["std_return"] = float(np.std(all_returns))
+                if all_successes:
+                    merged_summary["success_rate"] = float(np.mean(all_successes))
+                if all_lengths:
+                    merged_summary["mean_length"] = float(np.mean(all_lengths))
+
+            _atomic_write_json(summary_path, merged_summary)
 
     @classmethod
     def load(cls, output_dir: str | Path) -> ExperimentResults:

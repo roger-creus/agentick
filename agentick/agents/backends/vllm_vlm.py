@@ -36,6 +36,7 @@ class VLLMVLMBackend(ModelBackend):
         max_model_len: int = 32768,
         tensor_parallel_size: int = 1,
         limit_mm_per_prompt: dict[str, int] | None = None,
+        enforce_eager: bool = False,
     ):
         self.name = f"vllm-vlm/{model_id.split('/')[-1]}"
         self.model_id = model_id
@@ -51,6 +52,7 @@ class VLLMVLMBackend(ModelBackend):
         self.max_model_len = max_model_len
         self.tensor_parallel_size = tensor_parallel_size
         self.limit_mm_per_prompt = limit_mm_per_prompt or {"image": 4}
+        self.enforce_eager = enforce_eager
 
         self._llm = None
         self._sampling_params = None
@@ -87,6 +89,8 @@ class VLLMVLMBackend(ModelBackend):
             f"/tmp/vllm_compile_cache_{os.getpid()}",
         )
         engine_kwargs["compilation_config"] = {"cache_dir": compile_cache}
+        if self.enforce_eager:
+            engine_kwargs["enforce_eager"] = True
 
         self._llm = LLM(**engine_kwargs)
 
