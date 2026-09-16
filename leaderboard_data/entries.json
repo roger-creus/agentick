@@ -28915,7 +28915,1074 @@
           }
         ]
       }
+    },
+    {
+      "agent_name": "Claude Opus 5 (high, 1 seed)",
+      "author": "Agentick",
+      "description": "GitHub CAPI; high reasoning effort; ASCII MarkovianReasoner. Preliminary: first official eval seed for each of 37 games at all four difficulties (148 episodes). Explicit prompt caching.",
+      "agent_type": "llm",
+      "observation_mode": "ascii",
+      "harness": "markovian_reasoner",
+      "model": "claude-opus-5",
+      "open_weights": false,
+      "date": "2026-09-16",
+      "scores": {
+        "agentick_score": 0.628,
+        "agentick_score_ci": [
+          0.5009,
+          0.7343
+        ],
+        "per_category": {
+          "planning": 0.7222,
+          "multi_agent": 0.4,
+          "navigation": 0.7812,
+          "reasoning": 0.7812,
+          "memory": 0.5,
+          "generalization": 0.5833
+        },
+        "per_task": {
+          "BacktrackPuzzle-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "ChaseEvade-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 1
+            }
+          },
+          "CooperativeTransport-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "CuriosityMaze-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "DeceptiveReward-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "DelayedGratification-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "DistributionShift-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "DynamicObstacles-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "EmergentStrategy-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "FewShotAdaptation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": -1.0,
+              "n_episodes": 1
+            }
+          },
+          "FogOfWarExploration-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "GoToGoal-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "GraphColoring-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "Herding-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "InstructionFollowing-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "KeyDoorPuzzle-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "LightsOut-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "MazeNavigation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "NoisyObservation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "PackingPuzzle-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "PreciseNavigation-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "ProgramSynthesis-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "RecipeAssembly-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "RecursiveRooms-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "ResourceManagement-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "RuleInduction-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "SequenceMemory-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "ShortestPath-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "SokobanPush-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "SwitchCircuit-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "SymbolMatching-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "TagHunt-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          },
+          "TaskInterference-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "TileSorting-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "TimingChallenge-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": -0.5,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": -0.5,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": -0.5,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "ToolUse-v0": {
+            "easy": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 1.0,
+              "mean_return": 1.0,
+              "n_episodes": 1
+            }
+          },
+          "TreasureHunt-v0": {
+            "easy": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "medium": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "hard": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            },
+            "expert": {
+              "success_rate": 0.0,
+              "mean_return": 0.0,
+              "n_episodes": 1
+            }
+          }
+        }
+      },
+      "metadata": {
+        "started_at": "2026-09-15T18:31:56.965452+00:00",
+        "provider": "GitHub CAPI",
+        "endpoint": "https://api.enterprise.githubcopilot.com",
+        "model": "claude-opus-5",
+        "reasoning_effort": "high",
+        "n_seeds": 1,
+        "n_episodes": 1,
+        "expected_task_difficulty_pairs": 148,
+        "seed_policy": "first official eval seed per task/difficulty",
+        "harness": "markovian_reasoner",
+        "observation_mode": "ascii",
+        "reward_mode": "sparse",
+        "max_output_tokens": 8192,
+        "environment_horizon": "native task horizon; no artificial step cutoff",
+        "initial_concurrency": 32,
+        "maximum_concurrency": 64,
+        "cache": "explicit system prefix, OpenAI 30m / Anthropic ephemeral 5m",
+        "git_commit": "55b529ea0c1382c1328f8aaa394fe03d8e2fb925",
+        "source_sha256": {
+          "agentick/__init__.py": "1f6a9c964a8f031cab43a8135c3a57bd977a2b810341a128a0e25f2b36b1c3fd",
+          "agentick/coding_api.py": "a443a54efda64347f7af9dfc532339d6982d619ff9dae9c09b7b903fb641cbd4",
+          "agentick/analysis/statistics.py": "e141a6904a9e7601676d15a2ef8cfdb13fe3e48c88611b885fb763a5c566c86e",
+          "agentick/analysis/__init__.py": "999aa8e2c1e4bc585cfc47687d6a4d1cc736f49c04d8f487bbce99a30439e54f",
+          "agentick/analysis/metrics.py": "a2433716dcbce425697446a39ee4cd836b4aeee50da4cc3940c040f341bc06c9",
+          "agentick/oracles/helpers.py": "5dbd0882822b061e7b1e807d9c404c41b3320ea64aa0cbfc48e8e18d0700ca34",
+          "agentick/oracles/generalization_oracles.py": "d32879af273775188b59d9a95a258a1d2fb1fb4586960e348e34e9712154d612",
+          "agentick/oracles/base.py": "51fe36735b108d07c17ceaa5985eb341538a3196d7605c12472ea6a7111d308d",
+          "agentick/oracles/planning_oracles.py": "d9fc4db04fa1e51d9ba9af4f838bcbdeae8cc664d02c006fdbf0d290eb6e07e6",
+          "agentick/oracles/reasoning_oracles.py": "8ec38c7d0f1ce8c91d62960d41f7ad8111931a671e77888714bf860ea42d6a31",
+          "agentick/oracles/memory_oracles.py": "47a7b8fd1b61387f86d8a182b0945280049da5a738c2550d4a76d0b82f3f523a",
+          "agentick/oracles/navigation_oracles.py": "67db978cb106666b702e8d71f1a64fd0fb2bc66b10b8809435adbd45be43bd19",
+          "agentick/oracles/__init__.py": "32b746386980dcf7168e0c8db0820cb2c7e2f137cd33db67a82ee069955e7c5d",
+          "agentick/oracles/registry.py": "2f7b84677cfd4e4479999b5b1dbc8f13e1c3f476a1872bcbe076ceda71b7f071",
+          "agentick/oracles/multi_agent_oracles.py": "659840b9969373cf7bc729ff969bfaf4e39c9a13fe60144596717eb16f12cde8",
+          "agentick/data/formats.py": "ce62a46c337637bd103ff7ee0d0dd2bb5d1bd99eeaf6979e9483ca50a69c8d76",
+          "agentick/data/collector.py": "70197201236072bdc0a6f04dce5c57c884853198cb32fe5400d0920f6811b246",
+          "agentick/data/__init__.py": "f8c9a49e1960af280ca7b601c0715b7cf8da6d624552f4e5a319f4af4dd74fbf",
+          "agentick/data/demonstrations.py": "e2623aca3b58d70b2283122da4e24027f2050c40d93ec0d150815278163e2120",
+          "agentick/tasks/base.py": "9f4917935f61b68302529f3bfb77b61d225469ec1c3503995d7414ba19e23cd9",
+          "agentick/tasks/configs.py": "8c6eb230ab6e2d3fe7362f6f9a4d85e06a521c2c6a9cb7c3a3ba274899b7178a",
+          "agentick/tasks/__init__.py": "4c482887866e995a8f31859560186279db13659d79db79aea1f033995b202802",
+          "agentick/tasks/descriptions.py": "b114a28fe67cfda799716c03ff4fb42803189b6f86311b22844aee9a8b9ed225",
+          "agentick/tasks/registry.py": "30a52e86079f0a89a5efa71e34bb72fc514400f9be2846b425086fb542a26240",
+          "agentick/runtime/vllm_mig_patch.py": "287991de952c7be296e8549e0c40a3d5dcd917e28dc9d3c66f854019da12c5d4",
+          "agentick/runtime/__init__.py": "91268afc21f7f272545a8c9c0f6e17e2230a33eeffa7e5ee41ab291ac275cc58",
+          "agentick/agents/prompt_templates.py": "7949f208cec781aa995ecb713974b5290218a6d192fa6fdb4c11fed401bc6c0b",
+          "agentick/agents/harness.py": "666f1c21c66d13a6d84f06cb6349f49df5c6f3d5c30dd69dbf3a6d614224bad8",
+          "agentick/agents/base.py": "a3706e5634cf61389b9ee33ec2d6cf03d6febb6513d662e2b6ac4d3e5abe3993",
+          "agentick/agents/factory.py": "7ab5ecdc0ce0d27abe224ddf5778aa9d45a455e9cf332c8b90161952a7adeaa0",
+          "agentick/agents/__init__.py": "b8c4ed71b782ae22760c4d627840a3c67ca8a93983efd37f2c0de875c14bdee0",
+          "agentick/agents/observation.py": "ffacd11f2d6c160da320a498ec84d9cf8a8828adf8db615e7221debcee4ca26d",
+          "agentick/logging/experiment_logger.py": "a2e704225bc3a0425001eaf3d3ae47dfdf24240787cf98aeca1095edeeeb8872",
+          "agentick/logging/episode_logger.py": "ef21b27d0ebd6f7abd2317dbc2be477e82fb3bc81e0c15aa256525407c9f5513",
+          "agentick/logging/__init__.py": "2fd06bad643647d14d99d1d2d1fa1ddba128f1f06c97f43921a3b4d0d90eda15",
+          "agentick/generation/maze.py": "900c8478b3d7336a411181bb0f24adc12fc87ee829a1e62b328719279f847874",
+          "agentick/generation/difficulty.py": "82af346901ce3e6917a44e72860bca2a307f7c9f7572f5be0c3748bb0f9cd1b7",
+          "agentick/generation/seed.py": "172b5316c615af34a1ea183e9e072af575e2a0def5e8b6a4f58f847eb9669e4d",
+          "agentick/generation/room.py": "fcd7b38de73f2ad6d5bffcd60e24c8b4eb16ac2647c5159f4ffcc211035d7afb",
+          "agentick/generation/__init__.py": "4f00141bb345651704720c73c98494a224a972833a65234d625c45de0c97da28",
+          "agentick/generation/validation.py": "fec1f558ceedc13ad352fa6aced187d11186c50fa7987c707442fb2b100e8e31",
+          "agentick/wrappers/atari_preprocessing.py": "ed71540eea39ff672a5ce79af21c46d6c98e6b1e33217135e2f8f5be67d486a6",
+          "agentick/wrappers/observation_wrappers.py": "417ca8978cde0adee5585a62c4233d67dfbb02ec35c202675178dfbae59d2192",
+          "agentick/wrappers/recording_wrappers.py": "fcb5cf679f7f6dfc600c63ebb4f1efb93f4d92128b166d315bddce46fd9834b6",
+          "agentick/wrappers/reward_wrappers.py": "4df1d3dc5584a8292c63e0cac4e562989095bca4e285655e867337ff76b92b16",
+          "agentick/wrappers/state_features_wrapper.py": "b0b610b42153466b6dcf9aff6751b34ae4e5b60397af2cc31a1880386511a4b7",
+          "agentick/wrappers/__init__.py": "651262d77813c508882a236bcd7351ef9c743c66f4128c07110576b2f239b97f",
+          "agentick/leaderboard/database.py": "46b44fb2e35b265d090fa9e18c96e8bb9c4d4e332524bbb21c00b60f49157e11",
+          "agentick/leaderboard/seeds.py": "a53a568ddd34d4c001a77d82cfc8017c3075615dfc5c346baac7c5e2d18b0019",
+          "agentick/leaderboard/rankings.py": "ab03598b7b6af5b03a139b3ba559f2d63719d7304df250f0ea79dbb5255ef964",
+          "agentick/leaderboard/cli.py": "7e8ab1d444bc54c28b3ef2b1f7a5b41654c8bc320730d53b8dafecdc5a18b5cc",
+          "agentick/leaderboard/integrity.py": "b23d24c4cee4e3571f225b6d885d7adb99327e95ac682807353e7c51ee69125b",
+          "agentick/leaderboard/result.py": "c4b4a3334043c8f288110e8216d98d678ae591cf8d1f391fde5844728ec9e841",
+          "agentick/leaderboard/scoring.py": "0d4f21d11b5e5d6a08a7e77af913e58b35165f5a607af5b88027071b63d53805",
+          "agentick/leaderboard/__init__.py": "167061e436e4bc2433e0866b74146fabfc0ec6f082bb74ec3b049397fb197f97",
+          "agentick/leaderboard/cost_tracker.py": "83974be69d073c76b2612d9cac442ea1de0fc84851a014c25d7cf6ba68eeaa11",
+          "agentick/leaderboard/suites.py": "3854c731a9369e4e473c9ecf093a3a8b4840374651da88274f68e65c96e94b26",
+          "agentick/leaderboard/baselines.py": "31ae63868bc63a7a2d97a43db97ee0d9ccb47894acd1bb22b8f64c2e97387aa1",
+          "agentick/utils/video.py": "f2b2ee56da2440589dedba1f0cdbe84af44eac01a0a198d504de4e7bbdc306e8",
+          "agentick/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "agentick/visualization/experiment_plots.py": "4dc50e84b29a088e86186929612d5532915b81bc0338770d832e3c3ae2e66a4a",
+          "agentick/visualization/__init__.py": "28766e4276b1d9665cb8aba5ffc4d73df73cdc037db2a24615e44c27c4d9f09f",
+          "agentick/visualization/comparison_plots.py": "c20569bc16715097cdb85ef018b8e4e1df22f91f62436e5f7060770cea89141a",
+          "agentick/visualization/style.py": "3285a43c039e2635e579b409ec12fa8da906e36e9160885d93dc2767980a349c",
+          "agentick/experiments/runner.py": "f1094401cb6040c25d5ed493f9ddf16a5e23af2ae4b656a6531cc034ee48cb63",
+          "agentick/experiments/batched_runner.py": "5d48fe61c1ed4c30778001357e1f84fc7d84bacf74985be1e1b71d8a9ddbc9f6",
+          "agentick/experiments/_video_utils.py": "1d0693f5f351509d7c7c5a270d36ab84c5e36f97f7557d975d573736faf5826c",
+          "agentick/experiments/reproduce.py": "ac3a21e9161086fb701675cf8cc4361755a1264a53b1b2b066a188b19498b791",
+          "agentick/experiments/config.py": "5ab3f05a15091e192da1323bd8575d89982c121e967cfbe08029525c48e643d6",
+          "agentick/experiments/ppo_features.py": "13d5d616975e31e1e8a7bb87bd2d7df5d246e4b0ae12b91844f0207ca71bdd46",
+          "agentick/experiments/run.py": "5b0ee6e6f5351ed58f06e94e536dd14535ed30ba6c6d405d4feeebb6477d3bf2",
+          "agentick/experiments/__init__.py": "0e5b3cae7bc012a69b8c8aa832e463ef03b90cf77dbdc70ae0905e301325c667",
+          "agentick/experiments/training_runner.py": "d485302da28c18e2c76a90541d55df0f14dc85cab68d1b190df27d82909d8580",
+          "agentick/experiments/registry.py": "3f169922dcbd92b58d9a29277f6a888c20d3cc71b64cfafc59b40f53108f9168",
+          "agentick/training/callbacks.py": "c7ca5b1074c46c785dcc93602e8e7f380f999cb65a5d74a5f62ba28425008a55",
+          "agentick/training/evaluate_bc_train_seeds.py": "4cbbe8dc5b8abd7b1e65b388fbaea9b7d8cd44a4c4116790bf05dfc994597845",
+          "agentick/training/logger.py": "50b48dccad9c52e07a79911dab2dc9ac74ad63115c7904cfe91ab3d8fa099fc9",
+          "agentick/training/__init__.py": "9af56322f2fd2223f5514e5af750ac6d7fe004a7014ce1c7ec7ec28133787f7d",
+          "agentick/training/bc_ppo.py": "d0b03dacda161efd968cfa18438e36c783aec61d2194a86c0bb9a911c78a778b",
+          "agentick/core/entity.py": "a05a8c30ca425e00a23f3b10ea2b9cfaaeb2850158bd0a107aae6c1b418e7b73",
+          "agentick/core/actions.py": "9be97503cf7e5f2c450618f1af94a1beb0d9a7701a6be388a8ae404c906eea95",
+          "agentick/core/language.py": "fd6aa3751aea5d41b395ecdb97a436154dd8d1ff9d42ff00dd05b52e724b5d55",
+          "agentick/core/annotations.py": "c45f0c3e3958d338608cecfe945236f6fc19e7028589ac699c5053c10fd61101",
+          "agentick/core/env.py": "0ca967ffaffb56197496d9f2a26b06acf9d7bb25217954ab98443270a31a11fd",
+          "agentick/core/feature_extractor.py": "04d8933abbbdc3e0b651787e5d15386df800cfb06a5ab9c7a79272ee95ce0b15",
+          "agentick/core/types.py": "6dfe24227419d20550728503e84dd89de65bb7612b9edebf40c2cb256fa9f217",
+          "agentick/core/__init__.py": "df183b3ddc32908c6d234bb78fbb29200e13f3e8f10ba9bbbece0aa8842c0633",
+          "agentick/core/renderer.py": "067e62136ade0b7c3c3ea84be73faf5ab869dbd7762689b9b6521965287dd1a9",
+          "agentick/core/grid.py": "0b2ddb6e5a55ae8bf7e38384d6c4f80084740e892366c2739904597120533cd6",
+          "agentick/human/webapp.py": "e35166bbb10e21bc632ab5512d248cac0033f117d16f7ae5e3252cee84b927d8",
+          "agentick/human/recorder.py": "b18c958689a32cbcacb993222b6a6b3659c848f12347ce09c52afbb5e8f6e6e4",
+          "agentick/human/__init__.py": "45f7dcd101e5db91832c87514b369e12a35258b32b133034f78780fd5155790e",
+          "agentick/rendering/iso_math.py": "e70588659b3587e7b56d782948e3e8835614bfb8ec40ebd52ab49d1df526c168",
+          "agentick/rendering/iso_renderer.py": "fe2c2c34e33492b0411d3243d276f67f18d25da14e5eef6de1803997d105c272",
+          "agentick/rendering/tile_atlas.py": "70d54d9f6ff8f2f0041e373db601ff6688f9027693eb237bf92f6d8d49a8202f",
+          "agentick/rendering/__init__.py": "47d058d9725269be694cd6a381dad5707ccf421a3448d7d28c0337ce37d75217",
+          "agentick/tasks/memory/delayed_gratification.py": "2c6efd7e755566851b33873a35e5716fd86b88ef296618f5365232703348f936",
+          "agentick/tasks/memory/fog_of_war.py": "1239343518b6d02ea690c3223adfbb2e89a14f2f7e6ef9b470786377e18a91a6",
+          "agentick/tasks/memory/__init__.py": "de36f9509349153490596fe4050f6476af4527b39001d0a63efe65a84379313d",
+          "agentick/tasks/memory/sequence_memory.py": "22abfde847733d99c3fb8f369196158bf573db635b2f81f16282091f3cca5813",
+          "agentick/tasks/memory/treasure_hunt.py": "22c86d2fddf673895edc67a6bcb4172a4c22e8a4e8fa1099a34326dc0b5462f1",
+          "agentick/tasks/generalization/few_shot_adaptation.py": "5adc3db8d3899fd70fd448d88b97d76f0c80ea28e6319c982a997d4c817978f7",
+          "agentick/tasks/generalization/distribution_shift.py": "19bb1ff2d4ce021fe4ac87e16107a08095d2e0e8008dc098e9c1dc2bd10a64e3",
+          "agentick/tasks/generalization/noisy_observation.py": "d2f1519c3fcf2f10a6a045db11ee2677bebdaf0dda9c0ea0d76a9e6c9c82bb7f",
+          "agentick/tasks/generalization/__init__.py": "d65ecc2f6bf80da6834d3b5be43ce294244f3a7fe0028fc7e6384b9d7ee28c92",
+          "agentick/tasks/planning/recipe_assembly.py": "7a4b120699e0e0c8f122cb00a0e8ca803abfdad6ff95f9d099b580c74400d407",
+          "agentick/tasks/planning/key_door_puzzle.py": "20e8717e67a518cbef1083f4078a611d4a4d1ec35af1e81d8411504c23519e49",
+          "agentick/tasks/planning/tool_use.py": "0fbf5cd6f5a5c16be98fa76504e5a17d9d0e1c23ca7b2be293eeac12ec3f949b",
+          "agentick/tasks/planning/backtrack_puzzle.py": "53acec78023b0a4b926b3792b6bcc30672ecccc0acfb52208aa89bd94162d5f1",
+          "agentick/tasks/planning/resource_management.py": "d450eb34656fa2f49eb19291f2107b01506701bc924c6ec28789799791ed49b8",
+          "agentick/tasks/planning/sokoban_push.py": "23f989f2916a380bfebf98728cc707e5e179c7cf216770fe1cb379807d6857bc",
+          "agentick/tasks/planning/__init__.py": "a1d687d5e65c5fef1a34afab87c9c5f3ce78fe683ea22614eb464572d16ad634",
+          "agentick/tasks/planning/precise_navigation.py": "e5705fdd18cea4288220d1351b89b3a55c06d0331b7a0f2da6a263c0f136327a",
+          "agentick/tasks/planning/packing_puzzle.py": "084186adc86ad49f217337bb07a2dd8b2333e65f9b07629bcf1ce2cd2d16e857",
+          "agentick/tasks/planning/tile_sorting.py": "da09406f956748fab20e66f3b7251478cb3ebdd94bc8dac4ef9b1cd53c08abf3",
+          "agentick/tasks/navigation/maze_navigation.py": "bcdfd629bd199cc51290cf92047dc4143945e09bdbe6bc289294822c39656cd9",
+          "agentick/tasks/navigation/recursive_rooms.py": "75c54f11fe409c11992f10765f124795be3425c233684f9669323e0bdabd564e",
+          "agentick/tasks/navigation/instruction_following.py": "01b972aa889ebeda5d4a0617dad1280d2a28f5122fd6b9e8dc442b7de20d6baf",
+          "agentick/tasks/navigation/dynamic_obstacles.py": "a40f275c2851ec82bce8f2d90ec6bedf136616f19086036b4e84c46ae429cae2",
+          "agentick/tasks/navigation/curiosity_maze.py": "819488ef8e63cef7d782b01a5a8cf8d9277604c6cdd7c830014c117bff2decb4",
+          "agentick/tasks/navigation/multi_goal_route.py": "ae66a8b1e26b49f5f43e75fd1ecb3a6a2a3b0253b74884ff22d96e502efceacf",
+          "agentick/tasks/navigation/__init__.py": "e70440020bafc488f213f05a1cc04dfa0c65f5a1fcb1b021fdedd5a9397dbda1",
+          "agentick/tasks/navigation/timing_challenge.py": "6174c307fbdb39339e1029ae6a34eae1a181a2e7fccf9134db89b29cdd930920",
+          "agentick/tasks/navigation/go_to_goal.py": "1160d6bf772e735b334e2d57b053c948a1e4cae51368b936cc4a8582f84ef8dc",
+          "agentick/tasks/multi_agent/herding.py": "24718f09c869e2868aeaeb6ac92d7cb9a0fa0ad90faecd741d4c1157430eff7a",
+          "agentick/tasks/multi_agent/tag_hunt.py": "5f17fede0a27ae313dd91eaf29aecdf34c345f6c52cc2f2f4d171632ccd03ead",
+          "agentick/tasks/multi_agent/emergent_strategy.py": "f251acecc8609624279c1757d22b481ab7ee66340c7244951ef6f5d886f096c5",
+          "agentick/tasks/multi_agent/chase_evade.py": "20a0353372cfd15d44affaab6cd2083d984aac2d320e06d016182af345cd974b",
+          "agentick/tasks/multi_agent/cooperative_transport.py": "a9f98af7974b2a497532b264a70ea85a3522b14641619dcc8555adf8954ff769",
+          "agentick/tasks/multi_agent/__init__.py": "e92572b6747678f51bf2d0dd3e74d0f011136c218a89003b5b9714cbf3815cdf",
+          "agentick/tasks/reasoning/lights_out.py": "25b4cc3896564a4f423eb0de45d29c681cc1e18e9ebf54a682734d628ceb68cf",
+          "agentick/tasks/reasoning/program_synthesis.py": "efd0117cf6dfc4bc8b0537e881c35a702d96208fa57c93ae52869dd4ea364f00",
+          "agentick/tasks/reasoning/switch_circuit.py": "862faecc9c3dafbe4b11853b5b157d7f6bca72c1adecfcd4df7332e007e57610",
+          "agentick/tasks/reasoning/graph_coloring.py": "de5d07e3e378c7730629454ef74c089527f985b3180353eebe2260db65dc04d4",
+          "agentick/tasks/reasoning/deceptive_reward.py": "39c02b82b3792355867a994cf3aeb9e7d22458c02dd40a7f585288227e103656",
+          "agentick/tasks/reasoning/rule_induction.py": "0e7147c9a02c15e5eff9e9aac999015f4076213363723fd8e8689a1bae0e5d48",
+          "agentick/tasks/reasoning/task_interference.py": "fa588fa2a57f1f936e2d5422fd5cd1265156f5cabbe1f013d5b380ee4d453307",
+          "agentick/tasks/reasoning/__init__.py": "f3d8ff7d04f208796377a223054945b4e34946248d87a89c24da4f0faac0de8d",
+          "agentick/tasks/reasoning/symbol_matching.py": "1db2cab5a2f1851c680c58cf3ce3400c2cad6885e3652a0e0b15e353d9a3641a",
+          "agentick/runtime/vllm_mig_site/sitecustomize.py": "21ddbbe301438b229bf3d326824fc3e935bfd16fded2517a3effb1b009450713",
+          "agentick/agents/backends/capi_backend.py": "4c4f98e97115dc87fed9c577d74569a1191b316ae002b5fbb643c368c3483367",
+          "agentick/agents/backends/gemini_backend.py": "b6b282c7347e883137db89c65818278c9d74b4b3a65697fc4df15dcdf34864c7",
+          "agentick/agents/backends/huggingface_vlm.py": "34d3bd46e8468bdde70edc8a41e1257ffb0eb7d52907774c42b91380eab2e816",
+          "agentick/agents/backends/vllm_vlm.py": "3471f80c1091143ef620fdf7723d7d3bacfdc4178bd0760789c7e70339e43993",
+          "agentick/agents/backends/base.py": "0428fd8af5ea5f94ef1965b6d3041aff1cf278ef18409e142645cb08d8bc9107",
+          "agentick/agents/backends/anthropic_backend.py": "20cc5b2a599d7d32988fa510411c78eae77b15e43f77bd6c8fe80ba5ec529654",
+          "agentick/agents/backends/openai_backend.py": "44b12ad82abfeb2e71727de85bdb9919757cecc11cce3ac0647537349ac80e81",
+          "agentick/agents/backends/__init__.py": "65e0802671d01e4ee0b3de9ea5c4d936cbb9271d3fc242bbad1155540248d0ca",
+          "agentick/agents/backends/vllm_llm.py": "b948caae9d31ffa6e86d855d833bdb4134d810144ccdcb8c4af6e0e4c593a678",
+          "agentick/agents/backends/huggingface_llm.py": "21309b66a7fa9f367c3c2d872035a97302c745820fc2e76f4e67cdf2610940a3",
+          "agentick/agents/backends/_utils.py": "749f4815e185e763c510f1cc246cef415585cc9be4e2889e15f915605531b14d",
+          "agentick/leaderboard/site/generate.py": "03cae0938e5406c7d045bb10d9f970771bb3a0da2c99d2304258641c417c9a20",
+          "scripts/export_ppo_observation_ablation.py": "c29578b9f0844cbe61f73aded7b68819c779e02c7abf22d1f6e1de1a9b4e87c3",
+          "scripts/validate_submission.py": "4a7a2aaf8d018923be0a30029b2a9e8ad271ab4871a1fe24dcd5012b09f8863e",
+          "scripts/export_vlm_rebuttal_results.py": "3340bf8744940b17b1746e64a201ee596e822416867561469aa504db3e64a597",
+          "scripts/compare_sft_vs_baseline.py": "68031b47835e46697c3f83c20825b5839e353716227ec684d8a0ea7045d46e0c",
+          "scripts/make_gallery.py": "9f7a78fdb93fc5dacaf7907feb5c829273b407620ea36e26ca0efe0659de5f9e",
+          "scripts/export_sft_eval_improvement.py": "80b913d1e82c1f4f056bfde189e716403bb677271644d70a86d985985db5f9f8",
+          "scripts/record_oracle_gallery.py": "f9537ff71a3fcd40f1aa338c00b1cf984047e106734583158ffd4c02af597c36",
+          "scripts/generate_paper_figures.py": "7f8632b05d1eaf94e7dc514132cbfc2f9fae5f8c17b724c67b65646fef8f5a0f",
+          "scripts/export_bc_ppo_results.py": "72c52215361f3cdd75d061e47bb05737e26679860cfdccc34593343eee660d24",
+          "scripts/copy_sft_to_anon.py": "68ed24cbb3ba988328dd58ae07655f78fcf6b4b62478adf78c95a5835a58f67e",
+          "scripts/generate_task_descriptions.py": "002d01085be57861a9cc65efc12d062672995274d0726f604eb4d8f90b913a13",
+          "scripts/export_sft_combined_figure.py": "53a5de7daad5e50a8a8a6a05fd9db386790bd6aef93aa5038354efda661d6639",
+          "scripts/run_bc_train_seed_evaluation_local.py": "e1a5bacc95e49c31daffddb5d93fb58adbef1cf52509704da8f08dce96b3b8cc",
+          "scripts/run_capi_benchmark.py": "8dcacc4169a949d9318a6397efee418ec1a9939c17504376ff2ff62f17f1cde5",
+          "scripts/measure_max_sft_seq_len.py": "07de0f4d80bd0d80a3a16019f20e8ed93c8e5a9c58ce766834850df830ab27f9",
+          "scripts/publish_to_leaderboard.py": "585db398ec25a7d268e3588d3796cc605048d33edf5afb466d689bef0dc13beb",
+          "scripts/export_bc_train_seed_evaluation.py": "e54ac721fdb91f163b6b21c8e94a52b31f7162c2fcdbf1e63049732b47368200",
+          "scripts/score_partial_sft.py": "75c1a93bbf16d0019ace2aa0f0d5817f60206cafc7d0a2edcdb7d98ce85f946f",
+          "scripts/publish_results.py": "59b7dbe3858dc61c5cddcf5285d946ebfb8b95b6a0e794dbfcf7cd15b901a568",
+          "scripts/test_all_oracles.py": "0dc26ba7b5c53ef9063f6d8d62a68e4909cfff0903cfacc72dd17022c02d956e",
+          "scripts/export_rebuttal_modality_results.py": "ade273bb940e8d60f504252cc091662b184e4c441779c6d623786aa2d3ffd0ab",
+          "scripts/export_sft_training_curves.py": "b7a48071ba693378c5f7ae31cf38fefcf5176efcd73e59c56cced06f08e24dae",
+          "scripts/export_bc_only_results.py": "b86f891fba84320d6cce1690edf1f38f2b6a48ff05d55a3ede285a25586f2dd3",
+          "scripts/export_ppo_observation_learning_curves.py": "18e1d3b7462730a3e95360937379b1722feaa433ff0fdbf100fc751ffe2747be"
+        },
+        "suite_name": "agentick-full-v2",
+        "preliminary": true,
+        "run_id": "capi_frontier_20260915",
+        "completed_at": "2026-09-16T01:28:39.913311+00:00",
+        "transport_revisions": [
+          {
+            "at": "2026-09-15T18:38:26.954247+00:00",
+            "output_budget_policy": "8192 initially; double on exhaustion up to the provider limit (Opus 64000, GPT 128000); retain high effort and same observation",
+            "reasoner_visible_response_budget": 8192,
+            "backend_sha256": "8fcedd8972cbe3f3ea14adef0c2ae9d97390e29bc5cacabae93987e140aa5222",
+            "runner_sha256": "51412bbb3fa90c94726a28960d13835d3e2bfa28131f3bb78f847eea50d408b9"
+          },
+          {
+            "at": "2026-09-15T18:53:31.685893+00:00",
+            "output_budget_policy": "8192 initially; double on exhaustion up to the provider limit (Opus 64000, GPT 128000); retain high effort and same observation",
+            "reasoner_visible_response_budget": 8192,
+            "backend_sha256": "f9cba3b834552e72c467d6b8a2c535d4103357d11a1fb790596c75227f7326c3",
+            "runner_sha256": "1ad9806b3247d3d8d50eb0ec45dea920c005a5bfc659555f4f5144855f2d6377"
+          },
+          {
+            "at": "2026-09-15T22:04:13.505929+00:00",
+            "output_budget_policy": "8192 initially; double on exhaustion up to the provider limit (Opus 64000, GPT 128000); retain high effort and same observation",
+            "reasoner_visible_response_budget": 8192,
+            "backend_sha256": "a307c802575fc4266058e07a267ae2ca701a8dd4aa27a9b36c1fd768bdd868e4",
+            "runner_sha256": "7fbf07c9eb86708fef64b496289b35f5c50efcc5a390d0d9143617349149f2c4"
+          }
+        ]
+      }
     }
   ],
-  "updated_at": "2026-09-16T00:44:30.486125+00:00"
+  "updated_at": "2026-09-16T01:28:41.644428+00:00"
 }
